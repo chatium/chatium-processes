@@ -13,6 +13,13 @@
 
 ## Контракт
 
+> **Сейчас в аккаунтах Source Git `captureCustomerEvent` падает** на
+> внутреннем `getCustomerEventUrl` с ошибкой «Source build runtime index not
+> found» (замечено 2026-09-25). Пока платформа не починит, пиши события
+> процесса через `writeWorkspaceEvent` с `customer_contacts`
+> (`type: workspaceEvent`) — автоматизации и письма работают так же, нет
+> только карточки клиента в CRM.
+
 1. **Таблица** `<process>/tables/<entity>.table.ts`. Имя уникальное:
    `t_<process>_<entity>_<4 символа>`, например
    `t_webinar_demo_registrations_K7q2`. Таблица живая сразу после push

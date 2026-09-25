@@ -16,7 +16,16 @@
 | `workspaceEvent` | `writeWorkspaceEvent` из `@start/sdk` | `event://account/<process>/<key>` | Событие без клиента (служебное) или браузерное (клик, скролл) — его можно писать прямо во Vue |
 
 В процессе почти все события — `customerEvent`. Путь `<process>` в URL
-подставляется сам: SDK берёт ближайший воркспейс процесса.
+подставляется сам: SDK берёт ближайший воркспейс процесса — модуля, из
+которого идёт вызов. Поэтому из сниппета `chatium exec` событие процесса не
+пишут: зови функцию процесса (например, `tests/smoke.ts`).
+
+> **Сейчас в аккаунтах Source Git `captureCustomerEvent` падает** на
+> внутреннем `getCustomerEventUrl` с ошибкой «Source build runtime index not
+> found» (замечено 2026-09-25). Пока платформа не починит, пиши события
+> процесса через `writeWorkspaceEvent` с `customer_contacts`
+> (`type: workspaceEvent`) — автоматизации и письма работают так же, нет
+> только карточки клиента в CRM.
 
 ## Пример
 
