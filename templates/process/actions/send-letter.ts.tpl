@@ -1,9 +1,13 @@
 // Временный хелпер процесса: письмо из .mailings/storage по пути.
 // Его заменит общее действие Sender. Не переписывай его под конкретное письмо.
-import { findUgcFile } from '@app/ugc'
+//
+// Код аккаунта Source Git не читает файлы в рантайме, поэтому письма берутся
+// из letters.generated.json — его собирает скрипт letters.mjs скилла из
+// .mailings/storage/processes/__PROCESS__/.
 import { sendMessageToContacts } from '@sender/sdk'
-import { getWorkspaceConfig, jsYaml } from '@start/sdk'
+import { getWorkspaceConfig } from '@start/sdk'
 import { TEST_CONTACTS, TEST_ONLY } from '../tests/records'
+import lettersBundle from './letters.generated.json'
 
 const PROCESS_PATH = '__PROCESS__'
 const LETTERS_ROOT = '.mailings/storage/'
@@ -22,33 +26,10 @@ type Letter = {
 }
 
 export type SendLetterResult =
-  | { success: true; result: { store: string; sentTo: number } }
+  | { success: true; result: { letterPath: string; sentTo: number } }
   | { success: false; result: string }
 
-// Опубликованные файлы лежат в cgs, в превью ветки — в db (как у рантайма
-// автоматизаций); source-build — запасной вариант для Source Git.
-function letterStores(ctx: app.Ctx) {
-  return ctx.env.usePreviewMode
-    ? (['db', 'cgs', 'source-build'] as const)
-    : (['cgs', 'db', 'source-build'] as const)
-}
-
-async function readLetter(ctx: app.Ctx, letterPath: string) {
-  for (const store of letterStores(ctx)) {
-    try {
-      const file = await findUgcFile(ctx, store, letterPath)
-      if (file?.source) {
-        return { store, letter: jsYaml.load(file.source) as Letter }
-      }
-    } catch (err) {
-      ctx.account.log('sendLetter: хранилище недоступно', {
-        level: 'warn',
-        json: { store, letterPath, error: String(err) },
-      })
-    }
-  }
-  return null
-}
+const LETTERS = (lettersBundle as { letters: Record<string, Letter> }).letters
 
 function isSameContact(a: Contact, b: Contact) {
   return a.type === b.type && a.value.trim().toLowerCase() === b.value.trim().toLowerCase()
@@ -64,11 +45,10 @@ export async function sendLetter(
     return { success: false, result: `letterPath должен начинаться с ${LETTERS_ROOT}` }
   }
 
-  const found = await readLetter(ctx, letterPath)
-  if (!found) {
-    return { success: false, result: `Письмо не найдено: ${letterPath}` }
+  const letter = LETTERS[letterPath]
+  if (!letter) {
+    return { success: false, result: `Письма нет в letters.generated.json: ${letterPath}` }
   }
-  const { store, letter } = found
 
   const variables: Record<string, string> = {}
   for (const [key, value] of Object.entries(params)) {
@@ -122,11 +102,11 @@ export async function sendLetter(
     originId: `${PROCESS_PATH}:${letterPath.slice(LETTERS_ROOT.length)}`,
   })
 
-  ctx.account.log('sendLetter', { json: { letterPath, store, contacts: allowed.length, res } })
+  ctx.account.log('sendLetter', { json: { letterPath, contacts: allowed.length, res } })
   if (!res.success) {
     return { success: false, result: res.error }
   }
-  return { success: true, result: { store, sentTo: allowed.length } }
+  return { success: true, result: { letterPath, sentTo: allowed.length } }
 }
 
 export const sendLetterAction = app
@@ -147,7 +127,7 @@ export const sendLetterAction = app
     success: s.boolean(),
     result: s.smartUnion([
       s.object({
-        store: s.string().meta({ title: 'Хранилище, из которого прочитано письмо' }),
+        letterPath: s.string().meta({ title: 'Путь письма' }),
         sentTo: s.number().meta({ title: 'Сколько получателей' }),
       }),
       s.string().meta({ title: 'Сообщение об ошибке' }),

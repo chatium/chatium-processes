@@ -78,6 +78,7 @@ node .agents/skills/processes/scripts/context.mjs <process>
 | --- | --- |
 | `node .agents/skills/processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, папка писем |
 | `node .agents/skills/processes/scripts/context.mjs <process>` | Позиция, задачи и нужные карточки кубиков |
+| `node .agents/skills/processes/scripts/letters.mjs <process>` | Собирает письма процесса в `<process>/actions/letters.generated.json` — запускай после каждой правки писем, до коммита |
 | `node .agents/skills/processes/scripts/check.mjs <process>` | Сверка карты с кодом, итог `N/M`; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck` |
 
 Коды выхода `check`: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось

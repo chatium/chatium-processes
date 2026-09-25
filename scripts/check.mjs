@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { buildLettersBundle, bundlePath, serializeBundle } from './lib/letters.mjs'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 
@@ -573,6 +574,20 @@ check('letters', 'Письма шагов отправки и их переме�
   }
 })
 
+check('letters.bundle', 'Письма собраны для рантайма (letters.generated.json)', ({ error }) => {
+  const target = bundlePath(root, slug)
+  const { bundle, errors } = buildLettersBundle(root, lettersRoot)
+  if (errors.length > 0) return // разбор писем проверяет check letters
+  const hasLetters = Object.keys(bundle.letters).length > 0
+  if (!isFile(target)) {
+    if (hasLetters || sendSteps.length > 0) error(`нет ${rel(root, target)} — запусти letters.mjs ${slug}`)
+    return
+  }
+  if (readFileSync(target, 'utf8') !== serializeBundle(bundle)) {
+    error(`${rel(root, target)} устарел: письма менялись после сборки — запусти letters.mjs ${slug}`)
+  }
+})
+
 check('sdk.writes', 'Нет записи файлов через SDK', ({ error }) => {
   const re = new RegExp(`\\b(${FILE_WRITE_APIS.join('|')})\\b`)
   for (const [file, src] of codeSources) {
@@ -589,7 +604,8 @@ check('tests', 'Реестр тестов tests/records.ts', ({ error, warn }) =
     if (!new RegExp(`export const ${name}\\b`).test(src)) error(`нет export const ${name}`)
   }
   const testOnly = /export const TEST_ONLY\s*=\s*true/.test(src)
-  if (testOnly && !/value:\s*['"`][^'"`]+['"`]/.test(src.split('TEST_CONTACTS')[1]?.split('TEST_RECORDS')[0] || '')) {
+  const contactsBlock = /export const TEST_CONTACTS[^=]*=\s*\[([\s\S]*?)\]\s*(?:\n|$)/.exec(src)?.[1] || ''
+  if (testOnly && !/value:\s*['"`][^'"`]+['"`]/.test(contactsBlock)) {
     warn('TEST_ONLY = true, но TEST_CONTACTS пуст — письма не уйдут никому')
   }
   if (!testOnly) warn('TEST_ONLY = false — процесс шлёт реальным людям')

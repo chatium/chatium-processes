@@ -103,6 +103,7 @@ put(`${slug}/process.yaml`, 'process/process.yaml.tpl')
 put(`${slug}/specs/events.yaml`, 'process/events.yaml.tpl')
 put(`${slug}/tests/records.ts`, 'process/records.ts.tpl')
 put(`${slug}/actions/send-letter.ts`, 'process/actions/send-letter.ts.tpl')
+put(`${slug}/actions/letters.generated.json`, 'process/actions/letters.generated.json.tpl')
 put(`${slug}/actions/register.ts`, 'process/actions/register.ts.tpl')
 
 // База знаний
@@ -128,6 +129,7 @@ for (const f of created) console.log(`  + ${f}`)
 for (const f of updated) console.log(`  ~ ${f}`)
 for (const f of skipped) console.log(`  = ${f} (уже есть)`)
 console.log(`Письма серий кладите в .mailings/storage/processes/${slug}/<series>/`)
+console.log(`После правки писем: node .agents/skills/processes/scripts/letters.mjs ${slug}`)
 if (accountId === null) {
   console.log('accountId в process.yaml пуст: узнайте его через chatium exec (return ctx.account.id)')
 }
