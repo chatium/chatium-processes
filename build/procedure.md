@@ -76,7 +76,9 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 
 1. `TEST_ONLY = false` в `tests/records.ts`, коммит.
 2. Merge ветки в `main`, push — публикация.
-3. Включение автоматизаций.
+3. Включение автоматизаций: `enableAutomation` из `@automations/sdk` в
+   `chatium exec`, id — `source-file:<путь конфига>`
+   ([automation.md](../blocks/automation.md#включение)).
 4. `check` на `main` и отчёт: что запущено, ссылки, что за владельцем.
 
 ## 8. Изменения после запуска

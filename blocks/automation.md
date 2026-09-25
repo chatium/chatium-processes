@@ -104,6 +104,20 @@ export const prepareWebinarAction = app
   воркспейс — корень аккаунта.
 - Новое действие добавь в `<process>/actions/register.ts`.
 
+## Включение
+
+- Включает автоматизацию владелец или ты — только после второго «да» на
+  запуске. До этого она лежит выключенной.
+- Id автоматизации в аккаунте Source Git — `source-file:<путь конфига от
+  корня>`, например
+  `source-file:webinar-demo/automations/warmup/warmup.automationConfig.json`.
+  Файлы процесса с id показывает `processFilesFn` из `<process>/tests/ops.ts`.
+- Включение — `enableAutomation(ctx, id)` из `@automations/sdk` в
+  `chatium exec`, выключение — `disableAutomation`. Журнал выполнений —
+  `getAutomationLogs(ctx, { workspacePath: '<process>' })`.
+- Рантайм вызывает функции из опубликованной сборки, поэтому включай
+  автоматизацию только после merge в `main`.
+
 ## Как проверить
 
 - `check`: конфиг разбирается; `eventUrls` ведут на объявленные события с
