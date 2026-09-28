@@ -20,12 +20,6 @@
 которого идёт вызов. Поэтому из сниппета `chatium exec` событие процесса не
 пишут: зови функцию процесса (например, `tests/smoke.ts`).
 
-> **Сейчас в аккаунтах Source Git `captureCustomerEvent` падает** на
-> внутреннем `getCustomerEventUrl` с ошибкой «Source build runtime index not
-> found» (замечено 2026-09-25). Пока платформа не починит, пиши события
-> процесса через `writeWorkspaceEvent` с `customer_contacts`
-> (`type: workspaceEvent`) — автоматизации и письма работают так же, нет
-> только карточки клиента в CRM.
 
 ## Пример
 
