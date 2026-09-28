@@ -133,10 +133,10 @@ export const prepareWebinarAction = app
 
 ## Грабли
 
-- Код аккаунта Source Git не читает файлы в рантайме (`findUgcFile`,
-  `listUgcFiles` и `readWorkspaceFile` не работают). Настройки процесса —
-  через `getWorkspaceConfig`, события — через реестр, письма — через
-  собранный JSON. Импорт `.json` сборка поддерживает.
+- Файлы в рантайме читай через SDK Start: `readWorkspaceFile` и
+  `listWorkspaceFiles` видят воркспейс вызывающего модуля, настройки —
+  `getWorkspaceConfig`. Прямой `findUgcFile` из кода аккаунта Source Git не
+  работает. Письма хранилища — через `readLetterFn` (см. серию сообщений).
 - Конфиги автоматизаций рантайм читает из опубликованных файлов (`cgs`), в
   превью ветки — из `db`. Проверяй действия через `chatium exec` в ветке, а
   автоматизацию целиком — после merge в `main`, на тестовом контакте.

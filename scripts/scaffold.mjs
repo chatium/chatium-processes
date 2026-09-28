@@ -104,7 +104,6 @@ put(`${slug}/specs/events.yaml`, 'process/events.yaml.tpl')
 put(`${slug}/tests/records.ts`, 'process/records.ts.tpl')
 put(`${slug}/tests/ops.ts`, 'process/tests/ops.ts.tpl')
 put(`${slug}/actions/send-letter.ts`, 'process/actions/send-letter.ts.tpl')
-put(`${slug}/actions/letters.generated.json`, 'process/actions/letters.generated.json.tpl')
 put(`${slug}/actions/register.ts`, 'process/actions/register.ts.tpl')
 
 // База знаний
@@ -124,13 +123,14 @@ if (!existsSync(join(root, '.mailings/storage/.workspace.json'))) {
   put('.mailings/storage/.workspace.json', 'mailings/workspace.json.tpl')
   put('.mailings/storage/.dir.json', 'mailings/dir.json.tpl')
 }
+// Читатель писем — один на аккаунт, лежит в воркспейсе хранилища
+put('.mailings/storage/read-letter.ts', 'mailings/read-letter.ts.tpl')
 
 console.log(`${dryRun ? '[dry-run] ' : ''}Каркас процесса ${slug} в ${root}`)
 for (const f of created) console.log(`  + ${f}`)
 for (const f of updated) console.log(`  ~ ${f}`)
 for (const f of skipped) console.log(`  = ${f} (уже есть)`)
 console.log(`Письма серий кладите в .mailings/storage/processes/${slug}/<series>/`)
-console.log(`После правки писем: node .agents/skills/processes/scripts/letters.mjs ${slug}`)
 if (accountId === null) {
   console.log('accountId в process.yaml пуст: узнайте его через chatium exec (return ctx.account.id)')
 }

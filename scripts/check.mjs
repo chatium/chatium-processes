@@ -8,7 +8,6 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { buildLettersBundle, bundlePath, serializeBundle } from './lib/letters.mjs'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 
@@ -574,17 +573,12 @@ check('letters', 'Письма шагов отправки и их переме�
   }
 })
 
-check('letters.bundle', 'Письма собраны для рантайма (letters.generated.json)', ({ error }) => {
-  const target = bundlePath(root, slug)
-  const { bundle, errors } = buildLettersBundle(root, lettersRoot)
-  if (errors.length > 0) return // разбор писем проверяет check letters
-  const hasLetters = Object.keys(bundle.letters).length > 0
-  if (!isFile(target)) {
-    if (hasLetters || sendSteps.length > 0) error(`нет ${rel(root, target)} — запусти letters.mjs ${slug}`)
-    return
-  }
-  if (readFileSync(target, 'utf8') !== serializeBundle(bundle)) {
-    error(`${rel(root, target)} устарел: письма менялись после сборки — запусти letters.mjs ${slug}`)
+check('letters.reader', 'Читатель писем в хранилище (.mailings/storage/read-letter.ts)', ({ error }) => {
+  if (sendSteps.length === 0) return
+  const reader = join(root, '.mailings', 'storage', 'read-letter.ts')
+  if (!isFile(reader)) return error('нет .mailings/storage/read-letter.ts — хелпер отправки не сможет прочитать письмо; создай его через scaffold')
+  if (!/app\s*\.function\(\s*['"`]\/read-letter['"`]/.test(readFileSync(reader, 'utf8'))) {
+    error(".mailings/storage/read-letter.ts не объявляет app.function('/read-letter')")
   }
 })
 

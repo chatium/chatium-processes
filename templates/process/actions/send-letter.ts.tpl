@@ -1,13 +1,12 @@
 // Временный хелпер процесса: письмо из .mailings/storage по пути.
 // Его заменит общее действие Sender. Не переписывай его под конкретное письмо.
 //
-// Код аккаунта Source Git не читает файлы в рантайме, поэтому письма берутся
-// из letters.generated.json — его собирает скрипт letters.mjs скилла из
-// .mailings/storage/processes/__PROCESS__/.
+// Письмо читает readLetterFn из воркспейса хранилища: readWorkspaceFile видит
+// только воркспейс вызывающего модуля, поэтому читатель живёт рядом с письмами.
 import { sendMessageToContacts } from '@sender/sdk'
-import { getWorkspaceConfig } from '@start/sdk'
+import { getWorkspaceConfig, jsYaml } from '@start/sdk'
+import { readLetterFn } from '../../.mailings/storage/read-letter'
 import { TEST_CONTACTS, TEST_ONLY } from '../tests/records'
-import lettersBundle from './letters.generated.json'
 
 const PROCESS_PATH = '__PROCESS__'
 const LETTERS_ROOT = '.mailings/storage/'
@@ -29,7 +28,6 @@ export type SendLetterResult =
   | { success: true; result: { letterPath: string; sentTo: number } }
   | { success: false; result: string }
 
-const LETTERS = (lettersBundle as { letters: Record<string, Letter> }).letters
 
 function isSameContact(a: Contact, b: Contact) {
   return a.type === b.type && a.value.trim().toLowerCase() === b.value.trim().toLowerCase()
@@ -45,10 +43,11 @@ export async function sendLetter(
     return { success: false, result: `letterPath должен начинаться с ${LETTERS_ROOT}` }
   }
 
-  const letter = LETTERS[letterPath]
-  if (!letter) {
-    return { success: false, result: `Письма нет в letters.generated.json: ${letterPath}` }
+  const read = await readLetterFn.run(ctx, { path: letterPath.slice(LETTERS_ROOT.length) })
+  if (!read.found) {
+    return { success: false, result: `${read.error}: ${letterPath}` }
   }
+  const letter = jsYaml.load(read.source) as Letter
 
   const variables: Record<string, string> = {}
   for (const [key, value] of Object.entries(params)) {

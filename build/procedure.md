@@ -34,8 +34,7 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 Для каждой задачи `PLAN.md`:
 
 1. `context` — прочитай карточки кубиков задачи.
-2. Напиши код и письма по карточкам. Правил письма — `letters.mjs
-   <process>`: рантайм читает письма из собранного JSON.
+2. Напиши код и письма по карточкам.
 3. `git add` + `git commit`, `chatium typecheck` — ноль ошибок.
 4. `git push -u origin process/<process>` — ветка собирается, `main` не
    трогается.
