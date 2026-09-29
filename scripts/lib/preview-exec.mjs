@@ -5,7 +5,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { dirname, delimiter, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export async function previewExec({ branch, commit, code, startBranch }) {
+export async function previewExec({ branch, commit, code, startBranch, repositoryUrl }) {
   if (!/^[a-zA-Z0-9._/-]{1,200}$/.test(startBranch)) throw Error('Invalid Start preview branch')
   const cli = (process.env.PATH || '').split(delimiter).map(p => join(p, 'chatium')).find(existsSync)
   if (!cli) throw Error('chatium CLI is not installed')
@@ -14,7 +14,7 @@ export async function previewExec({ branch, commit, code, startBranch }) {
   if (!existsSync(sessionModule) || !existsSync(accountModule)) throw Error('This CLI does not support the preview adapter; use --no-snapshot until the Start SDK is released')
   const { accountOrigin } = await import(pathToFileURL(accountModule).href)
   const { accessSession } = await import(pathToFileURL(sessionModule).href)
-  const origin = await accountOrigin()
+  const origin = await accountOrigin(repositoryUrl)
   const signal = AbortSignal.timeout(30_000)
   const session = await accessSession(origin, signal, 'code:execute')
   const response = await fetch(new URL('/s/ugc/exec', origin), {

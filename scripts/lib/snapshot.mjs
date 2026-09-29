@@ -92,7 +92,7 @@ export async function publishSnapshot(root, snapshot, startBranch) {
     // The scoped preview must be on the execution HTTP request, not a cloned ctx.
     // @start/sdk imports are resolved from the published SDK until the release.
     const code = `import { runAppFunction } from '@app/app'\nreturn await runAppFunction(ctx, 'start', 'process-map/api/snapshots~write', { snapshot: ${payload} })`
-    const saved = await previewExec({ branch: snapshot.branch, commit: snapshot.commit, code, startBranch })
+    const saved = await previewExec({ branch: snapshot.branch, commit: snapshot.commit, code, startBranch, repositoryUrl: git(root, ['remote', 'get-url', 'origin']) })
     if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
     return { saved: true, revision: saved.revision }
   }
