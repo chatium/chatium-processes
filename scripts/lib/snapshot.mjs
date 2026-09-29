@@ -1,4 +1,5 @@
 // Snapshot producer. All paths are account-relative; publication is a separate step.
+import { previewExec } from './preview-exec.mjs'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
@@ -80,18 +81,22 @@ export function prepareSnapshot({ root, slug, map, checks }) {
   if (!branch) throw Error('Snapshot requires a branch checkout')
   return buildSnapshot({ root, slug, map, checks, branch, commit })
 }
-export function publishSnapshot(root, snapshot, startBranch) {
+export async function publishSnapshot(root, snapshot, startBranch) {
   // Do not label uncommitted files or another deployed revision with this SHA.
   if (git(root, ['status', '--porcelain', '--untracked-files=normal'])) throw Error('Snapshot not saved: commit and push the working tree first')
   const remote = git(root, ['ls-remote', 'origin', `refs/heads/${snapshot.branch}`]).split(/\s/)[0]
   if (remote !== snapshot.commit) throw Error('Snapshot not saved: push this exact commit to the process branch first')
   const payload = JSON.stringify(snapshot)
   if (payload.length > 250_000) throw Error('Snapshot exceeds 250 KB')
-  // Before the foundation is released, opt into the published Start branch.
-  // This is the same scoped selector as the browser preview cookie; auth is preserved.
-  const snippet = startBranch
-    ? `import { runAppFunction } from '@app/app'\nreturn await runAppFunction({ ...ctx, env: { ...ctx.env, useScopedPreviewMode: { ...ctx.env.useScopedPreviewMode, app_start: { sourceGitVersionSpec: ${JSON.stringify(startBranch)} } } } }, 'start', 'process-map/api/snapshots~write', { snapshot: ${payload} })`
-    : `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`
+  if (startBranch) {
+    // The scoped preview must be on the execution HTTP request, not a cloned ctx.
+    // @start/sdk imports are resolved from the published SDK until the release.
+    const code = `import { runAppFunction } from '@app/app'\nreturn await runAppFunction(ctx, 'start', 'process-map/api/snapshots~write', { snapshot: ${payload} })`
+    const saved = await previewExec({ branch: snapshot.branch, commit: snapshot.commit, code, startBranch })
+    if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
+    return { saved: true, revision: saved.revision }
+  }
+  const snippet = `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`
   const r = spawnSync('chatium', ['exec'], { cwd: root, input: snippet, encoding: 'utf8', timeout: 45_000, maxBuffer: 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Snapshot not saved: ${r.error?.message || r.stderr.trim()}`)
   const saved = JSON.parse(r.stdout)

@@ -89,6 +89,9 @@ node .agents/skills/processes/scripts/context.mjs <process>
 
 До выпуска основы Start используйте опубликованную ветку плагина:
 `PROCESSES_START_BRANCH=agent/process-snapshot node .agents/skills/processes/scripts/check.mjs <process>`.
+CLI 3.x не передаёт cookie в `exec`: для этой переменной скрипт использует
+тот же `/s/ugc/exec` и сессию CLI с scoped preview cookie. Это временный
+адаптер до выпуска SDK; credentials не сохраняются в скилле.
 Для просмотра A/B cookie `__chtmPreviewMode__=app_start:agent/process-view-a`
 или `app_start:agent/process-view-b`. Карта:
 `/app/start/process-map?process=<process>&branch=<ветка процесса>`.

@@ -669,7 +669,7 @@ try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
     const snapshot = prepareSnapshot({ root, slug, map, checks })
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
-    if (!options['no-snapshot']) snapshotResult = publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
+    if (!options['no-snapshot']) snapshotResult = await publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
   }
 } catch (e) {
   snapshotResult = { saved: false, error: e.message }
