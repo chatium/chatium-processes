@@ -79,10 +79,23 @@ node .agents/skills/processes/scripts/context.mjs <process>
 | --- | --- |
 | `node .agents/skills/processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, папка писем |
 | `node .agents/skills/processes/scripts/context.mjs <process>` | Позиция, задачи и нужные карточки кубиков |
-| `node .agents/skills/processes/scripts/check.mjs <process>` | Сверка карты с кодом, итог `N/M`; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck` |
+| `node .agents/skills/processes/scripts/check.mjs <process>` | Сверка карты с кодом, итог `N/M`; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck`; после проверки записывает снимок карты в Start через `chatium exec` |
+
+Снимок пишется и при красных проверках, если карта корректна. Перед записью
+нужны чистое дерево и push текущего коммита в ветку; скрипт сам не коммитит
+и не пушит. `--no-snapshot` — локальная проверка без записи;
+`--snapshot-file /tmp/process-snapshot.json` — сохранить payload для разбора.
+Ошибка записи не скрывается: экран сохраняет предыдущий снимок.
+
+До выпуска основы Start используйте опубликованную ветку плагина:
+`PROCESSES_START_BRANCH=agent/process-snapshot node .agents/skills/processes/scripts/check.mjs <process>`.
+Для просмотра A/B cookie `__chtmPreviewMode__=app_start:agent/process-view-a`
+или `app_start:agent/process-view-b`. Карта:
+`/app/start/process-map?process=<process>&branch=<ветка процесса>`.
+Откройте этот адрес в панели «Превью» Chatium Code и дайте ссылку при согласовании.
 
 Коды выхода `check`: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось
-запустить (нет процесса, нет `yaml`, битый файл).
+запустить или записать снимок. При красных проверках код 1, даже если запись тоже не удалась.
 
 ## Жёсткие правила
 

@@ -38,7 +38,8 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 3. `git add` + `git commit`, `chatium typecheck` — ноль ошибок.
 4. `git push -u origin process/<process>` — ветка собирается, `main` не
    трогается.
-5. `check` — задача зелёная в своей части.
+5. `check` — задача зелёная в своей части; снимок записан в Start. Для
+   проверки до push используйте `--no-snapshot`, после push повторите без него.
 6. Smoke по карточке: страница — в браузере по адресу ветки
    (`?__chtmPreviewMode__=account:process/<process>`); форма и письмо —
    через `chatium exec` на тестовом контакте. `chatium exec` работает на

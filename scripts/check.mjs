@@ -2,9 +2,11 @@
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--root DIR]
+//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot] [--snapshot-file FILE] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
+import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
+import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -42,10 +44,10 @@ const FILE_WRITE_APIS = [
 ]
 const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json$/, /\.automationConfig\.json$/]
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help'])
+const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot] [--snapshot-file FILE] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 try {
@@ -660,6 +662,19 @@ if (options.typecheck) {
   })
 }
 
+// Snapshot failure is separate from validation. Never print a successful refresh
+// after a failed write; offline checks remain explicitly available.
+let snapshotResult = { saved: false, skipped: Boolean(options['no-snapshot']) }
+try {
+  if (!options['no-snapshot'] || options['snapshot-file']) {
+    const snapshot = prepareSnapshot({ root, slug, map, checks })
+    if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
+    if (!options['no-snapshot']) snapshotResult = publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
+  }
+} catch (e) {
+  snapshotResult = { saved: false, error: e.message }
+}
+
 // ---------- вывод ----------
 
 const passed = checks.filter(c => c.ok).length
@@ -667,7 +682,7 @@ const total = checks.length
 const warnCount = checks.reduce((s, c) => s + c.warnings.length, 0)
 
 if (options.json) {
-  console.log(JSON.stringify({ process: slug, root, passed, total, checks }, null, 2))
+  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotResult }, null, 2))
 } else {
   console.log(`check ${slug}`)
   for (const c of checks) {
@@ -678,4 +693,5 @@ if (options.json) {
   console.log('')
   console.log(`Итог: ${passed}/${total} проверок зелёные${warnCount ? `, предупреждений: ${warnCount}` : ''}.`)
 }
-process.exit(passed === total ? 0 : 1)
+if (!options.json) console.log(snapshotResult.saved ? `Снимок сохранён, ревизия ${snapshotResult.revision}.` : snapshotResult.error || 'Снимок не записывался (--no-snapshot).')
+process.exit(passed !== total ? 1 : snapshotResult.error ? 2 : 0)
