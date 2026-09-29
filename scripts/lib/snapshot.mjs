@@ -27,6 +27,21 @@ function delayText(delay) {
   }
   return 'До даты, заданной условием процесса'
 }
+// A shared automation may send several series. Keep the timing/conditions
+// leading to this destination, but do not attribute other series to the link.
+function stepsForSeries(steps, source) {
+  if (!source) return steps
+  const prefix = source.replace(/\/$/, '') + '/'
+  const belongs = step => typeof step?.params?.letterPath === 'string' && step.params.letterPath.startsWith(prefix)
+  const contains = step => belongs(step) || (step?.thenBranch?.steps || []).some(contains) || (step?.elseBranch?.steps || []).some(contains)
+  const last = steps.findLastIndex(contains)
+  if (last < 0) return []
+  return steps.slice(0, last + 1).flatMap(step => {
+    if (step.type === 'action' && typeof step.params?.letterPath === 'string' && !belongs(step)) return []
+    if (step.type === 'condition' || step.type === 'draft') return [{ ...step, thenBranch: { steps: stepsForSeries(step.thenBranch?.steps || [], source) }, elseBranch: { steps: stepsForSeries(step.elseBranch?.steps || [], source) } }]
+    return [step]
+  })
+}
 function walkSteps(steps, prefix = '', out = []) {
   for (const step of Array.isArray(steps) ? steps : []) {
     if (out.length >= 100) throw Error('Too many automation steps for snapshot')
@@ -69,7 +84,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
       const dir = safePath(root, link.via)
       for (const file of walk(dir).filter(f => f.endsWith('.automationConfig.json')).sort()) {
         safePath(root, rel(root, file))
-        try { walkSteps(JSON.parse(readFileSync(file, 'utf8')).steps, '', steps) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
+        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
       }
     }
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via } : {}), steps }
