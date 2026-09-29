@@ -7,37 +7,40 @@
 
 ## Пример
 
+Каркас процесса «страница с формой → серия писем». `<…>` — заглушки:
+подставь своё. Этапы и узлы у каждого процесса свои.
+
 ```yaml
-title: Регистрация на вебинар
-knowledge: .knowledge-base/processes/webinar-demo/
-letters: .mailings/storage/processes/webinar-demo/
+title: <Название процесса для человека>
+knowledge: .knowledge-base/processes/<process>/
+letters: .mailings/storage/processes/<process>/
 accountId: 12345
-stages: [Регистрация, Прогрев]
+stages: [Заявка, Касания]
 nodes:
-  - id: reg-page
-    stage: Регистрация
+  - id: form-page
+    stage: Заявка
     kind: page
-    title: Страница регистрации
-    purpose: Собирает заявки на бесплатный вебинар
-    source: webinar-demo/landing/
-  - id: registrations
-    stage: Регистрация
+    title: Страница с формой
+    purpose: <Что клиент делает на странице и зачем это бизнесу>
+    source: <process>/<page>/
+  - id: requests
+    stage: Заявка
     kind: table
     title: Заявки
     purpose: Хранит заявки с формы
-    source: webinar-demo/tables/registrations.table.ts
-  - id: warmup
-    stage: Прогрев
+    source: <process>/tables/<entity>.table.ts
+  - id: followup
+    stage: Касания
     kind: series
-    title: Прогрев, 1 письмо
-    purpose: Подтверждает регистрацию и напоминает об эфире
-    source: .mailings/storage/processes/webinar-demo/warmup/
+    title: <Название серии, N писем>
+    purpose: <Что серия даёт клиенту>
+    source: .mailings/storage/processes/<process>/<series>/
 links:
-  - from: reg-page
-    to: warmup
-    when: сразу после регистрации
-    signal: event:registration_created
-    via: webinar-demo/automations/warmup/
+  - from: form-page
+    to: followup
+    when: сразу после заявки
+    signal: event:<key>
+    via: <process>/automations/<automation>/
 ```
 
 ## Поля
@@ -59,7 +62,7 @@ links:
 | `id` | Уникальный слаг узла латиницей |
 | `stage` | Один из `stages` |
 | `kind` | Вид кубика: `page`, `table`, `series`, `payment`, `crm`, `external` |
-| `title` | Название для человека: «Прогрев, 4 письма», а не `warmup` |
+| `title` | Название для человека: «Напоминания, 3 письма», а не `reminders` |
 | `purpose` | Зачем узел бизнесу, одной фразой |
 | `source` | Путь от корня аккаунта: папка или файл, где это построено |
 
@@ -75,7 +78,7 @@ links:
 ## Правила
 
 - Автоматизация — не узел, а стрелка с `via`: для бизнеса это «после
-  регистрации → письма».
+  заявки → письма».
 - Серия писем — один узел; письма раскрываются из папки `source`.
 - Таблица — узел вида `table`; на экране она станет счётчиком «Заявки: 124».
 - Подписи человеческие, без `delay: 86400` и имён файлов.

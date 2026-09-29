@@ -4,7 +4,7 @@
 получает по ходу процесса: подтверждение, прогрев, напоминания, дожим.
 
 **Когда брать.** Клиенту нужно что-то сказать после события или по времени.
-Одна серия — одна цель («прогрев перед эфиром»).
+Одна серия — одна цель («довести до оплаты заказа»).
 
 Как Sender отправляет и подбирает каналы — `chatium-development`,
 `references/sender/messaging.md`.
@@ -36,20 +36,22 @@
 | `email` | По желанию: адрес получателя. Без него — контакты клиента из события |
 | `var_<name>` | Значение переменной `{{name}}` письма |
 
+Пример — подтверждение заказа в интернет-магазине (процесс `shop-orders`):
+
 ```json
 {
   "type": "action",
-  "id": "send_welcome",
-  "actionName": "Письмо «Вы зарегистрированы»",
+  "id": "send_confirmation",
+  "actionName": "Письмо «Заказ принят»",
   "actionRoute": {
     "routeType": "function",
-    "routeJson": [12345, "webinar-demo/actions/send-letter", "/send-letter"]
+    "routeJson": [12345, "shop-orders/actions/send-letter", "/send-letter"]
   },
   "params": {
-    "letterPath": ".mailings/storage/processes/webinar-demo/warmup/01-welcome.message.yaml",
+    "letterPath": ".mailings/storage/processes/shop-orders/order/01-confirmation.message.yaml",
     "var_name": { "$ref": "event.name" },
-    "var_webinar_date": { "$ref": "steps.prepare.webinarDate" },
-    "var_webinar_url": { "$ref": "steps.prepare.webinarUrl" }
+    "var_order_total": { "$ref": "steps.prepare.orderTotal" },
+    "var_payment_url": { "$ref": "steps.prepare.paymentUrl" }
   }
 }
 ```
@@ -58,7 +60,7 @@
 
 - **Из события** — `$ref: event.<поле>`, поле объявлено в `payloadMapping`.
 - **Из шага подготовки** — `$ref: steps.<id>.<поле>`: действие процесса
-  считает значения (ссылка на эфир, платёжная ссылка, дата из настроек) и
+  считает значения (платёжная ссылка, адрес, дата из настроек) и
   возвращает их в `result`, ничего не отправляя. Одно действие подготовки
   обслуживает несколько писем.
 - **Константа** — строка прямо в параметре или `$template`:

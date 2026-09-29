@@ -16,32 +16,36 @@
 
 ## Поля
 
-```yaml
-title: Вы зарегистрированы
-description: Подтверждает регистрацию и даёт ссылку на эфир
-order: 1
-subject: "{{name}}, вы зарегистрированы на вебинар"
-preheader: Ссылка на эфир внутри
-plain: |+
-  <b>{{name}}</b>, вы зарегистрированы!
+В примере `[…]` — заглушки: подставь своё. Переменные `details` и
+`action_url` условные — называй их по смыслу письма (`visit_time`,
+`payment_url`).
 
-  Эфир пройдёт {{webinar_date}}. Ссылка: {{webinar_url}}
+```yaml
+title: "[Название для редактора]"
+description: "[Зачем письмо, одной фразой]"
+order: 1
+subject: "{{name}}, [тема одной строкой]"
+preheader: "[Строка-подсказка после темы]"
+plain: |+
+  <b>{{name}}</b>, [главная мысль письма].
+
+  [Подробности]: {{details}}. [Призыв к действию]: {{action_url}}
 html: |
   <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif">
-    <p><b>{{name}}</b>, вы зарегистрированы!</p>
-    <p>Эфир пройдёт {{webinar_date}}.</p>
-    <p><a href="{{webinar_url}}">Перейти к эфиру</a></p>
+    <p><b>{{name}}</b>, [главная мысль письма].</p>
+    <p>[Подробности]: {{details}}.</p>
+    <p><a href="{{action_url}}">[Текст кнопки]</a></p>
   </div>
 variables:
   - name: name
-    description: Имя получателя из заявки
+    description: Имя получателя
     required: true
     example: Анна
-  - name: webinar_date
-    description: Дата и время эфира
+  - name: details
+    description: "[Что подставляется: дата, адрес, состав заказа]"
     required: true
-  - name: webinar_url
-    description: Ссылка на комнату эфира
+  - name: action_url
+    description: "[Куда ведёт главное действие]"
     required: true
 ```
 

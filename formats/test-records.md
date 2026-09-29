@@ -20,7 +20,7 @@ export const TEST_CONTACTS: { type: string; value: string; note?: string }[] = [
 
 /** Тестовые записи: имя таблицы → id строк. */
 export const TEST_RECORDS: Record<string, string[]> = {
-  t_webinar_demo_registrations_K7q2: ['id-из-exec'],
+  't_<process>_<entity>_K7q2': ['<id записи из exec>'],
 }
 ```
 

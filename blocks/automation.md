@@ -1,7 +1,7 @@
 # Кубик: автоматизация
 
-**Для бизнеса.** «Когда случилось X — сделай Y»: после регистрации
-отправить письмо, через день напомнить, если не оплатил — дожать. На карте
+**Для бизнеса.** «Когда случилось X — сделай Y»: после заявки
+отправить подтверждение, через день напомнить, если не оплатил — дожать. На карте
 это стрелка, а не узел.
 
 **Когда брать.** Реакция на событие процесса, цепочка касаний по времени.
@@ -25,23 +25,25 @@
 
 ## Конфиг
 
+Пример — напоминания о консультации (процесс `consult-booking`):
+
 ```json
 {
-  "title": "Прогрев после регистрации",
-  "description": "Подтверждение регистрации и напоминание",
-  "eventUrls": ["event://crm/customer/event/webinar-demo/registration_created"],
+  "title": "Напоминания о консультации",
+  "description": "Подтверждение заявки и напоминание накануне",
+  "eventUrls": ["event://crm/customer/event/consult-booking/consultation_requested"],
   "defaultTimezone": "Europe/Moscow",
   "settings": { "continueOnError": true },
   "steps": [
     {
       "type": "action",
       "id": "prepare",
-      "actionName": "Данные вебинара",
+      "actionName": "Данные консультации",
       "actionRoute": {
         "routeType": "function",
-        "routeJson": [12345, "webinar-demo/automations/warmup/actions/prepare-webinar", "/prepare-webinar"]
+        "routeJson": [12345, "consult-booking/automations/reminders/actions/prepare-consultation", "/prepare-consultation"]
       },
-      "params": { "registrationId": { "$ref": "event.registrationId" } }
+      "params": { "requestId": { "$ref": "event.requestId" } }
     },
     { "type": "delay", "id": "wait_1d", "delay": { "type": "delay", "amount": 1, "units": "days" } },
     { "type": "action", "id": "send_reminder", "...": "шаг отправки, см. message-series.md" }
@@ -58,7 +60,7 @@
 
 **Ссылка на функцию** — `routeJson: [<accountId>, "<модуль>", "<путь>"]`:
 числовой id аккаунта из `process.yaml`, путь модуля от корня аккаунта без
-`.ts`, путь — как в `app.function('/prepare-webinar')`.
+`.ts`, путь — как в `app.function('/prepare-consultation')`.
 
 **Значения параметров:** строка или число как есть;
 `{ "$ref": "event.<поле>" }` — поле из `payloadMapping` события;
@@ -72,24 +74,24 @@
 Ничего не отправляет, только возвращает значения в `result`:
 
 ```ts
-export const prepareWebinarAction = app
-  .function('/prepare-webinar')
-  .meta({ name: 'prepareWebinar', description: 'Дата и ссылка эфира', hrTitle: 'Данные вебинара', icon: '🗓️', category: 'data' })
+export const prepareConsultationAction = app
+  .function('/prepare-consultation')
+  .meta({ name: 'prepareConsultation', description: 'Ссылка на встречу и имя специалиста', hrTitle: 'Данные консультации', icon: '🗓️', category: 'data' })
   .body(s => ({
     context: s.unknown().optional(),
-    params: s.object({ registrationId: s.string().optional().meta({ title: 'ID заявки' }) }),
+    params: s.object({ requestId: s.string().optional().meta({ title: 'ID заявки' }) }),
   }))
   .result(s => ({
     success: s.boolean(),
     result: s.smartUnion([
-      s.object({ webinarDate: s.string().meta({ title: 'Дата эфира' }), webinarUrl: s.string().meta({ title: 'Ссылка' }) }),
+      s.object({ meetingUrl: s.string().meta({ title: 'Ссылка на встречу' }), expertName: s.string().meta({ title: 'Специалист' }) }),
       s.string().meta({ title: 'Сообщение об ошибке' }),
     ]).optional(),
   }))
   .handle(async ctx => {
     try {
-      const config = await getWorkspaceConfig(ctx, 'webinar-demo')
-      return { success: true, result: { webinarDate: config.variables?.webinar_date?.value ?? '', webinarUrl: config.variables?.webinar_url?.value ?? '' } }
+      const config = await getWorkspaceConfig(ctx, 'consult-booking')
+      return { success: true, result: { meetingUrl: config.variables?.meeting_url?.value ?? '', expertName: config.variables?.expert_name?.value ?? '' } }
     } catch (err) {
       return { success: false, result: String(err) }
     }
@@ -103,6 +105,8 @@ export const prepareWebinarAction = app
 - `getWorkspaceConfig` вызывай с путём процесса: из `chatium exec` ближайший
   воркспейс — корень аккаунта.
 - Новое действие добавь в `<process>/actions/register.ts`.
+- Что ещё обычно готовит такой шаг: ссылку на оплату и сумму заказа, адрес
+  и время визита, промокод и срок акции.
 
 ## Включение
 
@@ -110,7 +114,7 @@ export const prepareWebinarAction = app
   запуске. До этого она лежит выключенной.
 - Id автоматизации в аккаунте Source Git — `source-file:<путь конфига от
   корня>`, например
-  `source-file:webinar-demo/automations/warmup/warmup.automationConfig.json`.
+  `source-file:consult-booking/automations/reminders/reminders.automationConfig.json`.
   Файлы процесса с id показывает `processFilesFn` из `<process>/tests/ops.ts`.
 - Включение — `enableAutomation(ctx, id)` из `@automations/sdk` в
   `chatium exec`, выключение — `disableAutomation`. Журнал выполнений —

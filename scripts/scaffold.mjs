@@ -17,7 +17,7 @@ if (options.help || !slug) {
   process.exit(options.help ? 0 : 2)
 }
 if (!isProcessSlug(slug)) {
-  console.error(`Слаг процесса «${slug}» должен быть латиницей в kebab-case, например webinar-demo`)
+  console.error(`Слаг процесса «${slug}» должен быть латиницей в kebab-case, например trial-class`)
   process.exit(2)
 }
 const accountId = options['account-id'] ? Number(options['account-id']) : null

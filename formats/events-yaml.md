@@ -1,7 +1,7 @@
 # Реестр событий: `<process>/specs/events.yaml`
 
-Событие — сигнал «с клиентом что-то произошло»: заявка, оплата, запись на
-эфир. Его пишет код процесса, а слушают автоматизации и аналитика. Реестр
+Событие — сигнал «с клиентом что-то произошло»: заявка, запись, заказ,
+оплата. Его пишет код процесса, а слушают автоматизации и аналитика. Реестр
 нужен рантайму: поля `event.*` автоматизация берёт из `payloadMapping`
 объявления события.
 
@@ -23,16 +23,18 @@
 
 ## Пример
 
+`<…>` — заглушки: подставь своё.
+
 ```yaml
 events:
-  - key: registration_created
+  - key: <key>
     type: customerEvent
-    name: Заявка на вебинар
-    description: Посетитель оставил заявку на странице регистрации
+    name: <Что произошло, для человека>
+    description: <Кто и где это сделал>
     category: conversion
     payloadMapping:
-      registrationId:
-        title: ID заявки
+      recordId:
+        title: ID записи
         fieldName: action_param1
         type: string
       email:
@@ -47,7 +49,7 @@ events:
 
 | Поле | Что это |
 | --- | --- |
-| `key` | Ключ события латиницей, `snake_case`; уникален в процессе |
+| `key` | Ключ события латиницей, `snake_case`, что случилось: `request_created`, `order_paid`; уникален в процессе |
 | `type` | `customerEvent` или `workspaceEvent` |
 | `name`, `description` | Для человека, оба обязательны |
 | `category` | `traffic`, `engagement`, `conversion`, `revenue`, `retention`, `content`, `forms` или `other` |
@@ -65,8 +67,8 @@ events:
 import { captureCustomerEvent } from '@crm/sdk'
 
 const captured = await captureCustomerEvent(ctx, {
-  event: 'registration_created',
-  name: 'Заявка на вебинар',
+  event: '<key>',
+  name: '<Что произошло>',
   contacts: [{ type: 'email', value: row.email }],
   customer: {
     displayName: row.name,
