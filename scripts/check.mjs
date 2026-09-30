@@ -2,10 +2,12 @@
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot] [--snapshot-file FILE] [--root DIR]
+//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
+import { verifySnapshot } from './lib/freshness.mjs'
+import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
 import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -44,11 +46,15 @@ const FILE_WRITE_APIS = [
 ]
 const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json$/, /\.automationConfig\.json$/]
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot'])
+const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot] [--snapshot-file FILE] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--root DIR]')
   process.exit(options.help ? 0 : 2)
+}
+if (options['no-snapshot'] && options['verify-snapshot']) {
+  console.error('--no-snapshot и --verify-snapshot несовместимы: выберите локальную проверку или чтение доски.')
+  process.exit(2)
 }
 try {
   requireYaml()
@@ -58,6 +64,12 @@ try {
 }
 
 const root = findRoot(options.root)
+// Anchor the check before reading any source, not after validation/typecheck.
+let sourceState, sourceError
+if (!options['no-snapshot']) {
+  try { sourceState = gitState(root); assertLocalState(root, sourceState) }
+  catch (e) { sourceError = e }
+}
 const dir = join(root, slug)
 if (!isDir(dir)) {
   console.error(`Нет папки процесса ${slug}/ в ${root}`)
@@ -667,12 +679,23 @@ if (options.typecheck) {
 let snapshotResult = { saved: false, skipped: Boolean(options['no-snapshot']) }
 try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
-    const snapshot = prepareSnapshot({ root, slug, map, checks })
+    const snapshot = prepareSnapshot({ root, slug, map, checks, ...(sourceState ? { state: sourceState } : {}) })
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
-    if (!options['no-snapshot']) snapshotResult = await publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
+    if (options['verify-snapshot']) {
+      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH) }
+      if (sourceError) {
+        if (snapshotResult.verified) throw sourceError
+        snapshotResult.localError = sourceError.message
+      }
+    } else if (!options['no-snapshot']) {
+      if (sourceError) throw sourceError
+      snapshotResult = await publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
+      snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH,
+        { expectedRevision: snapshotResult.revision }) }
+    }
   }
 } catch (e) {
-  snapshotResult = { saved: false, error: e.message }
+  snapshotResult = { ...snapshotResult, verified: false, status: e instanceof SnapshotDrift ? 'stale' : 'unavailable', error: e.message }
 }
 
 // ---------- вывод ----------
@@ -693,5 +716,10 @@ if (options.json) {
   console.log('')
   console.log(`Итог: ${passed}/${total} проверок зелёные${warnCount ? `, предупреждений: ${warnCount}` : ''}.`)
 }
-if (!options.json) console.log(snapshotResult.saved ? `Снимок сохранён, ревизия ${snapshotResult.revision}.` : snapshotResult.error || 'Снимок не записывался (--no-snapshot).')
-process.exit(passed !== total ? 1 : snapshotResult.error ? 2 : 0)
+if (!options.json) {
+  if (snapshotResult.saved) console.log(`Снимок сохранён, ревизия ${snapshotResult.revision}.`)
+  console.log(snapshotResult.verified
+    ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
+    : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')
+}
+process.exit(passed !== total || snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : 0)
