@@ -97,7 +97,7 @@ export function prepareSnapshot({ root, slug, map, checks, state = gitState(root
 }
 export async function startExec(root, sdkCode) {
   // Use the public CLI entrypoint, including the image's supported wrapper.
-  const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 1024 * 1024 })
+  const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Start exec failed: ${r.error?.message || r.stderr.trim()}`)
   return JSON.parse(r.stdout)
 }

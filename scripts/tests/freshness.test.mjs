@@ -191,5 +191,15 @@ if (code.includes('writeProcessSnapshot')) {
   result = check(['--typecheck'])
   assert.equal(result.report.checks.find(c => c.id === 'typecheck').ok, true)
   assert.equal(result.report.snapshot.verified, true)
-  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nwrite\nread\nread\ntypecheck\nwrite\nread\n')
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nwrite\nread\nread\nread\ntypecheck\nwrite\nread\n')
+  // Server materials must remain visible even before scaffolding or with an invalid local map.
+  const marker = join(f.root, 'demo/.workspace.json')
+  const markerContent = readFileSync(marker, 'utf8')
+  rmSync(marker)
+  const missing = spawnSync(process.execPath, [join(scripts, 'context.mjs'), 'demo', '--root', f.root, '--no-cards'],
+    { cwd: f.root, encoding: 'utf8', env })
+  writeFileSync(marker, markerContent)
+  assert.equal(missing.status, 0, missing.stderr)
+  assert.match(missing.stdout, /Please review/)
+  assert.match(missing.stdout, /сохранённая доска существует/)
 })
