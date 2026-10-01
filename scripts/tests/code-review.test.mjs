@@ -424,7 +424,7 @@ test('CLI uses distinct missing, ready, needs-work and invalid invocation exit c
 
 test('check gates implementation even with design knowledge stage; offline context shows current status', t => {
   const f = fixture(t)
-  f.put('demo/.workspace.json', '{"type":"process"}')
+  f.put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}')
   const call = (name, flags) => spawnSync(process.execPath,
     [fileURLToPath(new URL(`../${name}.mjs`, import.meta.url)), 'demo', '--root', f.root, ...flags],
     { encoding: 'utf8', timeout: 10_000 })

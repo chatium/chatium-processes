@@ -28,7 +28,7 @@ function fixture(t) {
   return { root, put, inspect, run, files }
 }
 function skill(f, path = 'demo') {
-  f.put(`${path}/.workspace.json`, '{"type":"process","config":{"variables":{}}}')
+  f.put(`${path}/.workspace.json`, '{"type":"process","processEngine":"processes-v2","config":{"variables":{}}}')
   f.put(`${path}/PLAN.md`, '# Demo\n')
   f.put(`${path}/process.yaml`, 'title: Demo\nstages: []\nnodes: []\nlinks: []\n')
 }
@@ -45,6 +45,9 @@ test('workspace boundary, appearance and version do not identify a process gener
   f.put('demo/PLAN.md', '# Business plan')
   assert.equal(f.inspect('demo').canUseSkillWorkflow, false)
   f.put('demo/process.yaml', 'title: Demo\nnodes: []\n')
+  assert.equal(f.inspect('demo').kind, 'unknown-process')
+  assert.throws(() => assertSkillProcess(f.root, 'demo'), /processEngine/)
+  f.put('demo/.workspace.json', '{"type":"process","version":2,"processEngine":"processes-v2"}')
   assert.equal(f.inspect('demo').kind, 'skill-process')
 })
 test('legacy markers override new files; adding a plan is not a migration', t => {
@@ -139,4 +142,29 @@ test('fresh scaffold and repeat retain the new workflow without changing existin
   const repeat = f.run('scaffold', 'demo', ['--title', 'Changed title'])
   assert.equal(repeat.status, 0, repeat.stderr)
   assert.deepEqual(f.files(), before)
+})
+
+test('explicit marker permits completing a partial scaffold without replacing configuration', t => {
+  const f = fixture(t)
+  const ws = '{"type":"process","processEngine":"processes-v2","config":{"variables":{"keep":"value"}}}'
+  f.put('demo/.workspace.json', ws)
+  assert.equal(f.inspect('demo').canUseSkillWorkflow, true)
+  assert.equal(f.run('scaffold', 'demo', ['--title', 'Demo']).status, 0)
+  assert.equal(readFileSync(join(f.root, 'demo/.workspace.json'), 'utf8'), ws)
+  assert.ok(existsSync(join(f.root, 'demo/PLAN.md')))
+  assert.ok(existsSync(join(f.root, 'demo/process.yaml')))
+  f.put('demo/specs/index.yaml', 'passport: {}')
+  assert.equal(f.inspect('demo').kind, 'mixed-process')
+})
+test('unsupported, malformed or misplaced engine markers never enable new workflow', t => {
+  const f = fixture(t)
+  for (const engine of [null, 2, {}, 'processes-v3', '']) {
+    f.put('demo/.workspace.json', JSON.stringify({type: 'process', processEngine: engine}))
+    assert.equal(f.inspect('demo').canUseSkillWorkflow, false)
+    assert.ok(f.inspect('demo').errors.length)
+    assert.throws(() => assertSkillProcess(f.root, 'demo', {creating: true}), /processEngine/)
+  }
+  f.put('demo/.workspace.json', '{"type":"landing","processEngine":"processes-v2"}')
+  assert.equal(f.inspect('demo').canUseSkillWorkflow, false)
+  assert.ok(f.inspect('demo').errors.length)
 })

@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 // are deliberately absent: neither distinguishes the two generations.
 const LEGACY_PATHS = ['specs/index.yaml', 'specs/passport-sections', 'specs/passport-section-parts',
   'specs/workspaces', 'specs/workspaces.yaml', 'spec/current.yml', 'specs/current.md']
+export const PROCESS_ENGINE = 'processes-v2'
 const record = value => value && typeof value === 'object' && !Array.isArray(value)
 
 /** Read-only, conservative classification. Missing or conflicting evidence never authorizes migration. */
@@ -52,6 +53,10 @@ export function inspectProcessFormat(root, requestedPath) {
     if (plan) evidence.push(`${here}/PLAN.md`)
     if (map) evidence.push(`${here}/process.yaml`)
     evidence.push(...legacy.map(p => `${here}/${p}`))
+    const hasEngine = ws && Object.hasOwn(ws, 'processEngine')
+    if (hasEngine && (ws.processEngine !== PROCESS_ENGINE || ws.type !== 'process'))
+      errors.push(`${here}/.workspace.json: неподдерживаемый processEngine или несовместимый type; ожидается type: process, processEngine: ${PROCESS_ENGINE}`)
+    const modern = ws?.type === 'process' && ws.processEngine === PROCESS_ENGINE
     const process = ws?.type === 'process' || meta?.params?.startWorkspaceAppearance === 'process'
     const child = meta?.params?.startWorkspaceAppearance === 'process-workspace'
     // A child workspace in a process is incompatible with the new single-workspace layout.
@@ -67,9 +72,8 @@ export function inspectProcessFormat(root, requestedPath) {
       }
     }
     const old = legacy.length > 0 || child || nestedWorkspace
-    const format = old ? (plan || map ? 'mixed' : 'legacy') :
-      ws?.type === 'process' && plan && map ? 'skill' : 'unknown'
-    if (!owner && (process || old || plan || map)) {
+    const format = old ? (modern || plan || map ? 'mixed' : 'legacy') : modern ? 'skill' : 'unknown'
+    if (!owner && (process || hasEngine || old || plan || map)) {
       owner = { processPath: here, format, component: dir !== targetDir || child }
     } else if (owner && (process || legacy.some(p => p.startsWith('specs/')))) {
       // A nested workspace cannot escape its parent's generation by adding a new map.
@@ -94,5 +98,6 @@ export function assertSkillProcess(root, path, { creating = false } = {}) {
   const result = inspectProcessFormat(root, path)
   if (result.canUseSkillWorkflow || creating && result.canCreateProcess) return result
   throw Error(`Формат ${path}: ${result.kind}. Новая процедура не применяется автоматически. ` +
-    `См. build/legacy-processes.md. Признаки: ${result.evidence.join(', ') || 'недостаточно данных'}.`)
+    `См. build/legacy-processes.md. Признаки: ${result.evidence.join(', ') || 'недостаточно данных'}. ` +
+    (result.errors.join('; ') || `Для новой процедуры нужен явный processEngine: ${PROCESS_ENGINE}; не добавляй его старому процессу ради обхода проверки.`))
 }

@@ -15,7 +15,7 @@ function fixture(t) {
     mkdirSync(dirname(join(root, file)), { recursive: true })
     writeFileSync(join(root, file), content)
   }
-  put('demo/.workspace.json', '{"type":"process"}')
+  put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}')
   put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nstages: [Request]\nnodes: []\n')
   put('.knowledge-base/.knowledge.yml', 'order: [processes]\n')
   put('.knowledge-base/processes/.knowledge.yml', 'order: [demo]\n')

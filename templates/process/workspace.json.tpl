@@ -1,5 +1,6 @@
 {
   "type": "process",
+  "processEngine": "processes-v2",
   "config": {
     "senderChannels": [],
     "variables": {}
