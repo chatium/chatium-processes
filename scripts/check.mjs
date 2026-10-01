@@ -101,6 +101,13 @@ if (!isDir(dir)) {
   console.error(`Нет папки процесса ${slug}/ в ${root}`)
   process.exit(2)
 }
+let workReport, workError
+function getWorkReport() {
+  if (workError) throw workError
+  if (!workReport) try { workReport = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' }) }
+  catch (error) { workError = error; throw error }
+  return workReport
+}
 
 // ---------- результаты ----------
 
@@ -697,14 +704,14 @@ check('plan', 'План PLAN.md', ({ error, warn }) => {
 })
 
 check('tasks', `Рабочие задачи (${options['task-stage'] || 'build'})`, ({ error, warn }) => {
-  const report = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  const report = getWorkReport()
   if (!report.enabled) return warn('Формат рабочих карточек не включён; существующий процесс требует явной миграции.')
   for (const issue of report.errors) error(issue)
   for (const issue of report.warnings) warn(issue)
 })
 
 check('creative', 'Задания страниц и серий', ({ error, warn }) => {
-  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  const work = getWorkReport()
   if (!work.enabled || !map?.nodes) return
   const future = (options['task-stage'] || 'build') === 'design'
   for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
@@ -714,7 +721,7 @@ check('creative', 'Задания страниц и серий', ({ error, warn 
 })
 
 check('creative.review', 'Независимое ревью страниц и серий', ({ error, warn }) => {
-  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  const work = getWorkReport()
   if (!work.enabled || !map?.nodes) return
   const taskStage = options['task-stage'] || 'build'
   for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {

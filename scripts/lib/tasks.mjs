@@ -205,7 +205,7 @@ export function taskInputDigest(root, task) {
   return digest({ parts, answers, role })
 }
 
-export function acceptanceErrors(root, slug, task, plan, allTasks) {
+export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache = new Map()) {
   const errors = [], add = value => errors.push(`${task.id}: ${value}`)
   if (!task.result || !str(task.result.summary)) { add('нет результата'); return errors }
   if (!task.attempts?.some(a => a.id === task.result.attemptId)) add('нет попытки результата')
@@ -250,7 +250,9 @@ export function acceptanceErrors(root, slug, task, plan, allTasks) {
           if (report.status !== 'ready' || report.reviewer?.kind !== 'subagent' || !str(report.reviewer?.reference)) add(`${criterion.id}: нет независимого положительного ревью`)
           else {
             try {
-              const current = currentReviewStatus(root, slug, evidence.path)
+              const current = reviewCache.has(evidence.path) ? reviewCache.get(evidence.path) :
+                currentReviewStatus(root, slug, evidence.path)
+              reviewCache.set(evidence.path, current)
               if (current.status !== 'ready') add(`${criterion.id}: ревью устарело (${current.status})`)
             } catch (error) { add(`${criterion.id}: ${error.message}`) }
           }
@@ -265,7 +267,7 @@ export function acceptanceErrors(root, slug, task, plan, allTasks) {
 export function taskReadiness({ root, slug, stage = 'build' }) {
   const planPath = safeTaskPath(root, `${slug}/PLAN.md`, { mayBeMissing: true })
   const plan = existsSync(planPath) ? parseTaskPlan(readFileSync(planPath, 'utf8')) : []
-  const loaded = loadTasks(root, slug), errors = [], warnings = [], byId = new Map()
+  const loaded = loadTasks(root, slug), errors = [], warnings = [], byId = new Map(), reviewCache = new Map()
   if (!loaded.enabled) return { enabled: false, plan, tasks: [], errors, warnings }
   if (!TASK_STAGES.includes(stage)) throw Error('Неизвестный рубеж задач.')
   for (const task of loaded.tasks) {
@@ -313,7 +315,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
     }
     if (task.status !== 'done') { issue(`задача не завершена (${task.status})`); continue }
     try {
-      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks)) issue(error)
+      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks, reviewCache)) issue(error)
       const currentDefinition = taskDefinitionDigest(task, plan.find(p => p.id === task.planTask))
       if (task.acceptance?.definitionDigest !== currentDefinition) issue('изменилось задание/критерии после приёмки')
       if (task.acceptance?.inputDigest !== taskInputDigest(root, task)) issue('изменились входные материалы после приёмки')

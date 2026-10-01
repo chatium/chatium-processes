@@ -175,6 +175,18 @@ test('built-in reference cannot escape its catalog', t => {
   assert.ok(creativePacket(f.args).errors.some(error => error.includes('Некорректный путь встроенного референса')))
 })
 
+test('result review refuses a screenshot version when Git is unavailable', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Получить материал',
+    source: 'demo/page.ts', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
+  f.put('demo/page.ts', 'export const title = "Материал"\n')
+  writeCreativeBuild(f.args)
+  f.put('demo/reviews/creative/lead-page-visual.json', { captures: ['desktop', 'mobile'].map(viewport => ({
+    path: `demo/reviews/creative/${viewport}.png`, viewport, codeVersion: 'a'.repeat(40),
+  })) })
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /Git недоступен/)
+})
+
 test('a current creative review can substantiate a work-task criterion', t => {
   const f = fixture(t)
   writeCreativeBuild(f.args)

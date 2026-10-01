@@ -93,17 +93,19 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     const currentCommit = git.status === 0 ? git.stdout.trim() : null
     const versions = new Set(visual.captures.map(c => c.codeVersion))
     if (versions.size !== 1) throw Error('Все снимки результата должны относиться к одной версии кода.')
-    if (currentCommit) {
-      const [version] = versions
-      if (!/^[0-9a-f]{40}$/.test(version)) throw Error('codeVersion должен быть полным SHA коммита.')
-      const run = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000 })
-      if (run(['merge-base', '--is-ancestor', version, currentCommit]).status !== 0)
-        throw Error('Версия снимков не входит в текущую ветку.')
-      const paths = implementation.map(f => f.path)
-      if (run(['diff', '--quiet', version, currentCommit, '--', ...paths]).status !== 0 ||
-          run(['status', '--porcelain', '--untracked-files=normal', '--', ...paths]).stdout.trim())
-        throw Error('Результат изменился после версии снимков; нужны новые снимки и ревью.')
-    }
+    if (!currentCommit) throw Error('Нельзя проверить версию снимков: Git недоступен.')
+    const gitRoot = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8', timeout: 5000 })
+    if (gitRoot.status !== 0 || realpathSync(gitRoot.stdout.trim()) !== realpathSync(root))
+      throw Error('Нельзя проверить версию снимков: корень аккаунта не совпадает с Git-репозиторием.')
+    const [version] = versions
+    if (!/^[0-9a-f]{40}$/.test(version)) throw Error('codeVersion должен быть полным SHA коммита.')
+    const run = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000 })
+    if (run(['merge-base', '--is-ancestor', version, currentCommit]).status !== 0)
+      throw Error('Версия снимков не входит в текущую ветку.')
+    const paths = implementation.map(f => f.path)
+    if (run(['diff', '--quiet', version, currentCommit, '--', ...paths]).status !== 0 ||
+        run(['status', '--porcelain', '--untracked-files=normal', '--', ...paths]).stdout.trim())
+      throw Error('Результат изменился после версии снимков; нужны новые снимки и ревью.')
     visuals = visual.captures.map(capture => {
       if (!text(capture.path) || !text(capture.viewport) || !text(capture.codeVersion)) throw Error('У снимка нужны путь, viewport и версия кода.')
       const path = safeTaskPath(root, capture.path)
