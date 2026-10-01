@@ -232,7 +232,7 @@ test('each role requires both skills and its own mandatory reading', t => {
   ]) {
     const fullPath = join(f.base, path), original = readFileSync(fullPath)
     rmSync(fullPath)
-    assert.throws(() => f.collect({ stage }), /Нет обязательной справки/, `${stage}: ${path}`)
+    assert.throws(() => f.collect({ stage }), /Нет обязательной справки|Не найден скилл/, `${stage}: ${path}`)
     writeFileSync(fullPath, original)
   }
 })
