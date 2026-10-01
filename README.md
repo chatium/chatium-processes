@@ -1,25 +1,29 @@
 # Chatium processes skill
 
-This repository is the source of the `processes` skill. Development happens here;
-copies inside Chatium accounts are installations, not separate sources. The skill
-will later move into `chatium-agent-skills` beside `chatium-development`.
+Этот репозиторий — единственный исходник скилла `processes`. Здесь его
+разрабатывают; установленные копии в аккаунтах Chatium не являются отдельными
+источниками правок. Позже скилл переедет в `chatium-agent-skills` рядом с
+`chatium-development`.
 
-## Install in a Chatium account
-
-The account needs the `chatium-development` skill, Node.js 20+, Git, and the
-Chatium CLI. Clone this repository separately from the account, then run:
+Агент может клонировать репозиторий прямо в аккаунт:
 
 ```sh
-./install.sh '/absolute/path/to/account'
+git clone https://github.com/chatium/chatium-processes.git .agents/skills/processes
+(cd .agents/skills/processes && npm ci --ignore-scripts)
 ```
 
-The installer updates only `<account>/.agents/skills/processes/`, excludes the
-repository's `.git`, and runs `npm ci --ignore-scripts` for the skill's YAML
-dependency. It replaces files in that dedicated directory, so review local
-changes there before updating. After a new release, pull this repository and
-run the installer again. To test a fixed version, check out its tag first.
+Для обновления:
 
-The installed copy can be committed to an account when the account's Git build
-must include the skill. Do not edit that copy as the upstream source. The
-runtime requirements and platform access are described in
-[build/environment.md](build/environment.md).
+```sh
+git -C .agents/skills/processes pull --ff-only
+(cd .agents/skills/processes && npm ci --ignore-scripts)
+```
+
+В аккаунте также должен быть скилл `chatium-development`. Требования к
+окружению и доступу к Chatium описаны в [build/environment.md](build/environment.md).
+
+Если аккаунт сам находится в Git, каталог скилла будет отдельным вложенным
+репозиторием. Его можно добавить в `.gitignore` аккаунта; не добавляйте его
+через `git add` как обычные файлы аккаунта. При создании нового рабочего
+окружения агент снова клонирует скилл по ссылке. Для воспроизводимых прогонов
+можно переключиться на конкретный тег вместо текущего `main`.
