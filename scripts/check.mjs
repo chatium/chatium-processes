@@ -244,6 +244,10 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
     return error(`.workspace.json не разбирается: ${e.message}`)
   }
   if (ws.type !== 'process') error(`type = ${JSON.stringify(ws.type)}, нужен "process"`)
+  const channels = ws.config?.senderChannels
+  if (!Array.isArray(channels) || !channels.length || channels.some(id => typeof id !== 'string' || !id.trim())) {
+    warn('config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Настройка каналов не блокирует сборку, доступность каналов проверяется отдельно.')
+  }
   const vars = ws.config?.variables
   if (vars !== undefined && (typeof vars !== 'object' || Array.isArray(vars))) {
     error('config.variables должен быть объектом { key: { value, description } }')
@@ -571,10 +575,14 @@ check('letters', 'Письма шагов отправки и их переме�
   const sent = new Set()
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
+    const route = step.actionRoute?.routeJson
+    const localAction = Number.isInteger(map?.accountId) && route?.[0] === map.accountId &&
+      typeof route?.[1] === 'string' && moduleFile(route[1])
     let paths
     try { paths = templateFiles(root, step) }
     catch (e) { error(`${where}: ${e.message}`); continue }
     if (!paths.length) { error(`${where}: шаблон ${templatePath(step)} и его варианты не найдены`); continue }
+    if (localAction) warn(`${where}: получателей и variables готовит локальное действие ${rel(root, localAction)}; проверьте их в ревью кода и тестовом вызове SDK — статическая проверка не подтверждает эти значения`)
     for (const letterPath of paths) {
       sent.add(letterPath)
       if (!letterPath.startsWith('.mailings/storage/')) error(`${where}: letterPath вне .mailings/storage/`)
@@ -589,6 +597,8 @@ check('letters', 'Письма шагов отправки и их переме�
         continue
       }
       const letter = res.data || {}
+      // Local actions can prepare SDK variables themselves; var_* is the shared action's contract.
+      if (localAction) continue
       const declared = new Map((Array.isArray(letter.variables) ? letter.variables : []).map(v => [v?.name, v]))
       for (const [name, v] of declared) {
         if (!v?.required && v?.required !== undefined) continue

@@ -69,3 +69,71 @@ test('snapshot attributes messageKey sends to their series without losing automa
   assert.deepEqual(s.links[0].steps.map(s=>s.kind),['delay','action'])
   assert.deepEqual(s.links[0].automationFiles,['demo/automations/a.automationConfig.json'])
 })
+
+test('missing or invalid sender channels warn without adding failures to the check', t => {
+  const f = fixture(t)
+  const ws = JSON.parse(readFileSync(join(f.root, 'demo/.workspace.json'), 'utf8'))
+  const check = channels => {
+    ws.config.senderChannels = channels
+    f.put('demo/.workspace.json', JSON.stringify(ws))
+    const result = f.run('check', ['--no-snapshot', '--json'])
+    assert.ok([0, 1].includes(result.status), result.stderr)
+    const report = JSON.parse(result.stdout)
+    return {status: result.status, report, workspace: report.checks.find(c => c.id === 'workspace')}
+  }
+  const configured = check(['email-channel-id', 'telegram-channel-id'])
+  assert.equal(configured.workspace.ok, true)
+  assert.deepEqual(configured.workspace.warnings, [])
+  for (const channels of [undefined, [], null, 'email-channel-id', [''], ['  '], [42]]) {
+    const result = check(channels)
+    assert.equal(result.workspace.ok, true)
+    assert.deepEqual(result.workspace.errors, [])
+    assert.ok(result.workspace.warnings.some(w => w.includes('config.senderChannels')))
+    assert.equal(result.status, configured.status)
+    assert.equal(result.report.passed, configured.report.passed)
+    assert.equal(result.report.total, configured.report.total)
+  }
+  const text = f.run('check', ['--no-snapshot'])
+  assert.match(text.stdout, /! config\.senderChannels/)
+})
+
+test('local message action may prepare variables while template and variant checks remain active', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\naccountId: 10\nstages: []\nnodes: []\nlinks: []\n')
+  f.put('demo/actions/confirm-order.ts', `import { sendMessageFromTemplate } from '@mailings/sdk'
+export const confirmOrder = app.function('/send').handle(async (ctx, {params}) => {
+  const order = await Orders.findById(ctx, params.orderId)
+  return sendMessageFromTemplate(ctx, {
+    messageKey: params.messageKey,
+    contacts: [{type: 'email', value: order.email}],
+    variables: {name: order.name, date: order.date},
+  })
+})`)
+  const action = {type: 'action', id: 'send', actionName: 'Confirm order',
+    actionRoute: {routeType: 'function', routeJson: [10, 'demo/actions/confirm-order', '/send']},
+    params: {messageKey: 'processes/demo/series/confirmation', orderId: 'order-id'}}
+  const saveAction = () => f.put('demo/automations/send.automationConfig.json', JSON.stringify({
+    title: 'Confirmation', eventUrls: ['external:event'], steps: [action],
+  }))
+  saveAction()
+  const prefix = '.mailings/storage/processes/demo/series/confirmation'
+  const letter = 'title: Confirmation\ndescription: Order\nsubject: "{{name}}"\nplain: "{{name}}"\nhtml: "{{name}}"\nvariables:\n - name: name\n   description: Name\n   required: true\n'
+  f.put(prefix + '.message.yaml', letter)
+  f.put(prefix + '.v2.message.yaml', letter.replaceAll('{{name}}', '{{date}}').replace('name: name', 'name: date'))
+  const check = () => JSON.parse(f.run('check', ['--no-snapshot', '--json']).stdout).checks
+  let letters = check().find(c => c.id === 'letters')
+  assert.equal(letters.ok, true, JSON.stringify(letters.errors))
+  assert.ok(letters.warnings.some(w => w.includes('variables') && w.includes('confirm-order.ts')))
+  f.put(prefix + '.v2.message.yaml', letter.replaceAll('{{name}}', '{{undeclared}}'))
+  letters = check().find(c => c.id === 'letters')
+  assert.equal(letters.ok, false)
+  assert.ok(letters.errors.some(e => e.includes('undeclared')))
+  f.put(prefix + '.v2.message.yaml', letter)
+  action.params.messageKey = 'processes/demo/series/missing'
+  saveAction()
+  assert.equal(check().find(c => c.id === 'letters').ok, false)
+  action.params.messageKey = 'processes/demo/series/confirmation'
+  action.actionRoute.routeJson[1] = 'demo/actions/missing'
+  saveAction()
+  assert.equal(check().find(c => c.id === 'automations').ok, false)
+})
