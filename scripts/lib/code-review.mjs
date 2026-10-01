@@ -1,0 +1,58 @@
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
+import { collectImplementation } from './implementation.mjs'
+import { canonicalTarget, validateReview } from './knowledge-review.mjs'
+import { isProcessSlug, SKILL_DIR } from './project.mjs'
+import { collectReferenceLibrary, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+
+export function codeReviewPath(root, slug) {
+  if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
+  const path = resolve(root, slug, 'reviews', 'implementation.json')
+  const base = realpathSync(root), canonical = canonicalTarget(path)
+  if (!canonical.startsWith(base + sep)) throw Error('Путь отчёта выходит за пределы аккаунта.')
+  return path
+}
+export function makeCodeReviewPacket({ root, slug }) {
+  codeReviewPath(root, slug)
+  const corpus = collectImplementation({ root, slug })
+  const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
+  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+      rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
+    throw Error('Некорректная рубрика ревью реализации.')
+  const questions = [...rubric.questions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
+    question: `Сопоставь задачу ${task.id} «${task.title}» с реализацией.`,
+    lookFor: 'Конкретные файлы, цепочка вызовов и требование плана. Не считать отметку выполненности доказательством. Для теста/запуска оцени готовность сценариев и механизма до фактического выполнения.' }))]
+  if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются вопросы или ID задач плана.')
+  const base = { version: 1, process: slug, stage: 'implementation',
+    rubricVersion: rubric.version, questions, tasks: corpus.tasks,
+    reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/reviewer.md'), 'utf8'),
+    files: corpus.files, assets: corpus.assets, dependencies: corpus.dependencies, staticChecks: corpus.checks }
+  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation' }))
+}
+export function recordCodeReview({ root, slug, packet, report, agentReference, packetDirectory }) {
+  if (typeof agentReference !== 'string' || !agentReference.trim() || agentReference.length > 500) throw Error('Нужен идентификатор реального вызова reviewer.')
+  const current = makeCodeReviewPacket({ root, slug })
+  if (packet.inputDigest !== current.inputDigest) throw Error('Исходники, план, зависимости или критерии изменились. Подготовьте новый пакет и повторите ревью.')
+  if (packetDirectory) verifyReferenceSnapshot(packetDirectory, current.referenceLibrary)
+  const result = validateReview(report, current)
+  const saved = { version: 1, process: slug, stage: 'implementation', inputDigest: current.inputDigest,
+    reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
+    inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
+    referenceDigest: current.referenceLibrary.digest, answers: result.answers }
+  const path = codeReviewPath(root, slug)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify(saved, null, 2) + '\n')
+  return { ...result, path }
+}
+export function codeReviewStatus({ root, slug }) {
+  const path = codeReviewPath(root, slug), packet = makeCodeReviewPacket({ root, slug })
+  if (!existsSync(path)) return { status: 'missing', path, inputDigest: packet.inputDigest,
+    error: 'Нет независимого ревью реализации. До тестового прогона выполните code-review.mjs prepare.' }
+  const report = JSON.parse(readFileSync(path, 'utf8'))
+  if (report.inputDigest !== packet.inputDigest) return { status: 'stale', path,
+    error: 'Код, зависимости, план, критерии или библиотека справок изменились после ревью. Нужна новая проверка реализации.' }
+  if (report.reviewer?.kind !== 'subagent' || typeof report.reviewer.reference !== 'string' || !report.reviewer.reference.trim() || !Number.isFinite(Date.parse(report.reviewedAt)))
+    throw Error('В отчёте нет сведений о независимом reviewer и времени проверки.')
+  return { ...validateReview(report, packet), path, inputDigest: packet.inputDigest,
+    reviewedAt: report.reviewedAt, reviewer: report.reviewer }
+}

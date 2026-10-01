@@ -2,11 +2,14 @@
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--root DIR]
+//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--knowledge-stage design|build|launch] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
 import { verifySnapshot } from './lib/freshness.mjs'
+import { codeReviewStatus } from './lib/code-review.mjs'
+import { collectKnowledge } from './lib/knowledge.mjs'
+import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
 import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
 import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -49,7 +52,7 @@ const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json
 const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--knowledge-stage design|build|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 if (options['no-snapshot'] && options['verify-snapshot']) {
@@ -63,6 +66,10 @@ try {
   process.exit(2)
 }
 
+if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-stage'])) {
+  console.error('--knowledge-stage: нужен design, build или launch.')
+  process.exit(2)
+}
 const root = findRoot(options.root)
 // Anchor the check before reading any source, not after validation/typecheck.
 let sourceState, sourceError
@@ -630,28 +637,26 @@ check('plan', 'План PLAN.md', ({ error, warn }) => {
   if (open > 0) warn(`открытых задач: ${open} из ${tasks.length}`)
 })
 
-check('knowledge', 'Раздел процесса в базе знаний', ({ error, warn }) => {
-  const kb = norm(map?.knowledge || `.knowledge-base/processes/${slug}`)
-  const abs = join(root, kb)
-  if (!isDir(abs)) return error(`нет раздела ${kb}/`)
-  const metaRes = loadYamlFile(join(abs, '.knowledge.yml'))
-  if (metaRes.missing) error(`нет ${kb}/.knowledge.yml`)
-  if (metaRes.parseError) error(`${kb}/.knowledge.yml не разбирается: ${metaRes.parseError}`)
-  const order = Array.isArray(metaRes.data?.order) ? metaRes.data.order : []
-  const articles = walk(abs).filter(f => f.endsWith('.md') && dirname(f) === abs)
-  if (articles.length === 0) error(`в ${kb}/ нет статей`)
-  for (const a of articles) {
-    const src = readFileSync(a, 'utf8')
-    const fm = /^---\n([\s\S]*?)\n---/.exec(src)
-    let title = null
-    try {
-      title = fm ? parseYaml(fm[1])?.title : null
-    } catch {}
-    const name = a.slice(abs.length + 1)
-    if (!title) error(`${kb}/${name}: нет title во frontmatter`)
-    if (/^\s*[-*]?\s*…\s*$/m.test(src)) warn(`${kb}/${name}: остались заглушки «…»`)
-    if (!order.includes(name)) warn(`${kb}/${name}: нет в order у .knowledge.yml`)
-  }
+// Structural checks never stand in for an independent assessment of meaning.
+try { checks.push(...collectKnowledge({ root, slug }).checks) }
+catch (e) { check('kb-scope', 'Материалы процесса', ({ error }) => error(e.message)) }
+const knowledgeStage = options['knowledge-stage'] ||
+  (isFile(join(dir, 'PLAN.md')) && /^- Запуск: согласован/m.test(readFileSync(join(dir, 'PLAN.md'), 'utf8')) ? 'launch' : 'build')
+check('knowledge.review', `Независимое ревью знаний (${knowledgeStage})`, ({ error, warn }) => {
+  const result = reviewStatus({ root, slug, stage: knowledgeStage })
+  if (result.error) error(result.error)
+  for (const gap of result.blocking || []) error(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const gap of result.advisory || []) warn(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  if (result.status !== 'ready' && !result.error && !result.blocking?.length)
+    error('Готовность не подтверждена: исправьте структурные ошибки базы знаний.')
+})
+
+check('implementation.review', 'Независимое ревью реализации', ({ error, warn }) => {
+  const result = codeReviewStatus({ root, slug })
+  if (result.error) error(result.error)
+  for (const gap of result.blocking || []) error(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const gap of result.advisory || []) warn(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const issue of result.structuralErrors || []) error(issue)
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
@@ -682,15 +687,15 @@ try {
     const snapshot = prepareSnapshot({ root, slug, map, checks, ...(sourceState ? { state: sourceState } : {}) })
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
     if (options['verify-snapshot']) {
-      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH) }
+      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot) }
       if (sourceError) {
         if (snapshotResult.verified) throw sourceError
         snapshotResult.localError = sourceError.message
       }
     } else if (!options['no-snapshot']) {
       if (sourceError) throw sourceError
-      snapshotResult = await publishSnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH)
-      snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot, process.env.PROCESSES_START_BRANCH,
+      snapshotResult = await publishSnapshot(root, snapshot)
+      snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot,
         { expectedRevision: snapshotResult.revision }) }
     }
   }

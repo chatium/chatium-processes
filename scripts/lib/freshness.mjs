@@ -2,10 +2,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { startExec } from './snapshot.mjs'
 
-export async function readBoard(root, target, startBranch) {
-  const args = JSON.stringify({ process: target.processPath, branch: target.branch })
-  return startExec(root, target, startBranch,
-    `import { runAppFunction } from '@app/app'\nreturn await runAppFunction(ctx, 'start', 'process-map/api/boardLayers~read-for-agent', ${args})`,
+export async function readBoard(root, target) {
+  return startExec(root,
     `import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})`)
 }
 
@@ -38,11 +36,11 @@ export function compareSnapshot(expected, board, expectedRevision) {
     throw new SnapshotDrift('Коммит совпал, но содержимое карты или результаты проверок отличаются. Повторите check для обновления снимка.')
 }
 
-export async function verifySnapshot(root, expected, startBranch, { expectedRevision, reader = readBoard } = {}) {
+export async function verifySnapshot(root, expected, { expectedRevision, reader = readBoard } = {}) {
   let board
   try {
     // Read even with local edits: context must still show shared notes to the agent.
-    board = await reader(root, expected, startBranch)
+    board = await reader(root, expected)
     compareSnapshot(expected, board, expectedRevision)
     assertPublishedState(root, expected)
     return { verified: true, status: 'current', branch: expected.branch, commit: expected.commit,

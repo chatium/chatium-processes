@@ -1,11 +1,10 @@
 // Snapshot producer. All paths are account-relative; publication is a separate step.
-import { previewExec } from './preview-exec.mjs'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
-import { git, gitState, assertPublishedState } from './git-state.mjs'
+import { gitState, assertPublishedState } from './git-state.mjs'
 
 function safePath(root, value) {
   if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Unsafe snapshot source path')
@@ -63,6 +62,8 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
   const allErrors = checks.flatMap(c => c.errors)
   const nodes = map.nodes.map(node => {
     const source = safePath(root, node.source), present = isFile(source) || isDir(source)
+    const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
+    if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('Invalid agentId')
     const localErrors = allErrors.filter(e => e.includes(node.source.replace(/\/$/, '')) || e.includes(`«${node.id}»`))
     const needed = needsInput.filter(i => i.nodeId === node.id)
     const status = !present ? 'missing' : localErrors.length ? 'error' : needed.length ? 'needs-input' : 'ready'
@@ -72,40 +73,39 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
     return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
-      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (checks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'), ...(letters ? { letters } : {}) }
+      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (checks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
+      ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {
     const steps = []
+    const automationFiles = []
     if (link.via) {
       const dir = safePath(root, link.via)
       for (const file of walk(dir).filter(f => f.endsWith('.automationConfig.json')).sort()) {
-        safePath(root, rel(root, file))
+        const path = rel(root, file)
+        safePath(root, path)
+        automationFiles.push(path)
         try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
       }
     }
-    return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via } : {}), steps }
+    return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }
   })
   return { version: 1, processPath: slug, title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput, checks }
 }
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root) }) {
   return buildSnapshot({ root, slug, map, checks, ...state })
 }
-export async function startExec(root, target, startBranch, previewCode, sdkCode) {
-  if (startBranch) {
-    // The scoped preview must be on the execution HTTP request, not a cloned ctx.
-    // @start/sdk imports are resolved from the published SDK until the release.
-    return previewExec({ branch: target.branch, commit: target.commit, code: previewCode, startBranch, repositoryUrl: git(root, ['remote', 'get-url', 'origin']) })
-  }
+export async function startExec(root, sdkCode) {
+  // Use the public CLI entrypoint, including the image's supported wrapper.
   const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Start exec failed: ${r.error?.message || r.stderr.trim()}`)
   return JSON.parse(r.stdout)
 }
-export async function publishSnapshot(root, snapshot, startBranch) {
+export async function publishSnapshot(root, snapshot) {
   assertPublishedState(root, snapshot)
   const payload = JSON.stringify(snapshot)
   if (payload.length > 250_000) throw Error('Snapshot exceeds 250 KB')
-  const saved = await startExec(root, snapshot, startBranch,
-    `import { runAppFunction } from '@app/app'\nreturn await runAppFunction(ctx, 'start', 'process-map/api/snapshots~write', { snapshot: ${payload} })`,
+  const saved = await startExec(root,
     `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`)
   if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
   if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('Snapshot write returned an invalid revision')

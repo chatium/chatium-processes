@@ -1,22 +1,27 @@
 #!/usr/bin/env node
 // Где мы сейчас: этап процесса по артефактам, задачи PLAN.md и карточки
-// кубиков, которые есть в карте.
+// компонентов, которые есть в карте.
 //
-//   node .agents/skills/processes/scripts/context.mjs <process> [--no-cards] [--offline] [--root DIR]
+//   node .agents/skills/processes/scripts/context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--root DIR]
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findRoot, isDir, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
+import { codeReviewStatus } from './lib/code-review.mjs'
+import { collectKnowledge } from './lib/knowledge.mjs'
+import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
 import { spawnSync } from 'node:child_process'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: context.mjs <process> [--no-cards] [--offline] [--root DIR]')
+  console.log('Использование: context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 try {
   requireYaml()
+  if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-stage']))
+    throw Error('--knowledge-stage: нужен design, build или launch.')
 } catch (e) {
   console.error(e.message)
   process.exit(2)
@@ -71,7 +76,7 @@ else if (!planApproved) stage = '2. План — ждёт согласовани
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
 else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
-else stage = '7–8. Запущен — изменения ведутся в новой ветке'
+else stage = '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
 
 say(`Процесс: ${map?.title || slug} (${slug}/)`)
 say(`Этап: ${stage}`)
@@ -89,12 +94,39 @@ if (realTasks.length > 0) {
 }
 say('')
 say(`Проверка: node .agents/skills/processes/scripts/check.mjs ${slug}`)
+const knowledgeStage = options['knowledge-stage'] || (launchApproved ? 'launch' : 'build')
+say('')
+try {
+  const knowledge = collectKnowledge({ root, slug })
+  say(`Структура знаний: ${knowledge.passed}/${knowledge.total}.`)
+  for (const c of knowledge.checks) {
+    for (const error of c.errors) say(`  ✘ ${error}`)
+    for (const warning of c.warnings) say(`  ! ${warning}`)
+  }
+  const review = reviewStatus({ root, slug, stage: knowledgeStage })
+  say(`Независимое ревью (${knowledgeStage}): ${review.status}.`)
+  if (review.error) say(`  ${review.error}`)
+  for (const gap of review.blocking || []) say(`  ✘ ${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const gap of review.advisory || []) say(`  ! ${gap.id}: ${gap.reason}`)
+  if (review.status !== 'ready') say('Готовность не подтверждена: следуй method/review.md; закрытые задачи не заменяют ревью.')
+} catch (e) { say(`Знания: проверка недоступна (${e.message}). Готовность не подтверждена.`) }
+
+
+try {
+  const review = codeReviewStatus({ root, slug })
+  say(`Независимое ревью реализации: ${review.status}.`)
+  if (review.error) say(`  ${review.error}`)
+  for (const gap of review.blocking || []) say(`  ✘ ${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const gap of review.advisory || []) say(`  ! ${gap.id}: ${gap.reason}`)
+  for (const issue of review.structuralErrors || []) say(`  ✘ ${issue}`)
+  if (review.status !== 'ready') say('До полного тестового прогона и сдачи нужно ревью по build/review.md.')
+} catch (e) { say(`Ревью реализации недоступно: ${e.message}. Готовность к прогону не подтверждена.`) }
 
 // Read-only by construction: never refresh a stale board while restoring context.
 say('')
 if (options.offline) say('Доска: актуальность и заметки не проверены (--offline). Перед завершением нужен обычный check.')
 else {
-  const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug, '--verify-snapshot', '--json', '--root', root],
+  const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug, '--verify-snapshot', '--json', '--knowledge-stage', knowledgeStage, '--root', root],
     { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 2 * 1024 * 1024 })
   try {
     if (result.error) throw result.error
@@ -110,7 +142,7 @@ else {
   }
 }
 
-// Карточки кубиков по видам узлов карты
+// Карточки компонентов по видам узлов карты
 const kinds = new Set((map?.nodes || []).map(n => n.kind))
 const cards = ['channels.md']
 if (kinds.has('page')) cards.push('page.md')

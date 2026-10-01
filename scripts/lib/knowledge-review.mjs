@@ -1,0 +1,128 @@
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative, resolve, sep } from 'node:path'
+import { collectKnowledge } from './knowledge.mjs'
+import { isProcessSlug, SKILL_DIR } from './project.mjs'
+import { collectReferenceLibrary, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+
+export const REVIEW_STAGES = ['design', 'build', 'launch']
+const text = value => typeof value === 'string' && value.trim().length > 0
+const normalized = value => value.replace(/\s+/gu, ' ').trim()
+
+// Resolve an absent target through its nearest existing ancestor. lstat keeps
+// dangling symlinks visible, so realpath fails instead of following them on write.
+export function canonicalTarget(path) {
+  const target = resolve(path)
+  let existing = target
+  for (;;) {
+    try { lstatSync(existing); break }
+    catch (e) {
+      if (e.code !== 'ENOENT') throw e
+      const parent = dirname(existing)
+      if (parent === existing) throw e
+      existing = parent
+    }
+  }
+  return resolve(realpathSync(existing), relative(existing, target))
+}
+
+export function reviewPath(root, slug, stage) {
+  if (!isProcessSlug(slug) || !REVIEW_STAGES.includes(stage)) throw Error('Нужны корректный слаг и этап design, build или launch.')
+  const target = resolve(root, slug, 'reviews', `knowledge-${stage}.json`)
+  const base = realpathSync(root), canonical = canonicalTarget(target)
+  if (canonical !== base && !canonical.startsWith(base + sep))
+    throw Error('Путь отчёта выходит за пределы аккаунта.')
+  return target
+}
+
+export function makeReviewPacket({ root, slug, stage = 'build' }) {
+  reviewPath(root, slug, stage)
+  const knowledge = collectKnowledge({ root, slug })
+  const method = join(SKILL_DIR, 'method')
+  const rubric = JSON.parse(readFileSync(join(method, 'review-questions.json'), 'utf8'))
+  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+      new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length ||
+      rubric.questions.some(q => !text(q.id) || !text(q.question) || !REVIEW_STAGES.includes(q.fromStage)))
+    throw Error('Некорректная рубрика ревью знаний.')
+  const questions = rubric.questions.filter(q => REVIEW_STAGES.indexOf(q.fromStage) <= REVIEW_STAGES.indexOf(stage))
+  const reviewerInstructions = readFileSync(join(method, 'reviewer.md'), 'utf8')
+  const base = { version: 1, process: slug, stage, rubricVersion: rubric.version, questions,
+    reviewerInstructions, files: knowledge.files, staticChecks: knowledge.checks }
+  // Reports themselves, Git SHA, timestamps and unrelated processes are excluded.
+  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage }))
+}
+
+function checkedString(value, field, max = 5000) {
+  if (!text(value) || value.length > max) throw Error(`Некорректное поле ${field}.`)
+  return value
+}
+
+export function validateReview(report, packet) {
+  if (!report || report.version !== 1 || report.process !== packet.process || report.stage !== packet.stage || report.inputDigest !== packet.inputDigest)
+    throw Error('Отчёт не соответствует процессу, этапу или версии входных материалов.')
+  const files = new Map(packet.files.map(f => [f.path, f.content]))
+  if (!Array.isArray(report.inspectedFiles) || report.inspectedFiles.length !== files.size ||
+      new Set(report.inspectedFiles).size !== files.size || report.inspectedFiles.some(p => !files.has(p)))
+    throw Error('inspectedFiles должен перечислять все файлы пакета ровно один раз.')
+  const references = new Set(packet.referenceLibrary.files.map(f => f.path))
+  if (!Array.isArray(report.inspectedReferences) || new Set(report.inspectedReferences).size !== report.inspectedReferences.length ||
+      report.inspectedReferences.some(p => !references.has(p)) ||
+      packet.referenceLibrary.required.some(p => !report.inspectedReferences.includes(p)))
+    throw Error('inspectedReferences должен перечислять прочитанные справки без повторов, включая обязательные разделы.')
+  const ids = new Set(packet.questions.map(q => q.id))
+  if (!Array.isArray(report.answers) || report.answers.length !== ids.size) throw Error('Нужен ответ на каждый вопрос рубрики.')
+  const answers = report.answers.map(answer => {
+    if (!answer || !ids.delete(answer.id)) throw Error('Неизвестный или повторный ID вопроса.')
+    if (!['covered', 'gap', 'not-applicable'].includes(answer.status)) throw Error(`Неизвестный статус ${answer.id}.`)
+    checkedString(answer.reason, `${answer.id}.reason`)
+    if (!Array.isArray(answer.evidence) || answer.evidence.length > 20) throw Error(`Некорректные evidence у ${answer.id}.`)
+    if (answer.status !== 'gap' && !answer.evidence.length) throw Error(`Нужна цитата для ${answer.id}.`)
+    const evidence = answer.evidence.map(item => {
+      if (!item || !files.has(item.path)) throw Error(`Источник ${answer.id} отсутствует в пакете.`)
+      checkedString(item.quote, `${answer.id}.quote`, 2000)
+      if (!normalized(files.get(item.path)).includes(normalized(item.quote))) throw Error(`Цитата ${answer.id} не найдена в ${item.path}.`)
+      return { path: item.path, quote: item.quote }
+    })
+    if (answer.status === 'gap') {
+      if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
+      checkedString(answer.nextAction, `${answer.id}.nextAction`)
+    } else if (answer.priority !== undefined || answer.nextAction !== undefined) throw Error(`priority/nextAction допустимы только для gap (${answer.id}).`)
+    return { id: answer.id, status: answer.status, reason: answer.reason, evidence,
+      ...(answer.status === 'gap' ? { priority: answer.priority, nextAction: answer.nextAction } : {}) }
+  })
+  const blocking = answers.filter(a => a.status === 'gap' && a.priority === 'blocking')
+  const advisory = answers.filter(a => a.status === 'gap' && a.priority === 'advisory')
+  const structuralErrors = packet.staticChecks.flatMap(c => c.errors)
+  return { answers, blocking, advisory, structuralErrors,
+    status: blocking.length || structuralErrors.length ? 'needs-work' : 'ready' }
+}
+
+export function recordReview({ root, slug, stage, packet, report, agentReference, packetDirectory }) {
+  checkedString(agentReference, 'agentReference', 500)
+  const current = makeReviewPacket({ root, slug, stage })
+  if (packet.inputDigest !== current.inputDigest) throw Error('Материалы или рубрика изменились после подготовки пакета. Подготовьте новый пакет и повторите ревью.')
+  if (packetDirectory) verifyReferenceSnapshot(packetDirectory, current.referenceLibrary)
+  // Validate against freshly read sources, never a potentially modified packet.
+  const result = validateReview(report, current)
+  const saved = { version: 1, process: slug, stage, inputDigest: current.inputDigest,
+    reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
+    inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
+    referenceDigest: current.referenceLibrary.digest, answers: result.answers }
+  const path = reviewPath(root, slug, stage)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify(saved, null, 2) + '\n')
+  return { ...result, path }
+}
+
+export function reviewStatus({ root, slug, stage = 'build' }) {
+  const path = reviewPath(root, slug, stage)
+  const packet = makeReviewPacket({ root, slug, stage })
+  if (!existsSync(path)) return { status: 'missing', stage, path, inputDigest: packet.inputDigest,
+    error: `Нет независимого ревью знаний для этапа ${stage}. Запустите kb-review.mjs prepare.` }
+  const report = JSON.parse(readFileSync(path, 'utf8'))
+  if (report.inputDigest !== packet.inputDigest) return { status: 'stale', stage, path,
+    error: 'Знания, план, карта, критерии или библиотека справок изменились после ревью. Нужна новая проверка субагентом.' }
+  if (report.reviewer?.kind !== 'subagent' || !text(report.reviewer.reference) || !Number.isFinite(Date.parse(report.reviewedAt)))
+    throw Error('В отчёте нет сведений о независимом ревьюере и времени проверки.')
+  return { ...validateReview(report, packet), stage, path, inputDigest: packet.inputDigest,
+    reviewedAt: report.reviewedAt, reviewer: report.reviewer }
+}

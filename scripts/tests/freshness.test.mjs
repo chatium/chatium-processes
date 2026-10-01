@@ -36,7 +36,7 @@ function fixture(t) {
 
 test('fresh board matches local HEAD and actual remote; preserves shared notes', async t => {
   const f = fixture(t)
-  const result = await verifySnapshot(f.root, f.expected, undefined, { reader: f.reader, expectedRevision: 3 })
+  const result = await verifySnapshot(f.root, f.expected, { reader: f.reader, expectedRevision: 3 })
   assert.equal(result.verified, true)
   assert.equal(result.boardRevision, 8)
   assert.equal(result.elements.blocks[0].text, 'Change the title')
@@ -47,7 +47,7 @@ test('missing, old and wrong-branch snapshots fail', async t => {
   for (const change of [b => { b.snapshot = null }, b => { b.snapshot.snapshot.commit = '0'.repeat(40) },
     b => { b.snapshot.snapshot.branch = 'main' }, b => { b.snapshot.snapshot.processPath = 'other' }]) {
     const board = structuredClone(f.board); change(board)
-    const r = await verifySnapshot(f.root, f.expected, undefined, { reader: async () => board })
+    const r = await verifySnapshot(f.root, f.expected, { reader: async () => board })
     assert.equal(r.verified, false)
     assert.equal(r.status, 'stale')
   }
@@ -83,11 +83,11 @@ test('serialization order and a previous optional typecheck do not cause false d
 test('dirty and untracked files prevent freshness, shared notes still returned', async t => {
   const f = fixture(t)
   writeFileSync(join(f.root, 'untracked.txt'), 'new')
-  let r = await verifySnapshot(f.root, f.expected, undefined, { reader: f.reader })
+  let r = await verifySnapshot(f.root, f.expected, { reader: f.reader })
   assert.equal(r.status, 'stale'); assert.ok(r.elements)
   rmSync(join(f.root, 'untracked.txt'))
   writeFileSync(join(f.root, 'demo/code.txt'), 'changed')
-  r = await verifySnapshot(f.root, f.expected, undefined, { reader: f.reader })
+  r = await verifySnapshot(f.root, f.expected, { reader: f.reader })
   assert.equal(r.status, 'stale')
 })
 
@@ -104,7 +104,7 @@ test('unpublished HEAD and a newer remote with stale tracking refs fail', t => {
 
 test('switching branch or committing during board read fails', async t => {
   const f = fixture(t)
-  const result = await verifySnapshot(f.root, f.expected, undefined, { reader: async () => {
+  const result = await verifySnapshot(f.root, f.expected, { reader: async () => {
     f.run(['checkout', '-b', 'other'])
     return f.board
   } })
@@ -113,17 +113,17 @@ test('switching branch or committing during board read fails', async t => {
 
 test('post-read remote changes fail and transport errors stay unavailable', async t => {
   const f = fixture(t)
-  const r = await verifySnapshot(f.root, f.expected, undefined, { reader: async () => {
+  const r = await verifySnapshot(f.root, f.expected, { reader: async () => {
     f.run(['push', 'origin', '--delete', 'process/demo'])
     return f.board
   } })
   assert.equal(r.status, 'stale')
-  const failed = await verifySnapshot(f.root, f.expected, undefined, { reader: async () => { throw Error('SDK unavailable') } })
+  const failed = await verifySnapshot(f.root, f.expected, { reader: async () => { throw Error('SDK unavailable') } })
   assert.equal(failed.verified, false); assert.equal(failed.status, 'unavailable')
   assert.throws(() => compareSnapshot(f.expected, {}), /SDK/)
 })
 
-test('CLI verifies without writing, default check reads its write back, offline stays explicit', t => {
+test('public SDK works through a CLI wrapper: readback, offline and typecheck preserve the entrypoint', t => {
   const f = fixture(t)
   const scripts = resolve(import.meta.dirname, '..')
   const runNode = args => spawnSync(process.execPath, args, { cwd: f.root, encoding: 'utf8', env: process.env })
@@ -138,9 +138,21 @@ test('CLI verifies without writing, default check reads its write back, offline 
   const initial = { snapshot: { snapshot: payload, revision: 1 }, revision: 0, elements: { blocks: [{ id: 'note', text: 'Please review' }], connections: [], drawings: [] } }
   writeFileSync(boardFile, JSON.stringify(initial))
   const bin = join(f.base, 'bin'); mkdirSync(bin)
-  writeFileSync(join(bin, 'chatium'), `#!${process.execPath}\n` + `
+  // The image exposes a shell wrapper, not a symlink to CLI internals.
+  // There are deliberately no account.js/session.js beside this entrypoint.
+  writeFileSync(join(bin, 'chatium'), `#!/bin/sh
+if [ "$1" = "typecheck" ]; then
+  printf 'typecheck\\n' >> "$TEST_CALLS_FILE"
+  exit 0
+fi
+exec "$TEST_NODE" "$TEST_CLI" "$@"
+`, { mode: 0o755 })
+  const cli = join(f.base, 'public-cli.mjs')
+  writeFileSync(cli, `
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs'
+if (process.argv[2] !== 'exec') process.exit(8)
 const code = readFileSync(0, 'utf8')
+if (!code.includes("from '@start/sdk'")) process.exit(7)
 const file = process.env.TEST_BOARD_FILE
 const board = JSON.parse(readFileSync(file, 'utf8'))
 if (code.includes('writeProcessSnapshot')) {
@@ -153,9 +165,9 @@ if (code.includes('writeProcessSnapshot')) {
   appendFileSync(process.env.TEST_CALLS_FILE, 'read\\n')
   console.log(JSON.stringify(board))
 } else process.exit(9)
-`, { mode: 0o755 })
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_BOARD_FILE: boardFile, TEST_CALLS_FILE: callsFile }
-  delete env.PROCESSES_START_BRANCH
+`)
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_BOARD_FILE: boardFile,
+    TEST_CALLS_FILE: callsFile, TEST_NODE: process.execPath, TEST_CLI: cli }
   const check = flags => {
     const result = spawnSync(process.execPath, [join(scripts, 'check.mjs'), 'demo', '--json', ...flags], { cwd: f.root, encoding: 'utf8', env })
     return { ...result, report: JSON.parse(result.stdout) }
@@ -176,4 +188,8 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(context.status, 0)
   assert.match(context.stdout, /Please review/)
   assert.match(context.stdout, /актуальна/)
+  result = check(['--typecheck'])
+  assert.equal(result.report.checks.find(c => c.id === 'typecheck').ok, true)
+  assert.equal(result.report.snapshot.verified, true)
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nwrite\nread\nread\ntypecheck\nwrite\nread\n')
 })

@@ -1,15 +1,15 @@
-// Пакет yaml без npm install: берём его из поставки агента dsh или из
-// глобальных node_modules. Для локальных тестов — PROCESSES_YAML_PATH:
-// каталог, от которого искать node_modules/yaml.
+// Local skill dependency first; environment-provided YAML remains supported.
 import { existsSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
 function startDirs() {
   const dirs = []
   if (process.env.PROCESSES_YAML_PATH) dirs.push(process.env.PROCESSES_YAML_PATH)
+  dirs.push(dirname(fileURLToPath(import.meta.url)), process.cwd())
   for (const p of (process.env.NODE_PATH || '').split(delimiter)) {
     if (p) dirs.push(p)
   }
@@ -31,7 +31,6 @@ function startDirs() {
     dirs.push(join(root, '@deepseek-ai', 'dsh'))
     dirs.push(root)
   }
-  dirs.push(process.cwd())
   return dirs
 }
 
@@ -50,8 +49,9 @@ const yaml = loadYaml()
 export function requireYaml() {
   if (!yaml) {
     const err = new Error(
-      'Не найден пакет yaml. На VM он приходит с агентом; локально задайте ' +
-        'PROCESSES_YAML_PATH — каталог, где лежит node_modules/yaml.',
+      'Не найден пакет yaml. Из каталога скилла выполните npm ci --ignore-scripts ' +
+        'либо задайте PROCESSES_YAML_PATH — каталог, ' +
+        'от которого доступен node_modules/yaml. См. build/environment.md.',
     )
     err.code = 'NO_YAML'
     throw err

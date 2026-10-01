@@ -1,3 +1,3 @@
-title: __TITLE__
+title: __TITLE_YAML__
 order:
   - overview.md
