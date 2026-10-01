@@ -10,6 +10,9 @@ import { verifySnapshot } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
+import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
+import { creativeStatus } from './lib/creative.mjs'
+import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
 import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -54,7 +57,7 @@ const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json
 const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--task-stage design|build|test|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 if (options['no-snapshot'] && options['verify-snapshot']) {
@@ -70,6 +73,10 @@ try {
 
 if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-stage'])) {
   console.error('--knowledge-stage: нужен design, build или launch.')
+  process.exit(2)
+}
+if (options['task-stage'] && !TASK_STAGES.includes(options['task-stage'])) {
+  console.error('--task-stage: нужен design, build, test или launch.')
   process.exit(2)
 }
 const root = findRoot(options.root)
@@ -687,6 +694,36 @@ check('plan', 'План PLAN.md', ({ error, warn }) => {
   if (tasks.length === 0) error('нет задач вида «- [ ] T1 …»')
   const open = tasks.filter(m => m[1] === ' ').length
   if (open > 0) warn(`открытых задач: ${open} из ${tasks.length}`)
+})
+
+check('tasks', `Рабочие задачи (${options['task-stage'] || 'build'})`, ({ error, warn }) => {
+  const report = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  if (!report.enabled) return warn('Формат рабочих карточек не включён; существующий процесс требует явной миграции.')
+  for (const issue of report.errors) error(issue)
+  for (const issue of report.warnings) warn(issue)
+})
+
+check('creative', 'Задания страниц и серий', ({ error, warn }) => {
+  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  if (!work.enabled || !map?.nodes) return
+  const future = (options['task-stage'] || 'build') === 'design'
+  for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
+    const result = creativeStatus({ root, slug, nodeId: node.id })
+    for (const issue of result.errors) (future ? warn : error)(`${node.id}: ${issue}`)
+  }
+})
+
+check('creative.review', 'Независимое ревью страниц и серий', ({ error, warn }) => {
+  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  if (!work.enabled || !map?.nodes) return
+  const taskStage = options['task-stage'] || 'build'
+  for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
+    for (const stage of taskStage === 'design' ? [] : taskStage === 'build' ? ['spec'] : ['spec', 'result']) {
+      const result = creativeReviewStatus({ root, slug, nodeId: node.id, stage })
+      if (result.status !== 'ready') error(`${node.id}/${stage}: ${result.error || result.blocking?.map(a => a.reason).join('; ') || result.status}`)
+      for (const gap of result.advisory || []) warn(`${node.id}/${stage}: ${gap.reason}`)
+    }
+  }
 })
 
 // Structural checks never stand in for an independent assessment of meaning.

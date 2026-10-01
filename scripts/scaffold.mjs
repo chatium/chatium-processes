@@ -122,6 +122,7 @@ if (existsSync(wsFile)) {
 put(`${slug}/.workspace.json`, 'process/workspace.json.tpl')
 put(`${slug}/.dir.json`, 'process/dir.json.tpl')
 put(`${slug}/PLAN.md`, 'process/PLAN.md.tpl')
+put(`${slug}/tasks/index.json`, 'process/tasks-index.json.tpl')
 put(`${slug}/process.yaml`, 'process/process.yaml.tpl')
 put(`${slug}/specs/events.yaml`, 'process/events.yaml.tpl')
 put(`${slug}/tests/records.ts`, 'process/records.ts.tpl')

@@ -10,6 +10,9 @@ import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
+import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
+import { creativeStatus } from './lib/creative.mjs'
+import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
 import { inspectProcessFormat } from './lib/process-format.mjs'
@@ -17,13 +20,15 @@ import { inspectProcessFormat } from './lib/process-format.mjs'
 const { positional, options } = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--root DIR]')
+  console.log('Использование: context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--task-stage design|build|test|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 try {
   requireYaml()
   if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-stage']))
     throw Error('--knowledge-stage: нужен design, build или launch.')
+  if (options['task-stage'] && !TASK_STAGES.includes(options['task-stage']))
+    throw Error('--task-stage: нужен design, build, test или launch.')
 } catch (e) {
   console.error(e.message)
   process.exit(2)
@@ -129,6 +134,22 @@ if (realTasks.length > 0) {
   say(`Задачи: закрыто ${realTasks.filter(t => t.done).length} из ${realTasks.length}`)
   for (const t of realTasks) say(`  [${t.done ? 'x' : ' '}] ${t.id} ${t.title}`)
 }
+try {
+  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  if (work.enabled) {
+    say(`Рабочие карточки: завершено ${work.tasks.filter(t => t.status === 'done').length} из ${work.tasks.length}.`)
+    for (const task of work.tasks) say(`  ${task.id} [${task.status}] ${task.title}`)
+    for (const issue of work.errors) say(`  ✘ ${issue}`)
+    for (const issue of work.warnings) say(`  ! ${issue}`)
+    say(`Детали: node .agents/skills/processes/scripts/tasks.mjs context ${slug} W001`)
+    for (const node of (map?.nodes || []).filter(n => ['page', 'series'].includes(n.kind))) {
+      const creative = creativeStatus({ root, slug, nodeId: node.id })
+      say(`Задание ${node.id}: ${creative.status}${creative.errors.length ? ` — ${creative.errors.join('; ')}` : ''}`)
+      const review = creativeReviewStatus({ root, slug, nodeId: node.id, stage: 'spec' })
+      say(`Ревью задания ${node.id}: ${review.status}${review.error ? ` — ${review.error}` : ''}`)
+    }
+  }
+} catch (error) { say(`Рабочие карточки не прочитаны: ${error.message}`) }
 say('')
 say(`Проверка: node .agents/skills/processes/scripts/check.mjs ${slug}`)
 const knowledgeStage = options['knowledge-stage'] || (launchApproved ? 'launch' : 'build')

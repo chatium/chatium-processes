@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chatium process work task v1",
+  "type": "object",
+  "required": ["version", "id", "planTask", "title", "executor", "mode", "stage", "objective", "scope", "status", "revision", "dependsOn", "inputs", "expectedOutputs", "steps", "acceptanceCriteria", "questions", "drafts", "attempts", "result", "acceptance", "cancellation"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^W[0-9]+$" },
+    "planTask": { "type": "string", "pattern": "^T[0-9]+$" },
+    "title": { "$ref": "#/$defs/text" },
+    "targetNode": { "type": ["string", "null"] },
+    "executor": {
+      "type": "object",
+      "required": ["kind", "role"],
+      "properties": {
+        "kind": { "enum": ["main", "specialist"] },
+        "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$" }
+      }
+    },
+    "mode": { "enum": ["implement", "consult", "produce", "review", "verify"] },
+    "stage": { "enum": ["design", "build", "test", "launch"] },
+    "objective": { "$ref": "#/$defs/text" },
+    "scope": {
+      "type": "object",
+      "required": ["includes", "excludes"],
+      "properties": {
+        "includes": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+        "excludes": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+      }
+    },
+    "status": { "enum": ["queued", "running", "needs-input", "ready-to-resume", "result-ready", "done", "failed", "cancelled"] },
+    "revision": { "type": "integer", "minimum": 0 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "dependsOn": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^W[0-9]+$" } },
+    "session": { "type": ["object", "null"] },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path", "purpose"],
+        "properties": {
+          "kind": { "enum": ["knowledge", "contract", "spec", "build", "reference", "code", "asset", "report"] },
+          "path": { "$ref": "#/$defs/text" },
+          "purpose": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "expectedOutputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "purpose"],
+        "properties": { "path": { "$ref": "#/$defs/text" }, "purpose": { "$ref": "#/$defs/text" } }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "action", "status"],
+        "properties": {
+          "id": { "$ref": "#/$defs/text" },
+          "action": { "$ref": "#/$defs/text" },
+          "status": { "enum": ["todo", "doing", "done", "skipped"] },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "planCriteria", "condition", "verification"],
+        "properties": {
+          "id": { "$ref": "#/$defs/text" },
+          "planCriteria": { "type": "array", "items": { "type": "string", "pattern": "^T[0-9]+\\.A[0-9]+$" } },
+          "condition": { "$ref": "#/$defs/text" },
+          "verification": {
+            "type": "object",
+            "required": ["kind", "instruction"],
+            "properties": {
+              "kind": { "enum": ["test", "artifact", "inspection", "review"] },
+              "instruction": { "$ref": "#/$defs/text" }
+            }
+          }
+        }
+      }
+    },
+    "questions": { "type": "array", "items": { "type": "object" } },
+    "drafts": { "type": "array", "items": { "type": "object" } },
+    "latestAttempt": { "type": ["string", "null"] },
+    "attempts": { "type": "array", "items": { "type": "object" } },
+    "result": { "type": ["object", "null"] },
+    "acceptance": { "type": ["object", "null"] },
+    "cancellation": { "type": ["object", "null"] }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 }
+  }
+}

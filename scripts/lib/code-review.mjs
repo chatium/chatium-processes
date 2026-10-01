@@ -4,6 +4,7 @@ import { collectImplementation } from './implementation.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { collectReferenceLibrary, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { loadTasks, parseTaskPlan, taskDefinition } from './tasks.mjs'
 
 export function codeReviewPath(root, slug) {
   if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
@@ -15,6 +16,14 @@ export function codeReviewPath(root, slug) {
 export function makeCodeReviewPacket({ root, slug }) {
   codeReviewPath(root, slug)
   const corpus = collectImplementation({ root, slug })
+  // Progress and generated prompts must not invalidate a review. Keep only
+  // the task requirements and real implementation sources in the packet.
+  const planPath = `${slug}/PLAN.md`
+  const files = corpus.files.filter(file => !file.path.startsWith(`${slug}/tasks/`) &&
+    !new RegExp(`^${slug}/creative/[^/]+/build\\.md$`).test(file.path))
+    .map(file => file.path === planPath ? { ...file, content: file.content.replace(/^- \[[xX ]\] (T\d+)/gm, '- [ ] $1') } : file)
+  const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
+  const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
   if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
@@ -24,9 +33,9 @@ export function makeCodeReviewPacket({ root, slug }) {
     lookFor: 'Конкретные файлы, цепочка вызовов и требование плана. Не считать отметку выполненности доказательством. Для теста/запуска оцени готовность сценариев и механизма до фактического выполнения.' }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются вопросы или ID задач плана.')
   const base = { version: 1, process: slug, stage: 'implementation',
-    rubricVersion: rubric.version, questions, tasks: corpus.tasks,
+    rubricVersion: rubric.version, questions, tasks: corpus.tasks.map(({ markedDone, ...task }) => task), workTasks,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/reviewer.md'), 'utf8'),
-    files: corpus.files, assets: corpus.assets, dependencies: corpus.dependencies, staticChecks: corpus.checks }
+    files, assets: corpus.assets, dependencies: corpus.dependencies, staticChecks: corpus.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation' }))
 }
 export function recordCodeReview({ root, slug, packet, report, agentReference, packetDirectory }) {
@@ -35,7 +44,7 @@ export function recordCodeReview({ root, slug, packet, report, agentReference, p
   if (packet.inputDigest !== current.inputDigest) throw Error('Исходники, план, зависимости или критерии изменились. Подготовьте новый пакет и повторите ревью.')
   if (packetDirectory) verifyReferenceSnapshot(packetDirectory, current.referenceLibrary)
   const result = validateReview(report, current)
-  const saved = { version: 1, process: slug, stage: 'implementation', inputDigest: current.inputDigest,
+  const saved = { version: 1, process: slug, stage: 'implementation', status: result.status, inputDigest: current.inputDigest,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
     referenceDigest: current.referenceLibrary.digest, answers: result.answers }

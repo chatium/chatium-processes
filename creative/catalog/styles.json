@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "source": "Selected style-system fields from Start landingStylePacks.ts; values are reusable defaults, not business facts",
+  "styles": {
+    "clean_service": {
+      "name": "Чистая сервисная страница",
+      "colors": { "background": "#F7F9FC", "surface": "#FFFFFF", "text": "#182235", "muted": "#526075", "primary": "#1D5DDB", "primaryText": "#FFFFFF", "border": "#DCE4EF" },
+      "typography": { "heading": "Inter, Arial, sans-serif", "body": "Inter, Arial, sans-serif", "hero": "clamp(2.5rem, 5vw, 4.5rem)", "section": "clamp(1.8rem, 3vw, 2.8rem)", "bodySize": "1rem", "lineHeight": "1.55" },
+      "grid": { "maxWidth": "1200px", "desktopColumns": 12, "gutter": "24px", "mobileColumns": 1 },
+      "spacing": { "sectionDesktop": "96px", "sectionMobile": "56px", "card": "24px" },
+      "components": { "button": "Контрастная заливка primary, чёткий focus-visible, высота не менее 44px", "form": "Постоянные подписи полей, явные ошибки и успешное состояние", "card": "Белая поверхность, видимая граница, мягкий радиус 16px" },
+      "hero": "Сильный конкретный заголовок, короткое объяснение и основной CTA; визуал показывает продукт или результат.",
+      "mobile": "Одна колонка без горизонтального скролла; CTA и формы остаются доступными.",
+      "forbidden": ["Случайные градиенты вместо системы", "Плейсхолдер вместо подписи поля", "Изображения без связи с предложением"]
+    },
+    "editorial_product": {
+      "name": "Редакционная продуктовая подача",
+      "colors": { "background": "#F4F0E8", "surface": "#FFFDF8", "text": "#1F2B29", "muted": "#5B655F", "primary": "#275B4A", "primaryText": "#FFFFFF", "border": "#CFC9BB" },
+      "typography": { "heading": "Georgia, Times New Roman, serif", "body": "Arial, sans-serif", "hero": "clamp(2.6rem, 5vw, 5rem)", "section": "clamp(1.8rem, 3vw, 3rem)", "bodySize": "1rem", "lineHeight": "1.6" },
+      "grid": { "maxWidth": "1180px", "desktopColumns": 12, "gutter": "28px", "mobileColumns": 1 },
+      "spacing": { "sectionDesktop": "104px", "sectionMobile": "64px", "card": "28px" },
+      "components": { "button": "Типографический CTA с отчётливым состоянием hover/focus", "form": "Чёткие линии и подписи; ошибки рядом с полями", "card": "Плоская бумажная поверхность с тонким разделителем" },
+      "hero": "Крупный заголовок с одним смысловым акцентом, предметный визуал и понятное предложение.",
+      "mobile": "Номерные разделы и карточки выстраиваются в одну колонку, текст не мельчает.",
+      "forbidden": ["Случайный glassmorphism", "Декоративные карточки без содержания", "Контраст ниже читаемого"]
+    }
+  }
+}

@@ -103,7 +103,7 @@ export function recordReview({ root, slug, stage, packet, report, agentReference
   if (packetDirectory) verifyReferenceSnapshot(packetDirectory, current.referenceLibrary)
   // Validate against freshly read sources, never a potentially modified packet.
   const result = validateReview(report, current)
-  const saved = { version: 1, process: slug, stage, inputDigest: current.inputDigest,
+  const saved = { version: 1, process: slug, stage, status: result.status, inputDigest: current.inputDigest,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
     referenceDigest: current.referenceLibrary.digest, answers: result.answers }

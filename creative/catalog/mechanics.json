@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "mechanics": {
+    "form": { "requires": ["fields", "target", "success", "error", "mobile"], "guidance": "Поля, обработчик, отказ и подтверждение должны быть реальными." },
+    "cta_button": { "requires": ["target", "success", "mobile"], "guidance": "Текст кнопки обещает именно то действие, куда она ведёт." },
+    "payment_button": { "requires": ["target", "success", "error", "mobile"], "guidance": "Проверить оплату, отмену и повторное нажатие." },
+    "sticky_bar": { "requires": ["target", "mobile"], "guidance": "Не перекрывать контент и основные элементы интерфейса." },
+    "quiz": { "requires": ["fields", "target", "success", "error", "mobile"], "guidance": "Результат и передача ответов должны быть определены." },
+    "calendar": { "requires": ["target", "success", "error", "mobile"], "guidance": "Слоты и подтверждение бронирования проверяются в реальном сценарии." },
+    "timer": { "requires": ["deadlineSource", "mobile"], "guidance": "Только реальный дедлайн из подтверждённого источника." },
+    "scarcity_counter": { "requires": ["quantitySource", "mobile"], "guidance": "Количество мест или товара должно читаться из источника, а не быть декорацией." },
+    "comparison": { "requires": ["source", "mobile"], "guidance": "Сравнивать только проверенные характеристики." },
+    "chat_widget": { "requires": ["target", "mobile"], "guidance": "Понятно, кто отвечает и куда уходят сообщения." }
+  }
+}

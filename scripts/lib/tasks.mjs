@@ -1,0 +1,367 @@
+import { createHash } from 'node:crypto'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
+import { canonicalTarget, reviewStatus } from './knowledge-review.mjs'
+import { codeReviewStatus } from './code-review.mjs'
+import { creativeReviewStatus } from './creative-review.mjs'
+import { isProcessSlug, SKILL_DIR } from './project.mjs'
+
+export const TASK_STAGES = ['design', 'build', 'test', 'launch']
+export const TASK_STATUSES = ['queued', 'running', 'needs-input', 'ready-to-resume', 'result-ready', 'done', 'failed', 'cancelled']
+const KINDS = new Set(['knowledge', 'contract', 'spec', 'build', 'reference', 'code', 'asset', 'report'])
+const MODES = new Set(['implement', 'consult', 'produce', 'review', 'verify'])
+const EVIDENCE_KINDS = new Set(['test', 'artifact', 'inspection', 'review'])
+const SPECIALIST_ROLES = new Set(['marketing', 'copywriter', 'landing', 'email', 'reviewer'])
+const str = value => typeof value === 'string' && value.trim().length > 0
+const hash = value => createHash('sha256').update(value).digest('hex')
+const digest = value => hash(JSON.stringify(value))
+const uniq = values => new Set(values).size === values.length
+const inside = (base, target) => target === base || target.startsWith(base + sep)
+const sensitive = path => path.split(/[\\/]/).some(part =>
+  ['.git', 'node_modules', '.cache', '.typings'].includes(part) ||
+  /^\.env(?:\.|$)|^(?:credentials|secrets?)\.(?:json|ya?ml|txt|md)$/i.test(part))
+
+export function specialistRolePath(role) {
+  if (!SPECIALIST_ROLES.has(role)) throw Error(`Неизвестная роль специалиста: ${role}`)
+  const base = realpathSync(join(SKILL_DIR, 'specialists/roles'))
+  const path = join(base, `${role}.md`)
+  if (!inside(base, canonicalTarget(path)) || !existsSync(path) || !statSync(path).isFile())
+    throw Error(`Не найдена безопасная методика роли ${role}`)
+  return path
+}
+
+export function safeTaskPath(root, path, { mayBeMissing = false } = {}) {
+  if (!str(path) || path.includes('\\') || path.startsWith('/') || path.split('/').some(part => !part || part === '..' || part === '.'))
+    throw Error(`Некорректный путь задачи: ${path}`)
+  const base = realpathSync(root), target = resolve(base, path)
+  if (!inside(base, target)) throw Error(`Путь вне аккаунта: ${path}`)
+  const canonical = canonicalTarget(target)
+  if (!inside(base, canonical)) throw Error(`Ссылка вне аккаунта: ${path}`)
+  if (sensitive(path) || sensitive(canonical.slice(base.length + 1))) throw Error(`Нельзя читать секретный или служебный путь: ${path}`)
+  if (!mayBeMissing && (!existsSync(target) || !statSync(target).isFile())) throw Error(`Нет файла ${path}`)
+  return target
+}
+
+export function parseTaskPlan(source) {
+  const section = /(?:^|\n)## Задачи[^\n]*\n([\s\S]*?)(?=\n## |$)/.exec(source)?.[1] || ''
+  const tasks = [], byId = new Map(), criterionIds = new Set()
+  for (const line of section.split('\n')) {
+    const match = /^- \[( |x|X)\] (T\d+)\s+(.+)$/.exec(line)
+    if (match) {
+      if (byId.has(match[2])) throw Error(`Повторная задача плана ${match[2]}.`)
+      const task = { id: match[2], done: match[1] !== ' ', title: match[3].trim(), criteria: [], work: [] }
+      tasks.push(task); byId.set(task.id, task)
+      continue
+    }
+    const task = tasks.at(-1)
+    if (!task) continue
+    const criterion = /^  - (T\d+\.A\d+) \[(design|build|test|launch)\] (.+)$/.exec(line)
+    if (criterion && criterion[1].startsWith(task.id + '.')) {
+      if (criterionIds.has(criterion[1])) throw Error(`Повторный критерий плана ${criterion[1]}.`)
+      criterionIds.add(criterion[1])
+      task.criteria.push({ id: criterion[1], stage: criterion[2], condition: criterion[3].trim() })
+      continue
+    }
+    if (/^  - Рабочие задачи:/.test(line))
+      task.work.push(...[...line.matchAll(/\[(W\d+)\]\(tasks\/(W\d+)\.json\)/g)].filter(m => m[1] === m[2]).map(m => m[1]))
+  }
+  return tasks.filter(t => t.title !== '…')
+}
+
+export function taskDefinition(task, planTask) {
+  const selected = task.acceptanceCriteria.flatMap(c => c.planCriteria || [])
+  return {
+    id: task.id, planTask: task.planTask, planTitle: planTask?.title,
+    planCriteria: (planTask?.criteria || []).filter(c => selected.includes(c.id)),
+    title: task.title, targetNode: task.targetNode, executor: task.executor,
+    mode: task.mode, stage: task.stage, objective: task.objective, scope: task.scope,
+    dependsOn: task.dependsOn, inputs: task.inputs, expectedOutputs: task.expectedOutputs,
+    steps: task.steps.map(({ id, action }) => ({ id, action })),
+    acceptanceCriteria: task.acceptanceCriteria,
+  }
+}
+export const taskDefinitionDigest = (task, planTask) => digest(taskDefinition(task, planTask))
+
+export function taskFile(root, slug, id) {
+  if (!isProcessSlug(slug) || !/^W\d+$/.test(id)) throw Error('Нужны корректные ID процесса и задачи W…')
+  return safeTaskPath(root, `${slug}/tasks/${id}.json`, { mayBeMissing: true })
+}
+
+export function loadTasks(root, slug) {
+  if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
+  const dir = safeTaskPath(root, `${slug}/tasks`, { mayBeMissing: true })
+  if (!existsSync(dir)) return { enabled: false, tasks: [] }
+  if (!lstatSync(dir).isDirectory()) throw Error('tasks должен быть каталогом.')
+  const names = readdirSync(dir)
+  if (!names.includes('index.json') || lstatSync(join(dir, 'index.json')).isSymbolicLink() ||
+      JSON.parse(readFileSync(safeTaskPath(root, `${slug}/tasks/index.json`), 'utf8')).version !== 1)
+    throw Error('Нет корректного tasks/index.json версии 1.')
+  const unexpected = names.filter(name => name.endsWith('.json') && name !== 'index.json' && !/^W\d+\.json$/.test(name))
+  if (unexpected.length) throw Error(`Неизвестные JSON-карточки: ${unexpected.join(', ')}`)
+  const files = names.filter(name => /^W\d+\.json$/.test(name)).sort()
+  if (files.length > 200) throw Error('Слишком много рабочих задач (максимум 200).')
+  const tasks = files.map(name => {
+    const path = join(dir, name)
+    if (lstatSync(path).isSymbolicLink()) throw Error(`Карточка ${name} не может быть ссылкой.`)
+    if (lstatSync(path).size > 64 * 1024) throw Error(`Слишком большая карточка ${name}`)
+    const task = JSON.parse(readFileSync(safeTaskPath(root, `${slug}/tasks/${name}`), 'utf8'))
+    if (`${task?.id}.json` !== name) throw Error(`ID в карточке ${name} не совпадает с именем файла.`)
+    return task
+  })
+  return { enabled: true, tasks }
+}
+
+function taskErrors(task, plan) {
+  const errors = []
+  const need = (ok, message) => { if (!ok) errors.push(`${task?.id || '?'}: ${message}`) }
+  need(task?.version === 1, 'нужна version: 1')
+  need(/^W\d+$/.test(task?.id || ''), 'некорректный ID')
+  need(/^T\d+$/.test(task?.planTask || '') && plan.some(t => t.id === task.planTask), 'нет T-задачи в PLAN.md')
+  need(str(task?.title) && str(task?.objective), 'нужны название и цель')
+  need(['main', 'specialist'].includes(task?.executor?.kind) &&
+    /^[a-z][a-z0-9-]{0,40}$/.test(task?.executor?.role || '') &&
+    (task?.executor?.kind !== 'specialist' || SPECIALIST_ROLES.has(task.executor.role)), 'нужен известный безопасный исполнитель')
+  need(MODES.has(task?.mode), 'неизвестный режим')
+  need(TASK_STAGES.includes(task?.stage), 'неизвестный рубеж готовности')
+  need(TASK_STATUSES.includes(task?.status), 'неизвестное состояние')
+  need(Number.isInteger(task?.revision) && task.revision >= 0, 'нужна revision')
+  need(Array.isArray(task?.dependsOn) && task.dependsOn.every(id => /^W\d+$/.test(id)) && uniq(task.dependsOn || []), 'неверные зависимости')
+  need(Array.isArray(task?.inputs) && task.inputs.every(i => KINDS.has(i.kind) && str(i.path) && str(i.purpose)) && uniq((task.inputs || []).map(i => i.path)), 'неверные inputs')
+  need(Array.isArray(task?.expectedOutputs) && task.expectedOutputs.length > 0 && task.expectedOutputs.every(o => str(o.path) && str(o.purpose)) && uniq((task.expectedOutputs || []).map(o => o.path)), 'нужны ожидаемые результаты')
+  need(Array.isArray(task?.scope?.includes) && Array.isArray(task?.scope?.excludes), 'нужны границы задачи')
+  need(Array.isArray(task?.steps) && task.steps.every(s => str(s.id) && str(s.action) && ['todo', 'doing', 'done', 'skipped'].includes(s.status) && (s.status !== 'skipped' || str(s.reason))) && uniq((task.steps || []).map(s => s.id)), 'неверные шаги')
+  need(Array.isArray(task?.acceptanceCriteria) && task.acceptanceCriteria.length > 0 &&
+    task.acceptanceCriteria.every(c => str(c.id) && str(c.condition) && Array.isArray(c.planCriteria) &&
+      c.planCriteria.every(id => /^T\d+\.A\d+$/.test(id)) && EVIDENCE_KINDS.has(c.verification?.kind) && str(c.verification?.instruction)) &&
+    uniq((task.acceptanceCriteria || []).map(c => c.id)), 'нужны конкретные критерии приёмки')
+  need(Array.isArray(task?.questions) && task.questions.every(q => str(q.id) && str(q.question) && str(q.why) && typeof q.blocking === 'boolean' && ['open', 'resolved'].includes(q.status)) && uniq((task.questions || []).map(q => q.id)), 'неверные вопросы')
+  need(Array.isArray(task?.drafts) && Array.isArray(task?.attempts), 'нужны drafts и attempts')
+  const t = plan.find(t => t.id === task?.planTask)
+  for (const c of task?.acceptanceCriteria || []) for (const id of c.planCriteria || []) {
+    const target = t?.criteria.find(x => x.id === id)
+    need(Boolean(target), `нет критерия плана ${id}`)
+    if (target) need(TASK_STAGES.indexOf(task.stage) <= TASK_STAGES.indexOf(target.stage), `${id}: рабочая задача назначена позже срока`)
+  }
+  return errors
+}
+
+function fileHash(root, path) {
+  const file = safeTaskPath(root, path)
+  if (statSync(file).size > 10 * 1024 * 1024) throw Error(`Слишком большой файл задачи ${path}`)
+  return hash(readFileSync(file))
+}
+
+function currentReviewStatus(root, slug, path) {
+  if (path === `${slug}/reviews/implementation.json`) return codeReviewStatus({ root, slug })
+  const knowledge = new RegExp(`^${slug}/reviews/knowledge-(design|build|launch)\\.json$`).exec(path)
+  if (knowledge) return reviewStatus({ root, slug, stage: knowledge[1] })
+  const creative = new RegExp(`^${slug}/reviews/creative/([^/]+)-(spec|result)\\.json$`).exec(path)
+  if (creative) return creativeReviewStatus({ root, slug, nodeId: creative[1], stage: creative[2] })
+  throw Error(`Неподдерживаемый отчёт независимого ревью: ${path}`)
+}
+
+export function expandedTaskInputs(root, task) {
+  const inputs = [...task.inputs]
+  const seen = new Set(inputs.map(input => input.path))
+  for (const question of task.questions || []) for (const path of question.status === 'resolved' ? question.answer?.sourceRefs || [] : []) {
+    if (seen.has(path)) continue
+    safeTaskPath(root, path)
+    inputs.push({ kind: 'knowledge', path, purpose: `Ответ на ${question.id}` })
+    seen.add(path)
+  }
+  for (const input of task.inputs.filter(i => i.kind === 'build')) {
+    const first = readFileSync(safeTaskPath(root, input.path), 'utf8').split('\n', 1)[0]
+    const match = /^<!-- creative-build-v1 (\{.*\}) -->$/.exec(first)
+    if (!match) throw Error(`${input.path}: нет заголовка с версией задания.`)
+    const manifest = JSON.parse(match[1])
+    if (!Array.isArray(manifest.requiredReferences) || !Array.isArray(manifest.requiredInputs) ||
+        !manifest.generated || !manifest.inputDigest) throw Error(`${input.path}: неполный заголовок задания.`)
+    for (const item of manifest.requiredInputs) {
+      const path = typeof item === 'string' ? item : item?.path
+      const kind = typeof item === 'string' ? 'spec' : item?.kind
+      if (!str(path) || !KINDS.has(kind)) throw Error(`${input.path}: неверный список обязательных входов.`)
+      if (seen.has(path)) continue
+      safeTaskPath(root, path)
+      inputs.push({ kind, path, purpose: 'Исходный материал задания' })
+      seen.add(path)
+    }
+    for (const path of manifest.requiredReferences) if (!seen.has(path)) {
+      safeTaskPath(root, path)
+      inputs.push({ kind: 'reference', path, purpose: 'Обязательный референс из задания' })
+      seen.add(path)
+    }
+  }
+  return inputs
+}
+
+export function taskInputDigest(root, task) {
+  const outputs = new Set((task.expectedOutputs || []).map(o => o.path))
+  const parts = expandedTaskInputs(root, task).filter(input => !outputs.has(input.path))
+    .map(input => ({ kind: input.kind, path: input.path, sha256: fileHash(root, input.path) }))
+  const answers = (task.questions || []).filter(q => q.status === 'resolved')
+    .map(q => ({ id: q.id, summary: q.answer?.summary, sourceRefs: q.answer?.sourceRefs }))
+  const role = task.executor?.kind === 'specialist' ?
+    { name: task.executor.role, sha256: hash(readFileSync(specialistRolePath(task.executor.role))) } : null
+  return digest({ parts, answers, role })
+}
+
+export function acceptanceErrors(root, slug, task, plan, allTasks) {
+  const errors = [], add = value => errors.push(`${task.id}: ${value}`)
+  if (!task.result || !str(task.result.summary)) { add('нет результата'); return errors }
+  if (!task.attempts?.some(a => a.id === task.result.attemptId)) add('нет попытки результата')
+  const acceptedAttempt = task.attempts?.find(a => a.id === task.result.attemptId)
+  if (acceptedAttempt?.baseInputs?.length && !str(acceptedAttempt.baseVerifiedAt)) add('не сверена исходная версия существующего файла')
+  if (task.executor?.kind === 'specialist') {
+    const attempt = task.attempts?.find(a => a.id === task.result.attemptId)
+    if (!str(attempt?.session?.agentId) || !str(attempt?.responseRef)) add('нет привязанного вызова и ответа специалиста')
+  }
+  if (task.questions?.some(q => q.status !== 'resolved')) add('остались открытые вопросы')
+  if (task.steps?.some(s => s.status !== 'done' && s.status !== 'skipped')) add('остались незавершённые шаги')
+  for (const id of task.dependsOn || []) if (allTasks.find(t => t.id === id)?.status !== 'done') add(`зависимость ${id} не завершена`)
+  const expected = new Set((task.expectedOutputs || []).map(o => o.path))
+  const outputs = task.result.outputs || []
+  if (outputs.length !== expected.size || !uniq(outputs.map(o => o.path)) || outputs.some(o => !expected.has(o.path))) add('набор результатов не совпадает с ожидаемым')
+  for (const output of outputs) try {
+    if (output.sha256 !== fileHash(root, output.path)) add(`неверный хеш результата ${output.path}`)
+  } catch (e) { add(e.message) }
+  const criteria = task.acceptanceCriteria || [], results = task.result.criteriaResults || []
+  if (results.length !== criteria.length || !uniq(results.map(r => r.criterionId))) add('нет исхода ровно для каждого критерия')
+  for (const criterion of criteria) {
+    const result = results.find(r => r.criterionId === criterion.id)
+    if (result?.outcome !== 'pass') { add(`${criterion.id}: не подтверждён pass`); continue }
+    if (!Array.isArray(result.evidence) || !result.evidence.length) { add(`${criterion.id}: нет подтверждения`); continue }
+    for (const evidence of result.evidence) {
+      if (!str(evidence.path) || !str(evidence.sha256) || !str(evidence.locator) || !str(evidence.observation)) { add(`${criterion.id}: неполное подтверждение`); continue }
+      try {
+        if (evidence.sha256 !== fileHash(root, evidence.path)) { add(`${criterion.id}: подтверждение изменено`); continue }
+        if (criterion.verification.kind === 'test') {
+          const report = JSON.parse(readFileSync(safeTaskPath(root, evidence.path), 'utf8'))
+          if (report.version !== 1 || !str(report.method) || report.inputDigest !== taskInputDigest(root, task) ||
+              !Array.isArray(report.testedFiles)) add(`${criterion.id}: отчёт не привязан к версии входов и способу проверки`)
+          else {
+            const files = new Map(report.testedFiles.map(file => [file.path, file.sha256]))
+            if (files.size !== report.testedFiles.length || outputs.some(output => files.get(output.path) !== output.sha256))
+              add(`${criterion.id}: отчёт не проверял текущие результаты`)
+          }
+          if (!report.checks?.some(c => c.id === evidence.locator && c.status === 'pass')) add(`${criterion.id}: отчёт не содержит пройденную проверку ${evidence.locator}`)
+        }
+        if (criterion.verification.kind === 'review') {
+          const report = JSON.parse(readFileSync(safeTaskPath(root, evidence.path), 'utf8'))
+          if (report.status !== 'ready' || report.reviewer?.kind !== 'subagent' || !str(report.reviewer?.reference)) add(`${criterion.id}: нет независимого положительного ревью`)
+          else {
+            try {
+              const current = currentReviewStatus(root, slug, evidence.path)
+              if (current.status !== 'ready') add(`${criterion.id}: ревью устарело (${current.status})`)
+            } catch (error) { add(`${criterion.id}: ${error.message}`) }
+          }
+        }
+      } catch (e) { add(`${criterion.id}: ${e.message}`) }
+    }
+  }
+  if (!plan.find(p => p.id === task.planTask)) add('нет T-задачи')
+  return errors
+}
+
+export function taskReadiness({ root, slug, stage = 'build' }) {
+  const planPath = safeTaskPath(root, `${slug}/PLAN.md`, { mayBeMissing: true })
+  const plan = existsSync(planPath) ? parseTaskPlan(readFileSync(planPath, 'utf8')) : []
+  const loaded = loadTasks(root, slug), errors = [], warnings = [], byId = new Map()
+  if (!loaded.enabled) return { enabled: false, plan, tasks: [], errors, warnings }
+  if (!TASK_STAGES.includes(stage)) throw Error('Неизвестный рубеж задач.')
+  for (const task of loaded.tasks) {
+    errors.push(...taskErrors(task, plan))
+    if (byId.has(task.id)) errors.push(`Повторный ID ${task.id}`)
+    byId.set(task.id, task)
+    const p = plan.find(p => p.id === task.planTask)
+    if (p && !p.work.includes(task.id)) errors.push(`${task.id}: нет ссылки из ${p.id} в PLAN.md`)
+    for (const input of task.inputs || []) {
+      try {
+        safeTaskPath(root, input.path, { mayBeMissing: true })
+        if (!existsSync(safeTaskPath(root, input.path, { mayBeMissing: true })) &&
+            !(task.dependsOn || []).some(id => loaded.tasks.find(t => t.id === id)?.expectedOutputs?.some(o => o.path === input.path)))
+          errors.push(`${task.id}: нет обязательного материала ${input.path} и производящей задачи`)
+      }
+      catch (e) { errors.push(`${task.id}: ${e.message}`) }
+    }
+  }
+  for (const p of plan) {
+    for (const id of p.work) if (!byId.has(id)) errors.push(`${p.id}: нет карточки ${id}`)
+    for (const c of p.criteria) {
+      const covered = loaded.tasks.some(t => t.status !== 'cancelled' && t.planTask === p.id && t.acceptanceCriteria?.some(a => a.planCriteria.includes(c.id)))
+      if (!covered) errors.push(`${c.id}: не назначена рабочая задача`)
+    }
+    if (!p.criteria.length) errors.push(`${p.id}: нужны критерии с ID и рубежом`)
+  }
+  const seen = new Set(), stack = new Set()
+  function visit(id) {
+    if (stack.has(id)) { errors.push(`${id}: цикл зависимостей`); return }
+    if (seen.has(id)) return
+    seen.add(id); stack.add(id)
+    for (const dep of byId.get(id)?.dependsOn || []) {
+      if (!byId.has(dep)) errors.push(`${id}: нет зависимости ${dep}`)
+      else visit(dep)
+    }
+    stack.delete(id)
+  }
+  for (const id of byId.keys()) visit(id)
+  for (const task of loaded.tasks) {
+    const due = TASK_STAGES.indexOf(task.stage) <= TASK_STAGES.indexOf(stage)
+    const issue = message => (due ? errors : warnings).push(`${task.id}: ${message}`)
+    if (task.status === 'cancelled') {
+      if (!str(task.cancellation?.reason) || !(task.cancellation?.replacementTaskIds?.length || str(task.cancellation?.decisionRef))) issue('отмена без причины и судьбы требования')
+      continue
+    }
+    if (task.status !== 'done') { issue(`задача не завершена (${task.status})`); continue }
+    try {
+      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks)) issue(error)
+      const currentDefinition = taskDefinitionDigest(task, plan.find(p => p.id === task.planTask))
+      if (task.acceptance?.definitionDigest !== currentDefinition) issue('изменилось задание/критерии после приёмки')
+      if (task.acceptance?.inputDigest !== taskInputDigest(root, task)) issue('изменились входные материалы после приёмки')
+      if (!task.result || task.acceptance?.resultDigest !== digest(task.result)) issue('результат изменён после приёмки')
+      for (const o of task.result?.outputs || []) if (fileHash(root, o.path) !== o.sha256) issue(`изменён результат ${o.path}`)
+      for (const c of task.result?.criteriaResults || []) for (const e of c.evidence || []) if (fileHash(root, e.path) !== e.sha256) issue(`изменено подтверждение ${e.path}`)
+    } catch (e) { issue(e.message) }
+  }
+  for (const p of plan) {
+    const due = p.criteria.filter(c => TASK_STAGES.indexOf(c.stage) <= TASK_STAGES.indexOf(stage))
+    if (p.done && p.work.some(id => byId.get(id)?.status !== 'done' && byId.get(id)?.status !== 'cancelled'))
+      errors.push(`${p.id}: в плане закрыта задача с незавершёнными рабочими карточками`)
+    for (const criterion of due) {
+      const assigned = loaded.tasks.filter(t => t.status !== 'cancelled' && t.planTask === p.id && t.acceptanceCriteria?.some(c => c.planCriteria.includes(criterion.id)))
+      if (!assigned.length || assigned.some(t => t.status !== 'done')) errors.push(`${criterion.id}: связанные рабочие задачи не приняты`)
+    }
+    if (!p.done && p.criteria.length && due.length === p.criteria.length &&
+        p.work.length && p.work.every(id => byId.get(id)?.status === 'done'))
+      errors.push(`${p.id}: все карточки приняты, но задача в PLAN.md остаётся открытой`)
+  }
+  return { enabled: true, plan, tasks: loaded.tasks, errors, warnings }
+}
+
+export function writeTask(root, slug, task, expectedRevision = null) {
+  const file = taskFile(root, slug, task.id)
+  const exists = existsSync(file)
+  if (expectedRevision === null && exists) throw Error(`${task.id} уже существует`)
+  if (expectedRevision !== null && (!exists || JSON.parse(readFileSync(file, 'utf8')).revision !== expectedRevision)) throw Error(`${task.id}: карточка изменилась, повторите действие`)
+  const planFile = safeTaskPath(root, `${slug}/PLAN.md`), plan = parseTaskPlan(readFileSync(planFile, 'utf8'))
+  const issues = taskErrors(task, plan)
+  if (issues.length) throw Error(issues.join('; '))
+  mkdirSync(dirname(file), { recursive: true })
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
+  writeFileSync(temporary, JSON.stringify(task, null, 2) + '\n', { flag: 'wx' })
+  renameSync(temporary, file)
+  return file
+}
+
+export function appendPlanTaskLink(root, slug, task) {
+  const path = safeTaskPath(root, `${slug}/PLAN.md`), source = readFileSync(path, 'utf8')
+  const lines = source.split('\n')
+  const index = lines.findIndex(line => /^- \[(?: |x|X)\] (T\d+)\s/.exec(line)?.[1] === task.planTask)
+  if (index < 0) throw Error(`${task.planTask} отсутствует в PLAN.md`)
+  let end = index + 1
+  while (end < lines.length && !/^(?:- \[(?: |x|X)\] T\d+\s|## )/.test(lines[end])) end++
+  const ref = `[${task.id}](tasks/${task.id}.json)`
+  const link = lines.findIndex((line, i) => i > index && i < end && /^  - Рабочие задачи:/.test(line))
+  if (link >= 0) { if (!lines[link].includes(ref)) lines[link] += `, ${ref}` }
+  else lines.splice(end, 0, `  - Рабочие задачи: ${ref}`)
+  writeFileSync(path, lines.join('\n'))
+}

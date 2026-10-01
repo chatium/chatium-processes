@@ -442,3 +442,18 @@ test('check gates implementation even with design knowledge stage; offline conte
   assert.match(gate().errors.join(' '), /изменились/)
   assert.match(context(), /ревью реализации: stale/)
 })
+
+test('new process check exposes uncovered work and missing page brief and review', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}')
+  f.put('demo/tasks/index.json', '{"version":1}')
+  f.put('demo/PLAN.md', '# План\n\n## Задачи\n- [ ] T1 Страница заявки\n  - T1.A1 [build] Посетитель понимает предложение.\n\n## Согласования\n')
+  f.put('demo/process.yaml', 'title: Заявка\naccountId: 123\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: signup\n    kind: page\n    title: Заявка\n    source: demo/index.ts\n')
+  const result = spawnSync(process.execPath,
+    [fileURLToPath(new URL('../check.mjs', import.meta.url)), 'demo', '--root', f.root,
+      '--no-snapshot', '--json', '--task-stage', 'build'], { encoding: 'utf8', timeout: 10_000 })
+  const checks = JSON.parse(result.stdout).checks
+  assert.match(checks.find(c => c.id === 'tasks').errors.join(' '), /не назначена рабочая задача/)
+  assert.match(checks.find(c => c.id === 'creative').errors.join(' '), /нет creativeRef/)
+  assert.match(checks.find(c => c.id === 'creative.review').errors.join(' '), /нет creativeRef/)
+})
