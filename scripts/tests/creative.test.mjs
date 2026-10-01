@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url'
 import { creativePacket, creativeStatus, writeCreativeBuild } from '../lib/creative.mjs'
 import { creativeReviewPacket, creativeReviewStatus, recordCreativeReview } from '../lib/creative-review.mjs'
 import { expandedTaskInputs, taskInputDigest, taskReadiness } from '../lib/tasks.mjs'
+import { SKILL_DIR } from '../lib/project.mjs'
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-creative-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
+  cpSync(join(SKILL_DIR, 'creative/catalog'), join(root, '.agents/skills/processes/creative/catalog'), { recursive: true })
   const put = (path, content) => {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })

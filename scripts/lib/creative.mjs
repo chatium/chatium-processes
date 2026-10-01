@@ -29,6 +29,7 @@ function sourceFiles(root, spec, errors) {
 
 function validateLanding(spec, errors, references) {
   const types = catalog('landing-types.json'), mechanics = catalog('mechanics.json'), styles = catalog('styles.json')
+  references.push('creative/catalog/landing-quality.md')
   const type = types.types[spec.landingType]
   if (!type) { errors.push(`Неизвестный landingType ${spec.landingType}`); return null }
   if (!Array.isArray(spec.sections) || !spec.sections.length) errors.push('Нужны содержательные sections[].')
@@ -89,7 +90,7 @@ function validateLanding(spec, errors, references) {
 function validateSeries(spec, errors, references) {
   const catalogData = catalog('email-types.json')
   if (!catalogData.types[spec.seriesType]) { errors.push(`Неизвестный seriesType ${spec.seriesType}`); return null }
-  references.push('creative/catalog/email-design.md')
+  references.push('creative/catalog/email-design.md', 'creative/catalog/email-quality.md')
   for (const field of ['addressing', 'character', 'emotionality', 'example']) if (!text(spec.voice?.[field])) errors.push(`Голос серии: нужно ${field}.`)
   for (const field of ['layout', 'components', 'colors', 'mobile']) if (!text(spec.emailDesign?.[field])) errors.push(`Дизайн писем: нужно ${field}.`)
   if (!Array.isArray(spec.messages) || !spec.messages.length || !unique(spec.messages.map(m => m.id))) errors.push('Нужны сообщения с уникальными ID.')
@@ -203,7 +204,9 @@ export function compileCreative(packet) {
   if (spec.kind === 'landing') {
     if (copyFiles.length) lines.push('## Согласованные тексты', ...copyFiles.map(file => `### ${file.path}\n${file.content}`), '')
     lines.push(`## Тип: ${spec.landingType}`, guidance.purpose, guidance.guidance, '',
-      'Смысловые функции: ' + guidance.requiredBlocks.join(', '), '', '## Секции')
+      'Обязательные смысловые функции: ' + guidance.requiredBlocks.join(', '),
+      'Рекомендуемые функции, если у бизнеса есть фактура: ' + guidance.recommendedBlocks.join(', '),
+      '', '## Секции')
     for (const s of spec.sections) lines.push(`### ${s.id}: ${s.purpose}`, `Тип: ${s.type}; покрытие: ${s.covers.join(', ')}`,
       ...s.points.map(p => `- ${p.text} [${p.sourceRef}]`), `Desktop: ${s.presentation.desktop}`,
       `Mobile: ${s.presentation.mobile}`, `Механики: ${(s.mechanicRefs || []).join(', ') || 'нет'}`,
