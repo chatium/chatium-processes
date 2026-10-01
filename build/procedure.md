@@ -129,8 +129,8 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 
 1. Актуальные положительные отчёты знаний `launch` и реализации; проверки
    и приёмка пройдены.
-   `TEST_ONLY = false` в `tests/records.ts`, коммит. Если менялись знания, план
-   или карта — повторный аудит знаний; изменение `TEST_ONLY`/кода требует
+   `config.mailings.testOnly: false` в `.workspace.json`, коммит. Если менялись знания, план
+   или карта — повторный аудит знаний; изменение режима отправок/кода требует
    актуального ревью реализации. Затем push ветки и
    `check <process> --knowledge-stage launch` перед публикацией.
 2. Merge ветки в `main`, push — публикация.

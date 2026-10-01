@@ -125,9 +125,6 @@ put(`${slug}/PLAN.md`, 'process/PLAN.md.tpl')
 put(`${slug}/process.yaml`, 'process/process.yaml.tpl')
 put(`${slug}/specs/events.yaml`, 'process/events.yaml.tpl')
 put(`${slug}/tests/records.ts`, 'process/records.ts.tpl')
-put(`${slug}/tests/ops.ts`, 'process/tests/ops.ts.tpl')
-put(`${slug}/actions/send-letter.ts`, 'process/actions/send-letter.ts.tpl')
-put(`${slug}/actions/register.ts`, 'process/actions/register.ts.tpl')
 
 // База знаний
 ensureOrder('.knowledge-base/.knowledge.yml', 'knowledge/root.knowledge.yml.tpl', [
@@ -152,8 +149,6 @@ if (!existsSync(join(root, '.mailings/storage/.workspace.json'))) {
   put('.mailings/storage/.workspace.json', 'mailings/workspace.json.tpl')
   put('.mailings/storage/.dir.json', 'mailings/dir.json.tpl')
 }
-// Читатель писем — один на аккаунт, лежит в воркспейсе хранилища
-put('.mailings/storage/read-letter.ts', 'mailings/read-letter.ts.tpl')
 
 console.log(`${dryRun ? '[dry-run] ' : ''}Каркас процесса ${slug} в ${root}`)
 for (const f of created) console.log(`  + ${f}`)

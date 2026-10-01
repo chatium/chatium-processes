@@ -90,7 +90,7 @@ if (!captured.success) ctx.account.log('CRM не приняла событие',
   автоматизация его не услышит.
 - Контакты клиента: у `captureCustomerEvent` — `contacts`, у
   `writeWorkspaceEvent` — `customer_contacts`. Автоматизация получит их в
-  `context.customerContacts`, хелпер писем отправит по ним. Не передавай
+  `context.customerContacts`, общее действие Mailings отправит по ним. Не передавай
   `customer_contacts` в `metricEventData`.
 
 ## Слоты метрики

@@ -104,7 +104,9 @@ export const prepareConsultationAction = app
   `check` сверяет их по коду.
 - `getWorkspaceConfig` вызывай с путём процесса: из `chatium exec` ближайший
   воркспейс — корень аккаунта.
-- Новое действие добавь в `<process>/actions/register.ts`.
+- Свои действия зарегистрируй через `app.accountHook('@automations/actions', ...)`,
+  например в `<process>/actions/register.ts`. Для общей отправки используй
+  действие Mailings, регистрация внутри процесса не нужна.
 - Что ещё обычно готовит такой шаг: ссылку на оплату и сумму заказа, адрес
   и время визита, промокод и срок акции.
 
@@ -115,7 +117,9 @@ export const prepareConsultationAction = app
 - Id автоматизации в аккаунте Source Git — `source-file:<путь конфига от
   корня>`, например
   `source-file:consult-booking/automations/reminders/reminders.automationConfig.json`.
-  Файлы процесса с id показывает `processFilesFn` из `<process>/tests/ops.ts`.
+  Список конфигов получай файловыми инструментами агента. Отдельная
+  `app.function` для перечисления файлов не нужна. Для аккаунта без Source Git
+  фактический ID бери из платформенного интерфейса/SDK, не угадывай его.
 - Включение — `enableAutomation(ctx, id)` из `@automations/sdk` в
   `chatium exec`, выключение — `disableAutomation`. Журнал выполнений —
   `getAutomationLogs(ctx, { workspacePath: '<process>' })`.
@@ -137,14 +141,15 @@ export const prepareConsultationAction = app
 ## Как проверить
 
 - `check`: конфиг разбирается; `eventUrls` ведут на объявленные события с
-  правильным типом; модули из `routeJson` существуют и содержат
-  `app.function('<путь>')`; `accountId` совпадает с картой; id шагов
+  правильным типом; локальные модули из `routeJson` существуют и содержат
+  `app.function('<путь>')`; у локальных функций `accountId` совпадает с картой,
+  у общих действий плагинов маршрут подтверждается реестром (`--registry FILE`); id шагов
   уникальны; `$ref` корректны; действия зарегистрированы; автоматизация —
   чья-то стрелка `via` в карте.
 - Реестр аккаунта через `chatium exec`: `getAccountEvents` из `@start/sdk`
   показывает события процесса, `getAutomationActions` из `@automations/sdk`
   — действия.
-- Живая проверка — только с `TEST_ONLY = true` и на тестовом контакте:
+- Живая проверка — только с `config.mailings.testOnly: true` и на тестовом контакте:
   данные ветки и прода общие.
 
 ## Грабли
@@ -152,7 +157,8 @@ export const prepareConsultationAction = app
 - Файлы в рантайме читай через SDK Start: `readWorkspaceFile` и
   `listWorkspaceFiles` видят воркспейс вызывающего модуля, настройки —
   `getWorkspaceConfig`. Прямой `findUgcFile` из кода аккаунта Source Git не
-  работает. Письма хранилища — через `readLetterFn` (см. серию сообщений).
+  работает. Письма хранилища — через `readMessageFile` из `@mailings/sdk`;
+  отправка — через общее действие Mailings (см. серию сообщений).
 - Конфиги автоматизаций рантайм читает из опубликованных файлов (`cgs`), в
   превью ветки — из `db`. Проверяй действия через `chatium exec` в ветке, а
   автоматизацию целиком — после merge в `main`, на тестовом контакте.

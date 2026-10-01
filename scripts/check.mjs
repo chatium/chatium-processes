@@ -2,7 +2,7 @@
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--knowledge-stage design|build|launch] [--root DIR]
+//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
+import { templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external']
@@ -53,7 +54,7 @@ const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json
 const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot'])
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--knowledge-stage design|build|launch] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 if (options['no-snapshot'] && options['verify-snapshot']) {
@@ -225,7 +226,7 @@ function letterVariables(letter) {
 const sendSteps = []
 for (const a of automations) {
   for (const step of flattenSteps(a.config?.steps)) {
-    if (step?.type === 'action' && step.params && typeof step.params.letterPath === 'string') {
+    if (step?.type === 'action' && step.params && ('letterPath' in step.params || 'messageKey' in step.params)) {
       sendSteps.push({ automation: a, step })
     }
   }
@@ -420,8 +421,18 @@ function registeredActionModules() {
   return mods
 }
 
+// A registry is read-only evidence from the target account, never a route guessed from a file name.
+let registry = null, registryError = null
+if (options.registry) {
+  try {
+    registry = JSON.parse(readFileSync(options.registry, 'utf8'))
+    if (registry.accountId !== map?.accountId || !Array.isArray(registry.actions))
+      throw Error('нужны accountId целевого аккаунта и массив actions')
+  } catch (e) { registryError = e.message }
+}
 check('automations', 'Автоматизации: конфиг, шаги, ссылки на функции', ({ error, warn }) => {
   const registered = registeredActionModules()
+  if (registryError) error(`Реестр: ${registryError}`)
   for (const a of automations) {
     const name = rel(root, a.file)
     if (a.parseError) {
@@ -476,7 +487,14 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
         const [accId, modulePath, fnPath] = rj
         if (!(Number.isInteger(accId) && accId > 0)) error(`${where}: routeJson[0] — числовой id аккаунта`)
         else if (Number.isInteger(map?.accountId) && accId !== map.accountId) {
-          error(`${where}: routeJson[0] = ${accId}, а accountId карты = ${map.accountId}`)
+          const entries = step.type === 'action' ? registry?.actions : registry?.conditions
+          const entry = entries?.find(item => JSON.stringify(item.routeJson) === JSON.stringify(rj))
+          if (!entry) error(`${where}: внешний маршрут не подтверждён — передайте --registry FILE с реестром целевого аккаунта`)
+          else {
+            for (const field of entry.inputSchema || [])
+              if (field.required && !(field.name in (step.params || {}))) error(`${where}: нет обязательного параметра ${field.name} из реестра`)
+          }
+          continue
         }
         const mod = typeof modulePath === 'string' ? moduleFile(modulePath) : null
         if (!mod) error(`${where}: модуль ${modulePath} не найден (.ts/.tsx от корня аккаунта)`)
@@ -553,29 +571,34 @@ check('letters', 'Письма шагов отправки и их переме�
   const sent = new Set()
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
-    const letterPath = norm(step.params.letterPath)
-    sent.add(letterPath)
-    if (!letterPath.startsWith('.mailings/storage/')) error(`${where}: letterPath вне .mailings/storage/`)
-    else if (!letterPath.startsWith(`${lettersRoot}/`)) warn(`${where}: письмо вне папки писем процесса ${lettersRoot}/`)
-    const res = loadYamlFile(join(root, letterPath))
-    if (res.missing) {
-      error(`${where}: письма ${letterPath} нет`)
-      continue
-    }
-    if (res.parseError) {
-      error(`${where}: ${letterPath} не разбирается: ${res.parseError}`)
-      continue
-    }
-    const letter = res.data || {}
-    const declared = new Map((Array.isArray(letter.variables) ? letter.variables : []).map(v => [v?.name, v]))
-    for (const [name, v] of declared) {
-      if (!v?.required && v?.required !== undefined) continue
-      if (!(`var_${name}` in step.params)) {
-        error(`${where}: переменная {{${name}}} письма не передана — нужен параметр var_${name}`)
+    let paths
+    try { paths = templateFiles(root, step) }
+    catch (e) { error(`${where}: ${e.message}`); continue }
+    if (!paths.length) { error(`${where}: шаблон ${templatePath(step)} и его варианты не найдены`); continue }
+    for (const letterPath of paths) {
+      sent.add(letterPath)
+      if (!letterPath.startsWith('.mailings/storage/')) error(`${where}: letterPath вне .mailings/storage/`)
+      else if (!letterPath.startsWith(`${lettersRoot}/`)) warn(`${where}: письмо вне папки писем процесса ${lettersRoot}/`)
+      const res = loadYamlFile(join(root, letterPath))
+      if (res.missing) {
+        error(`${where}: письма ${letterPath} нет`)
+        continue
       }
-    }
-    for (const k of Object.keys(step.params)) {
-      if (k.startsWith('var_') && !declared.has(k.slice(4))) warn(`${where}: ${k} передан, но в письме нет переменной ${k.slice(4)}`)
+      if (res.parseError) {
+        error(`${where}: ${letterPath} не разбирается: ${res.parseError}`)
+        continue
+      }
+      const letter = res.data || {}
+      const declared = new Map((Array.isArray(letter.variables) ? letter.variables : []).map(v => [v?.name, v]))
+      for (const [name, v] of declared) {
+        if (!v?.required && v?.required !== undefined) continue
+        if (!(`var_${name}` in step.params)) {
+          error(`${where}: переменная {{${name}}} письма не передана — нужен параметр var_${name}`)
+        }
+      }
+      for (const k of Object.keys(step.params)) {
+        if (k.startsWith('var_') && !declared.has(k.slice(4))) warn(`${where}: ${k} передан, но в письме нет переменной ${k.slice(4)}`)
+      }
     }
   }
   // Каждое письмо процесса разобрано и кем-то отправляется
@@ -605,13 +628,20 @@ check('letters', 'Письма шагов отправки и их переме�
   }
 })
 
-check('letters.reader', 'Читатель писем в хранилище (.mailings/storage/read-letter.ts)', ({ error }) => {
-  if (sendSteps.length === 0) return
-  const reader = join(root, '.mailings', 'storage', 'read-letter.ts')
-  if (!isFile(reader)) return error('нет .mailings/storage/read-letter.ts — хелпер отправки не сможет прочитать письмо; создай его через scaffold')
-  if (!/app\s*\.function\(\s*['"`]\/read-letter['"`]/.test(readFileSync(reader, 'utf8'))) {
-    error(".mailings/storage/read-letter.ts не объявляет app.function('/read-letter')")
+check('letters.transport', 'Отправка через SDK Mailings', ({ error, warn }) => {
+  if (sendSteps.some(({ step }) => 'letterPath' in step.params))
+    warn('Есть прежние шаги letterPath: сохраните их до явного перехода на messageKey и SDK Mailings')
+  for (const [file, src] of codeSources) {
+    if (/readLetterFn|read-letter/.test(src)) warn(`${rel(root, file)}: прежний читатель писем; при переходе замените на readMessageFile из @mailings/sdk`)
   }
+  if (!sendSteps.some(({ step }) => 'messageKey' in step.params)) return
+  const ws = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
+  const policy = ws.config?.mailings
+  if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')
+  if (!Array.isArray(policy.testContacts) || policy.testContacts.some(c => !c || typeof c.type !== 'string' || !c.type.trim() || typeof c.value !== 'string' || !c.value.trim()))
+    error('config.mailings.testContacts должен содержать контакты {type, value}')
+  else if (policy.testOnly && !policy.testContacts.length) warn('Тестовые контакты не заданы — SDK заблокирует отправки')
+  if (!policy.testOnly) warn('config.mailings.testOnly = false — SDK разрешает боевые отправки')
 })
 
 check('sdk.writes', 'Нет записи файлов через SDK', ({ error }) => {
@@ -626,9 +656,10 @@ check('tests', 'Реестр тестов tests/records.ts', ({ error, warn }) =
   const f = join(dir, 'tests', 'records.ts')
   if (!isFile(f)) return error(`нет ${slug}/tests/records.ts`)
   const src = readFileSync(f, 'utf8')
-  for (const name of ['TEST_ONLY', 'TEST_CONTACTS', 'TEST_RECORDS']) {
+  for (const name of ['TEST_RECORDS']) {
     if (!new RegExp(`export const ${name}\\b`).test(src)) error(`нет export const ${name}`)
   }
+  if (!/export const TEST_ONLY\b/.test(src)) return
   const testOnly = /export const TEST_ONLY\s*=\s*true/.test(src)
   const contactsBlock = /export const TEST_CONTACTS[^=]*=\s*\[([\s\S]*?)\]\s*(?:\n|$)/.exec(src)?.[1] || ''
   if (testOnly && !/value:\s*['"`][^'"`]+['"`]/.test(contactsBlock)) {

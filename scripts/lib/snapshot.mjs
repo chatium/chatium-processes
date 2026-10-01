@@ -1,4 +1,5 @@
 // Snapshot producer. All paths are account-relative; publication is a separate step.
+import { templatePath } from './letters.mjs'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
@@ -27,12 +28,12 @@ function delayText(delay) {
 function stepsForSeries(steps, source) {
   if (!source) return steps
   const prefix = source.replace(/\/$/, '') + '/'
-  const belongs = step => typeof step?.params?.letterPath === 'string' && step.params.letterPath.startsWith(prefix)
+  const belongs = step => templatePath(step)?.startsWith(prefix)
   const contains = step => belongs(step) || (step?.thenBranch?.steps || []).some(contains) || (step?.elseBranch?.steps || []).some(contains)
   const last = steps.findLastIndex(contains)
   if (last < 0) return []
   return steps.slice(0, last + 1).flatMap(step => {
-    if (step.type === 'action' && typeof step.params?.letterPath === 'string' && !belongs(step)) return []
+    if (step.type === 'action' && templatePath(step) && !belongs(step)) return []
     if (step.type === 'condition' || step.type === 'draft') return [{ ...step, thenBranch: { steps: stepsForSeries(step.thenBranch?.steps || [], source) }, elseBranch: { steps: stepsForSeries(step.elseBranch?.steps || [], source) } }]
     return [step]
   })

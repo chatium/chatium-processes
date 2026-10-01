@@ -179,7 +179,7 @@ node .agents/skills/processes/scripts/context.mjs <process>
 
 | Команда | Что делает |
 | --- | --- |
-| `node .agents/skills/processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, папка писем |
+| `node .agents/skills/processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, настройки тестовых отправок |
 | `node .agents/skills/processes/scripts/kb-check.mjs <process>` | Детерминированная проверка структуры, заглушек и локальных ссылок; без оценки смысла |
 | `node .agents/skills/processes/scripts/kb-review.mjs prepare <process> --stage build` | Пакет документов и вопросов для отдельного субагента; модель запускает агент через инструмент harness |
 | `node .agents/skills/processes/scripts/kb-review.mjs status <process> --stage build` | Актуальность и результат сохранённого экспертного отчёта; запись ответа — `record` по [процедуре](method/review.md) |
@@ -200,7 +200,8 @@ node .agents/skills/processes/scripts/context.mjs <process>
 Снимок пишется и при красных проверках, если карта корректна. Перед записью
 нужны чистое дерево и push текущего коммита в ветку; скрипт сам не коммитит
 и не пушит. `--no-snapshot` — локальная проверка без записи;
-`--snapshot-file <путь-вне-репозитория>/process-snapshot.json` — сохранить payload для разбора.
+`--registry FILE` — реестр целевого аккаунта для проверки общих действий
+плагинов; `--snapshot-file <путь-вне-репозитория>/process-snapshot.json` — сохранить payload для разбора.
 Ошибка записи или контрольного чтения не скрывается. `saved: true` ещё не
 означает актуальность: нужен `verified: true`. Подробности, ограничения и
 разбор ошибок — [build/map-freshness.md](build/map-freshness.md).
@@ -237,7 +238,9 @@ node .agents/skills/processes/scripts/context.mjs <process>
    именно не проверено; не объявляй карту обновлённой.
 2. **Без второго «да» не пушь в `main` и не включай автоматизации.** Push в
    `main` — это публикация в прод. Push в ветку процесса — можно.
-3. **Отправки — только на тестовый контакт** из реестра тестов. Пока
+3. **Отправки — только на тестовый контакт** из `config.mailings.testContacts`
+   при `config.mailings.testOnly: true`. Используй SDK Mailings и его общее
+   действие; подробности — [серия сообщений](blocks/message-series.md). Пока
    процесс не запущен, никаких рассылок реальным людям.
 4. **Автоматизации собираются выключенными.** Включение — только на запуске.
 5. **Что меняется в рантайме — в Heap, не в файлах.** Запись файлов через

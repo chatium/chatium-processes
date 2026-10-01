@@ -10,14 +10,6 @@
 ```ts
 // Реестр тестов процесса. Ведёт агент; отчёты исключают эти записи.
 
-/** Пока true — письма уходят только на TEST_CONTACTS. Снимается на запуске. */
-export const TEST_ONLY = true
-
-/** Контакты, на которые можно слать до запуска. */
-export const TEST_CONTACTS: { type: string; value: string; note?: string }[] = [
-  { type: 'email', value: 'owner+test@example.com', note: 'тестовый контакт владельца' },
-]
-
 /** Тестовые записи: имя таблицы → id строк. */
 export const TEST_RECORDS: Record<string, string[]> = {
   't_<process>_<entity>_K7q2': ['<id записи из exec>'],
@@ -27,8 +19,11 @@ export const TEST_RECORDS: Record<string, string[]> = {
 ## Правила
 
 - Создал тестовую запись, заказ или контакт — сразу допиши id в реестр.
-- `TEST_ONLY` меняется на `false` только в коммите запуска, после второго
-  «да». Хелпер отправки писем при `TEST_ONLY = true` отказывается слать на
-  контакты вне `TEST_CONTACTS`.
+- Ограничение отправок и тестовые контакты задаются в `.workspace.json →
+  config.mailings`: `testOnly: true`, `testContacts: [{type, value}]`.
+  SDK Mailings проверяет их для ключей `processes/<process>/...`.
+  `testOnly: false` ставится только в коммите согласованного запуска.
+  Реестр записей сам ничего не блокирует. Подробности —
+  [серия сообщений](../blocks/message-series.md).
 - Тестовые строки таблиц можно удалить на запуске — с согласия владельца.
   Из событий и логов их не удалить, поэтому они и живут в реестре.
