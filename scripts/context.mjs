@@ -12,6 +12,7 @@ import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
 import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
+import { inspectProcessFormat } from './lib/process-format.mjs'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'])
 const slug = positional[0]
@@ -33,6 +34,19 @@ const dir = join(root, slug)
 const out = []
 const say = s => out.push(s)
 let sharedBoard = null
+
+let format
+try { format = inspectProcessFormat(root, slug) }
+catch (error) { console.error(error.message); process.exit(2) }
+say(`Формат: ${format.kind}.`)
+if (!format.canUseSkillWorkflow && !format.canCreateProcess) {
+  say(`Рабочая область: ${format.workspacePath || 'не подтверждена'}; процесс: ${format.processPath || 'не определён'}.`)
+  say(`Признаки: ${format.evidence.join(', ') || 'недостаточно данных'}.`)
+  for (const error of format.errors) say(error)
+  say('Новая процедура и доска автоматически не применяются. Прочитай build/legacy-processes.md; разрешены точечные правки в существующей структуре.')
+  console.log(out.join('\n'))
+  process.exit(0)
+}
 
 // Read the shared board first, even without a local workspace or valid process.yaml.
 if (options.offline) say('Доска и её материалы не прочитаны (--offline).')

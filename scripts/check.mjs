@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
+import { assertSkillProcess } from './lib/process-format.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -71,6 +72,16 @@ if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-sta
   process.exit(2)
 }
 const root = findRoot(options.root)
+// Stop before Git/network checks and snapshot writes for an old or ambiguous process.
+try { assertSkillProcess(root, slug) }
+catch (error) {
+  if (options.json) console.log(JSON.stringify({ process: slug, root, passed: 0, total: 1,
+    checks: [{ id: 'process.format', title: 'Формат процесса', ok: false, errors: [error.message], warnings: [] }],
+    snapshot: { saved: false, verified: false, skipped: true, error: error.message },
+  }, null, 2))
+  else console.error(error.message)
+  process.exit(2)
+}
 // Anchor the check before reading any source, not after validation/typecheck.
 let sourceState, sourceError
 if (!options['no-snapshot']) {

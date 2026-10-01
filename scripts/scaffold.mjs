@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isProcessSlug, parseArgs, SKILL_DIR } from './lib/project.mjs'
 import { parseYaml, requireYaml, stringifyYaml } from './lib/yaml.mjs'
+import { assertSkillProcess } from './lib/process-format.mjs'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['dry-run', 'help'])
 const slug = positional[0]
@@ -44,6 +45,12 @@ try {
 }
 
 const root = findRoot(options.root)
+try {
+  assertSkillProcess(root, slug, { creating: true })
+} catch (error) {
+  console.error(error.message)
+  process.exit(2)
+}
 const title = options.title || slug
 const dryRun = !!options['dry-run']
 const created = []

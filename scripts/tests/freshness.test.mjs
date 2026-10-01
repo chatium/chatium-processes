@@ -127,8 +127,12 @@ test('public SDK works through a CLI wrapper: readback, offline and typecheck pr
   const f = fixture(t)
   const scripts = resolve(import.meta.dirname, '..')
   const runNode = args => spawnSync(process.execPath, args, { cwd: f.root, encoding: 'utf8', env: process.env })
+  // Scaffold is only for an empty destination; then add the code used by the snapshot fixture.
+  const initialCode = readFileSync(join(f.root, 'demo/code.txt'), 'utf8')
+  rmSync(join(f.root, 'demo/code.txt'))
   let r = runNode([join(scripts, 'scaffold.mjs'), 'demo', '--title', 'Demo', '--account-id', '1'])
   assert.equal(r.status, 0, r.stderr)
+  writeFileSync(join(f.root, 'demo/code.txt'), initialCode)
   // A valid map with an unfinished plan: red checks must not block a truthful snapshot.
   writeFileSync(join(f.root, 'demo/process.yaml'), 'title: Demo\nknowledge: .knowledge-base/processes/demo\nstages: [Start]\nnodes:\n  - id: first\n    stage: Start\n    kind: external\n    title: First\n    purpose: Start\n    source: demo/code.txt\nlinks: []\n')
   f.run(['add', '.']); f.run(['commit', '-m', 'Scaffold']); f.run(['push', 'origin', 'HEAD'])
@@ -192,7 +196,7 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(result.report.checks.find(c => c.id === 'typecheck').ok, true)
   assert.equal(result.report.snapshot.verified, true)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\nwrite\nread\nread\nread\ntypecheck\nwrite\nread\n')
-  // Server materials must remain visible even before scaffolding or with an invalid local map.
+  // Missing workspace metadata makes the local generation uncertain; do not run the new workflow.
   const marker = join(f.root, 'demo/.workspace.json')
   const markerContent = readFileSync(marker, 'utf8')
   rmSync(marker)
@@ -200,6 +204,7 @@ if (code.includes('writeProcessSnapshot')) {
     { cwd: f.root, encoding: 'utf8', env })
   writeFileSync(marker, markerContent)
   assert.equal(missing.status, 0, missing.stderr)
-  assert.match(missing.stdout, /Please review/)
-  assert.match(missing.stdout, /сохранённая доска существует/)
+  assert.match(missing.stdout, /unknown-process/)
+  assert.doesNotMatch(missing.stdout, /Please review/)
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nwrite\nread\nread\nread\ntypecheck\nwrite\nread\n')
 })
