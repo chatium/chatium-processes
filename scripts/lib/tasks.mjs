@@ -5,6 +5,7 @@ import { canonicalTarget, reviewStatus } from './knowledge-review.mjs'
 import { codeReviewStatus } from './code-review.mjs'
 import { creativeReviewStatus } from './creative-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
+import { parseYaml } from './yaml.mjs'
 
 export const TASK_STAGES = ['design', 'build', 'test', 'launch']
 export const TASK_STATUSES = ['queued', 'running', 'needs-input', 'ready-to-resume', 'result-ready', 'done', 'failed', 'cancelled']
@@ -122,6 +123,11 @@ function taskErrors(task, plan) {
     /^[a-z][a-z0-9-]{0,40}$/.test(task?.executor?.role || '') &&
     (task?.executor?.kind !== 'specialist' || SPECIALIST_ROLES.has(task.executor.role)), 'нужен известный безопасный исполнитель')
   need(MODES.has(task?.mode), 'неизвестный режим')
+  if (task?.executor?.kind === 'specialist')
+    need(task.mode !== 'implement', 'специалист не реализует код или итоговые файлы процесса; используй consult/produce/review/verify, реализация — задача main')
+  if (task?.executor?.kind === 'specialist' && Array.isArray(task.expectedOutputs))
+    need(task.expectedOutputs.every(o => typeof o.path === 'string' && /\/(?:proposals|reviews)\//.test(o.path) && /\.(?:md|json)$/.test(o.path)),
+      'результат специалиста — предложение или отчёт в proposals/ или reviews/, не код, spec.yaml, build.md или финальное письмо')
   need(TASK_STAGES.includes(task?.stage), 'неизвестный рубеж готовности')
   need(TASK_STATUSES.includes(task?.status), 'неизвестное состояние')
   need(Number.isInteger(task?.revision) && task.revision >= 0, 'нужна revision')
@@ -293,6 +299,32 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
       if (!covered) errors.push(`${c.id}: не назначена рабочая задача`)
     }
     if (!p.criteria.length) errors.push(`${p.id}: нужны критерии с ID и рубежом`)
+  }
+  if (stage !== 'design') {
+    const mapPath = safeTaskPath(root, `${slug}/process.yaml`, { mayBeMissing: true })
+    if (existsSync(mapPath)) {
+      if (statSync(mapPath).size > 1024 * 1024) throw Error('Слишком большая карта процесса.')
+      const map = parseYaml(readFileSync(mapPath, 'utf8'))
+      for (const node of map?.nodes || []) {
+        if (!['page', 'series'].includes(node?.kind)) continue
+        const role = node.kind === 'page' ? 'landing' : 'email'
+        const experts = loaded.tasks.filter(t => t.status !== 'cancelled' && t.targetNode === node.id &&
+          t.executor?.kind === 'specialist' && t.executor.role === role && t.mode === 'produce')
+        if (!experts.length) errors.push(`${node.id}: нет задачи специалиста ${role} на подготовку материала`)
+        const specPath = `${slug}/creative/${node.id}/spec.yaml`
+        const specTask = loaded.tasks.find(t => t.status !== 'cancelled' && t.targetNode === node.id &&
+          t.executor?.kind === 'main' && t.mode === 'produce' && t.expectedOutputs?.some(o => o.path === specPath))
+        if (!specTask) errors.push(`${node.id}: нет задачи main на итоговый ${specPath}`)
+        else if (!experts.some(t => specTask.dependsOn?.includes(t.id)))
+          errors.push(`${node.id}: задача main на spec.yaml не зависит от специалиста ${role}`)
+        const buildPath = `${slug}/creative/${node.id}/build.md`
+        const implementation = loaded.tasks.find(t => t.status !== 'cancelled' && t.targetNode === node.id &&
+          t.executor?.kind === 'main' && t.mode === 'implement' && t.inputs?.some(i => i.kind === 'build' && i.path === buildPath))
+        if (!implementation) errors.push(`${node.id}: нет задачи main на реализацию по ${buildPath}`)
+        else if (!specTask || !implementation.dependsOn?.includes(specTask.id))
+          errors.push(`${node.id}: реализация не зависит от принятого spec.yaml`)
+      }
+    }
   }
   const seen = new Set(), stack = new Set()
   function visit(id) {

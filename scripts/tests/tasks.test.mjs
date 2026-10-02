@@ -120,6 +120,7 @@ test('specialist receives an isolated bounded packet with role instructions', t 
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
   task.executor = { kind: 'specialist', role: 'copywriter' }
   task.mode = 'produce'
+  task.expectedOutputs = [{ path: 'demo/creative/form/proposals/copy.md', purpose: 'Предложение текста' }]
   f.put('task.json', task)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
   assert.equal(f.run('start', 'W001').status, 0)
@@ -171,6 +172,48 @@ test('specialist role cannot traverse outside role instructions', t => {
   assert.match(result.stderr, /безопасный исполнитель/)
 })
 
+test('specialist cannot be assigned implementation of a landing', t => {
+  const f = fixture(t)
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.executor = { kind: 'specialist', role: 'landing' }
+  task.title = 'Собрать лендинг'
+  task.targetNode = 'landing-page'
+  f.put('task.json', task)
+  const rejected = f.run('create', 'W001', '--file', join(f.root, 'task.json'))
+  assert.equal(rejected.status, 1)
+  assert.match(rejected.stderr, /специалист не реализует код/)
+  task.mode = 'produce'
+  f.put('task.json', task)
+  const disguised = f.run('create', 'W001', '--file', join(f.root, 'task.json'))
+  assert.equal(disguised.status, 1)
+  assert.match(disguised.stderr, /результат специалиста — предложение или отчёт/)
+  task.expectedOutputs = [{ path: 'demo/creative/landing-page/proposals/landing.md', purpose: 'Предложение по странице' }]
+  f.put('task.json', task)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+})
+
+test('page readiness requires specialist proposal, main spec and main implementation tasks', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { nodes: [{ id: 'landing-page', kind: 'page', creativeRef: 'demo/creative/landing-page/spec.yaml' }] })
+  const before = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.match(before, /нет задачи специалиста landing/)
+  assert.match(before, /нет задачи main на итоговый/)
+  assert.match(before, /нет задачи main на реализацию/)
+  const base = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  const expert = { ...base, id: 'W010', title: 'Проект страницы', targetNode: 'landing-page',
+    executor: { kind: 'specialist', role: 'landing' }, mode: 'produce',
+    expectedOutputs: [{ path: 'demo/creative/landing-page/proposals/landing.md', purpose: 'Предложение специалиста' }] }
+  const spec = { ...base, id: 'W011', title: 'Свести конфигуратор', targetNode: 'landing-page',
+    mode: 'produce', dependsOn: ['W010'],
+    expectedOutputs: [{ path: 'demo/creative/landing-page/spec.yaml', purpose: 'Конфигуратор' }] }
+  const implementation = { ...base, id: 'W012', title: 'Реализовать страницу', targetNode: 'landing-page',
+    dependsOn: ['W011'], inputs: [{ kind: 'build', path: 'demo/creative/landing-page/build.md', purpose: 'Задание' }],
+    expectedOutputs: [{ path: 'demo/pages/landing.vue', purpose: 'Страница' }] }
+  for (const task of [expert, spec, implementation]) f.put(`demo/tasks/${task.id}.json`, task)
+  const after = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.doesNotMatch(after, /нет задачи специалиста landing|нет задачи main на итоговый|нет задачи main на реализацию|не зависит от/)
+})
+
 test('existing output must match its start version before applying changes', t => {
   const f = fixture(t)
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
@@ -192,20 +235,21 @@ test('specialist result requires bound run and saved response', t => {
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
   task.executor = { kind: 'specialist', role: 'copywriter' }
   task.mode = 'produce'
+  task.expectedOutputs = [{ path: 'demo/creative/form/proposals/copy.md', purpose: 'Предложение текста' }]
   f.put('task.json', task)
   f.run('create', 'W001', '--file', join(f.root, 'task.json'))
   f.run('start', 'W001')
   f.run('step', 'W001', '--step', 'P1', '--status', 'done')
-  f.put('demo/form.vue', '<template>Форма</template>\n')
+  f.put('demo/creative/form/proposals/copy.md', 'Текст формы и подтверждения.\n')
   f.put('demo/reviews/tasks/W001/tests.json', { version: 1, method: 'Проверка формы',
     inputDigest: f.task().attempts.at(-1).inputDigest,
-    testedFiles: [{ path: 'demo/form.vue', sha256: f.sha('demo/form.vue') }],
+    testedFiles: [{ path: 'demo/creative/form/proposals/copy.md', sha256: f.sha('demo/creative/form/proposals/copy.md') }],
     checks: [{ id: 'valid-email', status: 'pass' }] })
   const responseRef = join(mkdtempSync(join(tmpdir(), 'specialist-response-')), 'response.json')
   t.after(() => rmSync(dirname(responseRef), { recursive: true, force: true }))
   writeFileSync(responseRef, '{"status":"result"}')
   f.put('result.json', { attemptId: 'R001', responseRef, summary: 'Результат специалиста',
-    outputs: [{ path: 'demo/form.vue' }],
+    outputs: [{ path: 'demo/creative/form/proposals/copy.md' }],
     criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{
       path: 'demo/reviews/tasks/W001/tests.json', locator: 'valid-email', observation: 'Проверено',
     }] }],

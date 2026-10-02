@@ -3,6 +3,13 @@
   "title": "Chatium process work task v1",
   "type": "object",
   "required": ["version", "id", "planTask", "title", "executor", "mode", "stage", "objective", "scope", "status", "revision", "dependsOn", "inputs", "expectedOutputs", "steps", "acceptanceCriteria", "questions", "drafts", "attempts", "result", "acceptance", "cancellation"],
+  "allOf": [{
+    "if": { "properties": { "executor": { "properties": { "kind": { "const": "specialist" } }, "required": ["kind"] } }, "required": ["executor"] },
+    "then": { "properties": {
+      "mode": { "enum": ["consult", "produce", "review", "verify"] },
+      "expectedOutputs": { "items": { "properties": { "path": { "type": "string", "pattern": "^[^/]+/(?:.+/)?(?:proposals|reviews)/.+\\.(?:md|json)$" } } } }
+    } }
+  }],
   "properties": {
     "version": { "const": 1 },
     "id": { "type": "string", "pattern": "^W[0-9]+$" },

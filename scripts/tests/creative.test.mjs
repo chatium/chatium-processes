@@ -222,12 +222,11 @@ test('a current creative review can substantiate a work-task criterion', t => {
     answers: packet.questions.map(q => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
       evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг' }] })),
   }
-  recordCreativeReview({ ...reviewArgs, packet, report, agentReference: 'unit-test-only' })
   f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Проверить страницу\n  - T1.A1 [build] Спецификация проверена.\n')
   f.put('demo/tasks/index.json', { version: 1 })
   f.put('demo/page.ts', 'export const title = "Материал"\n')
   const task = { version: 1, id: 'W001', planTask: 'T1', title: 'Проверить страницу', targetNode: 'lead-page',
-    executor: { kind: 'main', role: 'developer' }, mode: 'verify', stage: 'build', objective: 'Подтвердить спецификацию',
+    executor: { kind: 'main', role: 'developer' }, mode: 'implement', stage: 'build', objective: 'Реализовать страницу по спецификации',
     scope: { includes: ['Страница'], excludes: [] }, status: 'queued', revision: 0, dependsOn: [], session: null,
     inputs: [{ kind: 'build', path: 'demo/creative/lead-page/build.md', purpose: 'Точное задание' }],
     expectedOutputs: [{ path: 'demo/page.ts', purpose: 'Страница' }],
@@ -241,6 +240,10 @@ test('a current creative review can substantiate a work-task criterion', t => {
   const run = (command, ...args) => spawnSync(process.execPath,
     [cli, command, 'demo', 'W001', ...args, '--root', f.root], { encoding: 'utf8' })
   assert.equal(run('create', '--file', join(f.root, 'task.json')).status, 0)
+  const withoutReview = run('start')
+  assert.equal(withoutReview.status, 1)
+  assert.match(withoutReview.stderr, /не прошло независимое ревью spec/)
+  recordCreativeReview({ ...reviewArgs, packet, report, agentReference: 'unit-test-only' })
   assert.equal(run('start').status, 0)
   assert.equal(run('step', '--step', 'P1', '--status', 'done').status, 0)
   f.put('result.json', { attemptId: 'R001', summary: 'Проверено', outputs: [{ path: 'demo/page.ts' }],
