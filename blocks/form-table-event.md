@@ -25,15 +25,15 @@
    import { captureCustomerEvent } from '@crm/sdk'
    import Bookings from '../tables/bookings.table'
 
-   export async function createBooking(ctx: app.Ctx, input: { name: string; email: string }) {
-     const row = await Bookings.create(ctx, { name: input.name, email: input.email })
+   export async function createBooking(ctx: app.Ctx, input: { name: string; email: string; serviceType: string }) {
+     const row = await Bookings.create(ctx, { name: input.name, email: input.email, serviceType: input.serviceType })
      const captured = await captureCustomerEvent(ctx, {
        event: 'trial_booked',
        name: 'Запись на пробную тренировку',
        contacts: [{ type: 'email', value: row.email }],
        customer: { displayName: row.name, utm: { source: undefined, medium: undefined, campaign: undefined, content: undefined, term: undefined } },
        linkRecords: [row],
-       metricEventData: { action_param1: row.id, action_param2: row.email, action_param3: row.name },
+       metricEventData: { action_param1: row.id, action_param2: row.serviceType },
      })
      if (!captured.success) ctx.account.log('CRM не приняла событие', { level: 'warn', json: captured })
      return row
@@ -43,7 +43,7 @@
 3. **POST-роут** в том же файле: схема тела, проверка, вызов функции.
 4. **Событие** объявлено в `<process>/specs/events.yaml` с `type:
    customerEvent` и `payloadMapping` на те же слоты —
-   [формат](../formats/events-yaml.md).
+   [формат и правила выбора полей](../formats/events-yaml.md).
 5. **Форма** — Vue-компонент страницы, вызывает POST-роут через `.run(ctx, body)`.
 
 **Та же связка в других процессах:**
@@ -77,4 +77,6 @@
   должна ронять форму — логируй её.
 - Ключ события — строкой прямо в вызове: иначе `check` его не найдёт.
 - Поля вне слотов метрики не сохраняются.
+- Email и телефон передавай в `contacts`, имя — в `customer.displayName`;
+  не копируй их в метрику как запасной способ найти получателя.
 - Смена имени таблицы — это новая пустая таблица.

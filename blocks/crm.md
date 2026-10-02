@@ -10,7 +10,11 @@
   ([events-yaml.md](../formats/events-yaml.md)).
 - Передача клиента в мессенджер со ссылкой (deep link, UTM) —
   `chatium-development`, `references/sender/linking.md`.
-- Контакты клиента в событии процесса — `customer_contacts`
+- В `captureCustomerEvent` передавай известные контакты через `contacts`
+  или подтверждённые контакты пользователя через `appendUserContacts`;
+  CRM сама формирует `customer_contacts`. Для `writeWorkspaceEvent`
+  передавай известные `customer_contacts` в данные события, если они есть.
+  Не дублируй контакты в `payloadMapping` или метрических слотах
   ([events-yaml.md](../formats/events-yaml.md)).
 
 ## Проверка в аккаунте

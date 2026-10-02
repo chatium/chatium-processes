@@ -37,6 +37,8 @@ const EVENT_FIELD_NAMES = [
   'action_param1_uint32arr', 'action_param1_mapstrstr', 'action_param2_mapstrstr',
   'customer_contacts', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
 ]
+const CONTACT_MAPPING_KEY = /^(?:contacts?|customer_?contacts?|contact_?(?:email|phone)|recipient_?(?:email|phone)|e?mail|phone|mobile|telephone|telegram|whatsapp|vk)$/i
+const UTM_MAPPING_KEY = /^(?:utm_?)(source|medium|campaign|content|term)$/i
 const STEP_TYPES = ['action', 'delay', 'continueCondition', 'condition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -370,7 +372,7 @@ check('map.coverage', 'Всё построенное есть в карте', ({
   }
 })
 
-check('events.registry', 'Реестр событий specs/events.yaml', ({ error }) => {
+check('events.registry', 'Реестр событий specs/events.yaml', ({ error, warn }) => {
   if (eventsRes.missing) return error(`нет ${slug}/specs/events.yaml`)
   if (eventsRes.parseError) return error(`events.yaml не разбирается: ${eventsRes.parseError}`)
   if (!Array.isArray(eventsRes.data?.events)) return error('нет списка events')
@@ -388,9 +390,36 @@ check('events.registry', 'Реестр событий specs/events.yaml', ({ err
       for (const f of ['title', 'fieldName', 'type']) if (!m?.[f]) error(`${where}.${k}: нет поля ${f}`)
       if (m?.fieldName && !EVENT_FIELD_NAMES.includes(m.fieldName)) error(`${where}.${k}: fieldName «${m.fieldName}» — не слот метрики`)
       if (m?.type && !PAYLOAD_TYPES.includes(m.type)) error(`${where}.${k}: type «${m.type}», допустимы ${PAYLOAD_TYPES.join(', ')}`)
+      if (m?.fieldName === 'customer_contacts') error(`${where}.${k}: customer_contacts формируется из контактов и не входит в payloadMapping`)
+      if (CONTACT_MAPPING_KEY.test(k)) warn(`${where}.${k}: возможное дублирование контакта в payloadMapping; используй contacts/customer_contacts, если поле нужно только для адресата`)
+      if (/\bcustomer_contacts\b/.test(m?.fieldExpr || ''))
+        error(`${where}.${k}: не извлекай контакты через fieldExpr — используй контекст контактов`)
+      if (/(?:^id$|Id$|_id$)/.test(k) && m?.fieldName && !/^action_param[123]$/.test(m.fieldName))
+        error(`${where}.${k}: ID должен быть строкой в action_param1..3`)
+      if (/(?:^id$|Id$|_id$)/.test(k) && m?.type && m.type !== 'string')
+        error(`${where}.${k}: ID требует type: string`)
+      if (/^action_param[1-3]_int$|^action_param[1-8]_float$/.test(m?.fieldName) && m?.type && m.type !== 'number')
+        error(`${where}.${k}: числовой слот требует type: number`)
+      const utm = UTM_MAPPING_KEY.exec(k)
+      if (utm && m?.fieldName && m.fieldName !== `utm_${utm[1].toLowerCase()}`)
+        error(`${where}.${k}: UTM используй в выделенном слоте utm_${utm[1].toLowerCase()}`)
       if (m?.fieldName && !m.fieldExpr && !/_(mapstrstr|arrstr|uint32arr)$|^action_params$|^customer_contacts$/.test(m.fieldName)) {
         if (slots.has(m.fieldName)) error(`${where}: слот ${m.fieldName} занят полями ${slots.get(m.fieldName)} и ${k}`)
         else slots.set(m.fieldName, k)
+      }
+    }
+  }
+})
+
+check('events.data', 'Контакты и метрика в коде события', ({ error, warn }) => {
+  for (const [file, src] of codeSources) {
+    const where = rel(root, file)
+    for (const block of src.matchAll(/metricEventData\s*:\s*\{([^}]*)\}/g)) {
+      if (/\bcustomer_contacts\s*:/.test(block[1]))
+        error(`${where}: customer_contacts нельзя передавать в metricEventData — CRM формирует его из contacts`)
+      for (const field of block[1].matchAll(/\baction_param\w*\s*:\s*([^,\n}]+)/g)) {
+        if (/\b(?:email|phone|mobile|telegram|whatsapp)\b/i.test(field[1]))
+          warn(`${where}: возможное дублирование контакта в ${field[0].split(':')[0].trim()}; проверь источник и необходимость поля`)
       }
     }
   }
