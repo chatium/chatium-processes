@@ -2,7 +2,7 @@
 // Каркас нового процесса из шаблонов скилла. Существующие файлы не трогает.
 //
 //   node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" [--topics audience,journey] [--account-id 123] [--root DIR] [--dry-run]
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isProcessSlug, parseArgs, SKILL_DIR } from './lib/project.mjs'
 import { parseYaml, requireYaml, stringifyYaml } from './lib/yaml.mjs'
@@ -57,11 +57,30 @@ const created = []
 const skipped = []
 const updated = []
 
+// Интервью могло уже создать статьи с собственными именами и композицией.
+// Используем одну из них, не добавляя рядом пустой обязательный «обзор».
+const knowledgeDir = `.knowledge-base/processes/${slug}`
+function firstArticle(dir, prefix = '') {
+  if (!existsSync(dir)) return null
+  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
+  const direct = entries.find(entry => entry.isFile() && entry.name === 'overview.md') ||
+    entries.find(entry => entry.isFile() && entry.name.endsWith('.md'))
+  if (direct) return prefix + direct.name
+  for (const entry of entries.filter(entry => entry.isDirectory())) {
+    const found = firstArticle(join(dir, entry.name), `${prefix}${entry.name}/`)
+    if (found) return found
+  }
+  return null
+}
+const knowledgeEntry = firstArticle(join(root, knowledgeDir)) || 'overview.md'
+
 const vars = {
   __PROCESS__: slug,
   __TITLE__: title,
   __TITLE_YAML__: JSON.stringify(title),
   __ACCOUNT_ID__: accountId === null ? 'null' : String(accountId),
+  __KNOWLEDGE_ENTRY__: knowledgeEntry.split('/').map(part => encodeURIComponent(part)
+    .replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)).join('/'),
   __DATE__: new Date().toISOString().slice(0, 10),
 }
 
@@ -136,12 +155,12 @@ put('.knowledge-base/business/.knowledge.yml', 'knowledge/business.knowledge.yml
 ensureOrder('.knowledge-base/processes/.knowledge.yml', 'knowledge/processes.knowledge.yml.tpl', [
   slug,
 ])
-put(`.knowledge-base/processes/${slug}/overview.md`, 'knowledge/overview.md.tpl')
+put(`${knowledgeDir}/${knowledgeEntry}`, 'knowledge/overview.md.tpl')
 for (const topic of topics) {
   put(`.knowledge-base/processes/${slug}/${topic}.md`, `knowledge/${topic}.md.tpl`)
 }
 ensureOrder(`.knowledge-base/processes/${slug}/.knowledge.yml`, 'knowledge/process.knowledge.yml.tpl', [
-  'overview.md',
+  knowledgeEntry.split('/')[0],
   ...topics.map(topic => `${topic}.md`),
 ])
 

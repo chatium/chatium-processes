@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "source": "Start processConfigurators/mailings/shared/emailTypes.ts, adapted 2026-10-02",
   "types": {
     "welcome": "Знакомство и первый полезный шаг без давления на продажу.",
@@ -17,5 +17,6 @@
     "follow_up": "Сопровождение после заявки, помощь с решением и снятие барьеров.",
     "retention": "Удержание клиента через реальную ценность и помощь с причиной ухода."
   },
-  "blocks": ["hook", "pain", "thesis", "story", "bullets", "value", "proof", "objection", "offer", "urgency", "cta", "ps"]
+  "blocks": ["hook", "pain", "thesis", "story", "bullets", "value", "proof", "objection", "offer", "urgency", "cta", "ps"],
+  "guidance": "Названия blocks — примеры смысловых ролей. Можно выбрать свои роли и порядок, один абзац или несколько фрагментов. Хук, прехедер, PS и кнопка не обязательны в каждом сообщении."
 }

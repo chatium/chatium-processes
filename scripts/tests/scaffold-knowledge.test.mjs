@@ -76,16 +76,35 @@ test('repeat and extension preserve articles, metadata fields and prior order', 
   assert.deepEqual(f.yaml('.knowledge-base/.knowledge.yml'), { order: ['custom', 'processes', 'business'], customField: 'keep' })
   assert.deepEqual(f.yaml('.knowledge-base/processes/.knowledge.yml'), { title: 'Существующие процессы', order: ['previous', 'demo'], icon: '🌿' })
   assert.deepEqual(f.yaml(`${knowledge}/.knowledge.yml`), {
-    title: 'Авторское имя', description: 'Сохранить описание', order: ['custom.md', 'audience.md', 'overview.md', 'journey.md'], isNew: true,
+    title: 'Авторское имя', description: 'Сохранить описание', order: ['custom.md', 'audience.md', 'journey.md'], isNew: true,
   })
   const before = f.snapshot()
   assert.equal(f.run('--topics', 'audience,journey').status, 0)
   assert.deepEqual(f.snapshot(), before)
   assert.equal(f.run('--topics', 'operations').status, 0)
   assert.equal(f.read(`${knowledge}/audience.md`), existing)
-  assert.deepEqual(f.yaml(`${knowledge}/.knowledge.yml`).order, ['custom.md', 'audience.md', 'overview.md', 'journey.md', 'operations.md'])
+  assert.deepEqual(f.yaml(`${knowledge}/.knowledge.yml`).order, ['custom.md', 'audience.md', 'journey.md', 'operations.md'])
   assert.equal(f.run().status, 0)
   assert.equal(existsSync(join(f.root, knowledge, 'operations.md')), true)
+})
+
+test('existing author-written knowledge is reused without an extra overview, including nested articles', t => {
+  const f = fixture(t)
+  const source = '---\ntitle: Запись на занятие\n---\nОставьте заявку; администратор подтвердит время.\n'
+  f.put(`${knowledge}/visits/.knowledge.yml`, 'title: Занятия\norder: ["booking (adults).md"]\n')
+  f.put(`${knowledge}/visits/booking (adults).md`, source)
+  const result = f.run()
+  assert.equal(result.status, 0, result.stderr || result.stdout)
+  assert.equal(existsSync(join(f.root, knowledge, 'overview.md')), false)
+  assert.equal(f.read(`${knowledge}/visits/booking (adults).md`), source)
+  assert.deepEqual(f.yaml(`${knowledge}/.knowledge.yml`).order, ['visits'])
+  assert.match(f.read('demo/PLAN.md'), /processes\/demo\/visits\/booking%20%28adults%29\.md/)
+  const report = collectKnowledge({ root: f.root, slug: 'demo' })
+  assert.deepEqual(report.checks.find(check => check.id === 'kb-links').errors, [])
+  assert.deepEqual(report.checks.find(check => check.id === 'kb-metadata').errors, [])
+  const before = f.snapshot()
+  assert.equal(f.run().status, 0)
+  assert.deepEqual(f.snapshot(), before)
 })
 
 test('invalid topic lists fail before creating files', t => {

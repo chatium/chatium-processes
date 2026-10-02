@@ -43,6 +43,19 @@ test('clean corpus is sorted and scoped; shared metadata does not validate unrel
   assert.equal(messages(result, 'warnings'), '')
 })
 
+test('author-selected article names and prose or custom headings need no template sections', t => {
+  const f = fixture(t)
+  rmSync(join(f.root, subtree, 'overview.md'))
+  f.put(`${subtree}/.knowledge.yml`, 'title: Запись на занятие\norder: [booking.md, reschedule.md]\n')
+  f.put(`${subtree}/booking.md`, article('Человек оставляет заявку. Администратор уточняет время и подтверждает запись.', 'Как записаться'))
+  f.put(`${subtree}/reschedule.md`, article('## Если время не подходит\n\nАдминистратор предлагает свободное время.\n\n## Когда запись подтверждена\n\nКлиент получил дату и адрес.', 'Перенос занятия'))
+  const report = f.collect()
+  assert.equal(report.passed, report.total, messages(report))
+  assert.ok(report.files.some(file => file.path === `${subtree}/booking.md`))
+  assert.ok(report.files.some(file => file.path === `${subtree}/reschedule.md`))
+  assert.ok(!report.files.some(file => file.path === `${subtree}/overview.md`))
+})
+
 test('nested sections, transitive business links, encoded paths and query fragments are included', t => {
   const f = fixture(t)
   f.put(`${subtree}/deep/.knowledge.yml`, 'title: Детали\norder: [step.md]\n')

@@ -35,8 +35,6 @@ function validateLanding(spec, errors, references) {
   if (!Array.isArray(spec.sections) || !spec.sections.length) errors.push('Нужны содержательные sections[].')
   const sections = Array.isArray(spec.sections) ? spec.sections : []
   if (!unique(sections.map(s => s.id))) errors.push('ID секций должны быть уникальны.')
-  const coverage = new Set(sections.flatMap(s => Array.isArray(s.covers) ? s.covers : []))
-  for (const block of type.requiredBlocks) if (!coverage.has(block)) errors.push(`Тип ${spec.landingType}: не раскрыта функция ${block}.`)
   const sourceIds = new Set((spec.sources || []).map(s => s.id))
   for (const s of sections) {
     if (!text(s.id) || !text(s.type) || !text(s.purpose) || !Array.isArray(s.covers) || !s.covers.length ||
@@ -65,7 +63,7 @@ function validateLanding(spec, errors, references) {
   if (!design || !text(design.styleId)) errors.push('Нужна дизайн-система.')
   else if (design.styleId !== 'custom' && !styles.styles[design.styleId]) errors.push(`Неизвестный стиль ${design.styleId}.`)
   else if (design.styleId === 'custom') {
-    for (const key of ['colors', 'typography', 'grid', 'spacing', 'components', 'hero', 'mobile', 'forbidden'])
+    for (const key of ['colors', 'typography', 'grid', 'spacing', 'components', 'mobile', 'forbidden'])
       if (!design[key] || Array.isArray(design[key]) && !design[key].length) errors.push(`Свой стиль: не заполнено ${key}.`)
   }
   if (design && !text(design.adaptation)) errors.push('Нужно объяснить адаптацию дизайн-системы под задачу.')
@@ -97,16 +95,18 @@ function validateSeries(spec, errors, references) {
   if (Array.isArray(spec.messages) && !unique(spec.messages.map(m => m.mainIdea))) errors.push('У писем повторяется главная мысль; серия должна развиваться.')
   const sourceIds = new Set((spec.sources || []).map(s => s.id))
   for (const m of spec.messages || []) {
-    if (!text(m.id) || !text(m.path) || !text(m.goal) || !text(m.mainIdea) || !text(m.hook) ||
-        !text(m.subject) || !text(m.preheader) || !Array.isArray(m.blocks) || !m.blocks.length)
-      errors.push(`Письмо ${m.id || '?'}: нужны путь, роль, главная идея, хук, тема, прехедер и блоки.`)
-    for (const block of m.blocks || []) if (!catalogData.blocks.includes(block.type) || !text(block.text) || !sourceIds.has(block.sourceRef))
-      errors.push(`Письмо ${m.id || '?'}: блок без известного типа, текста или источника.`)
+    if (!text(m.id) || !text(m.path) || !text(m.goal) || !text(m.mainIdea) ||
+        !text(m.subject) || !Array.isArray(m.blocks) || !m.blocks.length)
+      errors.push(`Письмо ${m.id || '?'}: нужны путь, роль, главная идея, тема и содержание.`)
+    for (const field of ['hook', 'preheader']) if (m[field] !== undefined && typeof m[field] !== 'string')
+      errors.push(`Письмо ${m.id || '?'}: ${field} должен быть строкой, если указан.`)
+    for (const block of m.blocks || []) if (!text(block.type) || !text(block.text) || !sourceIds.has(block.sourceRef))
+      errors.push(`Письмо ${m.id || '?'}: фрагмент без роли, текста или источника.`)
     if (m.cta && (!text(m.cta.label) || !text(m.cta.target))) errors.push(`Письмо ${m.id}: неполный CTA.`)
     if (m.marketingTrigger && (!text(m.marketingTrigger.purpose) || !sourceIds.has(m.marketingTrigger.sourceRef)))
       errors.push(`Письмо ${m.id}: приём не обоснован источником.`)
   }
-  if (spec.seriesType === 'sales' && (spec.messages || []).some(m => !m.cta)) errors.push('В продающей серии у каждого письма нужен обоснованный следующий шаг.')
+  if (spec.seriesType === 'sales' && !(spec.messages || []).some(m => m.cta)) errors.push('В продающей серии нужен хотя бы один обоснованный следующий шаг к покупке.')
   if (!text(spec.automationRef)) errors.push('Серия должна ссылаться на автоматизацию для проверки запуска и остановки.')
   return { guidance: catalogData.types[spec.seriesType], blocks: catalogData.blocks }
 }
@@ -204,8 +204,8 @@ export function compileCreative(packet) {
   if (spec.kind === 'landing') {
     if (copyFiles.length) lines.push('## Согласованные тексты', ...copyFiles.map(file => `### ${file.path}\n${file.content}`), '')
     lines.push(`## Тип: ${spec.landingType}`, guidance.purpose, guidance.guidance, '',
-      'Обязательные смысловые функции: ' + guidance.requiredBlocks.join(', '),
-      'Рекомендуемые функции, если у бизнеса есть фактура: ' + guidance.recommendedBlocks.join(', '),
+      'Возможные темы по задаче и фактуре: ' + guidance.recommendedBlocks.join(', '),
+      'Это подсказки, не обязательное оглавление. Состав, порядок и названия секций выбраны в задании ниже.',
       '', '## Секции')
     for (const s of spec.sections) lines.push(`### ${s.id}: ${s.purpose}`, `Тип: ${s.type}; покрытие: ${s.covers.join(', ')}`,
       ...s.points.map(p => `- ${p.text} [${p.sourceRef}]`), `Desktop: ${s.presentation.desktop}`,
@@ -220,7 +220,7 @@ export function compileCreative(packet) {
     lines.push(`## Тип серии: ${spec.seriesType}`, guidance.guidance, '', '## Голос', json(spec.voice),
       '', '## Дизайн писем', json(spec.emailDesign), '', '## Письма')
     for (const m of spec.messages) lines.push(`### ${m.id}: ${m.goal}`, `Файл: ${m.path}`, `Главная идея: ${m.mainIdea}`,
-      `Тема: ${m.subject}`, `Прехедер: ${m.preheader}`, `Хук: ${m.hook}`,
+      `Тема: ${m.subject}`, ...(m.preheader ? [`Прехедер: ${m.preheader}`] : []), ...(m.hook ? [`Хук: ${m.hook}`] : []),
       ...m.blocks.map(b => `- ${b.type}: ${b.text} [${b.sourceRef}]`),
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')

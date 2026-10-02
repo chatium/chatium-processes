@@ -58,19 +58,29 @@ test('compiler expands selected landing settings and detects changed inputs or g
   assert.equal(creativeStatus(f.args).status, 'stale')
 })
 
-test('sales requires argument coverage and a real conversion path, A/B needs distinct keyed variants', t => {
+test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'
+  f.spec.sections = [{ ...f.spec.sections[0], id: 'workshop-invitation', type: 'invitation',
+    covers: ['приглашение на занятие'], purpose: 'Пригласить на занятие с понятными условиями', mechanicRefs: ['signup'] }]
+  f.spec.mechanics[0].placement = 'workshop-invitation'
   f.spec.abTesting = { mode: 'text', hypothesis: 'Другой заголовок помогает понять ценность',
     experimentKey: 'heading-test', assignment: 'Закрепить вариант за контактом',
     metric: 'Заявки', tracking: 'Событие с variantKey', variants: [{ key: 'A', changes: 'Заголовок A' }, { key: 'A', changes: 'Заголовок B' }] }
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   const packet = creativePacket(f.args)
-  assert.ok(packet.errors.some(e => e.includes('не раскрыта функция problem')))
   assert.ok(packet.errors.some(e => e.includes('уникальными ключами')))
   f.spec.abTesting.variants[1].key = 'B'
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
-  assert.ok(!creativePacket(f.args).errors.some(e => e.includes('уникальными ключами')))
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  const built = writeCreativeBuild(f.args)
+  const body = readFileSync(join(f.root, built.path), 'utf8')
+  assert.match(body, /workshop-invitation/)
+  assert.doesNotMatch(body, /### hero|### problem|### pricing/)
+  f.spec.mechanics = []
+  f.spec.sections[0].mechanicRefs = []
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.ok(creativePacket(f.args).errors.some(e => e.includes('путь покупки или заявки')))
 })
 
 test('series keeps each email distinct and checks its automation dependency', t => {
@@ -96,6 +106,19 @@ test('series keeps each email distinct and checks its automation dependency', t 
   assert.deepEqual(creativePacket(args).errors, [])
   writeCreativeBuild(args)
   assert.equal(creativeStatus(args).status, 'ready')
+  spec.messages.push({ id: 'm2', path: '.mailings/storage/processes/demo/followup/2.message.yaml',
+    goal: 'Ответить на вопрос читателя', mainIdea: 'Как пользоваться материалом', subject: 'Ответ на ваш вопрос',
+    blocks: [{ type: 'answer-in-one-paragraph', text: 'Материал помогает сделать первый шаг', sourceRef: 'offer' }] })
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.deepEqual(creativePacket(args).errors, [])
+  const built = writeCreativeBuild(args)
+  const body = readFileSync(join(f.root, built.path), 'utf8')
+  assert.match(body, /answer-in-one-paragraph/)
+  assert.doesNotMatch(body, /undefined/)
+  spec.messages[1].blocks[0].sourceRef = 'missing-source'
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.ok(creativePacket(args).errors.some(e => e.includes('источника')))
+  spec.messages[1].blocks[0].sourceRef = 'offer'
   spec.messages[0].cta = null
   f.put('demo/creative/followup/spec.yaml', spec)
   assert.ok(creativePacket(args).errors.some(e => e.includes('следующий шаг')))
