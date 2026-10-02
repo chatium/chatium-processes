@@ -40,7 +40,7 @@ test('checker validates plugin route against registry, variables in every varian
   f.put('demo/process.yaml','title: Demo\naccountId: 10\nstages: []\nnodes: []\nlinks: []\n')
   const action={type:'action',id:'send',actionName:'Send',actionRoute:{routeType:'function',routeJson:[20,'plugin/automations/send-template','/send']},params:{messageKey:'processes/demo/series/welcome',var_name:'Anna'}}
   f.put('demo/automations/send.automationConfig.json',JSON.stringify({title:'Send',eventUrls:['external:event'],settings:{continueOnError:true},steps:[action]}))
-  const letter='title: Hello\ndescription: Welcome\nsubject: "{{name}}"\nplain: "{{name}}"\nhtml: "{{name}}"\nvariables:\n - name: name\n   description: Name\n   required: true\n'
+  const letter='title: Hello\ndescription: Welcome\nsubject: "{{name}}"\nplain: "{{name}}"\nhtml: "{{name}}"\nshort: "{{name}}"\nvariables:\n - name: name\n   description: Name\n   required: true\n'
   f.put('.mailings/storage/processes/demo/series/welcome.message.yaml',letter)
   f.put('.mailings/storage/processes/demo/series/welcome.v2.message.yaml',letter.replaceAll('{{name}}','{{extra}}').replace('name: name','name: extra'))
   const check=(args=[])=>JSON.parse(f.run('check',['--no-snapshot','--json',...args]).stdout).checks
@@ -56,6 +56,10 @@ test('checker validates plugin route against registry, variables in every varian
   assert.equal(checks.find(c=>c.id==='automations').ok,true)
   assert.equal(checks.find(c=>c.id==='letters').ok,true)
   assert.equal(checks.find(c=>c.id==='letters.transport').ok,true)
+  f.put('.mailings/storage/processes/demo/series/welcome.message.yaml', letter.replace('short: "{{name}}"\n', ''))
+  checks=check(['--registry',registry])
+  assert.ok(checks.find(c=>c.id==='letters').errors.some(e=>e.includes('поле short')))
+  f.put('.mailings/storage/processes/demo/series/welcome.message.yaml', letter)
   f.put('registry.json',JSON.stringify({accountId:999,actions:[{routeJson:action.actionRoute.routeJson}]}))
   assert.equal(check(['--registry',registry]).find(c=>c.id==='automations').ok,false)
 })
@@ -117,7 +121,7 @@ export const confirmOrder = app.function('/send').handle(async (ctx, {params}) =
   }))
   saveAction()
   const prefix = '.mailings/storage/processes/demo/series/confirmation'
-  const letter = 'title: Confirmation\ndescription: Order\nsubject: "{{name}}"\nplain: "{{name}}"\nhtml: "{{name}}"\nvariables:\n - name: name\n   description: Name\n   required: true\n'
+  const letter = 'title: Confirmation\ndescription: Order\nsubject: "{{name}}"\nplain: "{{name}}"\nhtml: "{{name}}"\nshort: "{{name}}"\nvariables:\n - name: name\n   description: Name\n   required: true\n'
   f.put(prefix + '.message.yaml', letter)
   f.put(prefix + '.v2.message.yaml', letter.replaceAll('{{name}}', '{{date}}').replace('name: name', 'name: date'))
   const check = () => JSON.parse(f.run('check', ['--no-snapshot', '--json']).stdout).checks

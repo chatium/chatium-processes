@@ -92,6 +92,7 @@ function validateSeries(spec, errors, references) {
   for (const field of ['addressing', 'character', 'emotionality', 'example']) if (!text(spec.voice?.[field])) errors.push(`Голос серии: нужно ${field}.`)
   for (const field of ['layout', 'components', 'colors', 'mobile']) if (!text(spec.emailDesign?.[field])) errors.push(`Дизайн писем: нужно ${field}.`)
   if (!Array.isArray(spec.messages) || !spec.messages.length || !unique(spec.messages.map(m => m.id))) errors.push('Нужны сообщения с уникальными ID.')
+  if (Array.isArray(spec.messages) && !unique(spec.messages.map(m => m.path))) errors.push('У сообщений повторяется путь файла.')
   if (Array.isArray(spec.messages) && !unique(spec.messages.map(m => m.mainIdea))) errors.push('У писем повторяется главная мысль; серия должна развиваться.')
   const sourceIds = new Set((spec.sources || []).map(s => s.id))
   for (const m of spec.messages || []) {
@@ -156,6 +157,12 @@ export function creativePacket({ root, slug, nodeId }) {
   }
   const guidance = spec?.kind === 'landing' ? validateLanding(spec, errors, references) :
     spec?.kind === 'series' ? validateSeries(spec, errors, references) : null
+  if (node.kind === 'series' && Array.isArray(spec?.messages)) {
+    const source = node.source?.endsWith('/') ? node.source : `${node.source}/`
+    for (const message of spec.messages) if (!text(message.path) || !text(node.source) ||
+        !message.path.startsWith(source) || !message.path.endsWith('.message.yaml'))
+      errors.push(`Письмо ${message.id || '?'}: path должен вести на файл внутри ${node.source || 'source серии'}.`)
+  }
   const selectedRefs = [...new Set([...(Array.isArray(spec?.references) ? spec.references : []), ...references])].sort()
   const referenceFiles = []
   for (const ref of selectedRefs) try {
@@ -218,7 +225,9 @@ export function compileCreative(packet) {
     lines.push('', '## A/B', json(spec.abTesting))
   } else {
     lines.push(`## Тип серии: ${spec.seriesType}`, guidance.guidance, '', '## Голос', json(spec.voice),
-      '', '## Дизайн писем', json(spec.emailDesign), '', '## Письма')
+      '', '## Дизайн писем', json(spec.emailDesign), '',
+      'Для каждого сообщения создай три содержательных представления в одном файле: html/subject для email, plain для мессенджера, short для короткого канала. Сохрани одну мысль и факты, адаптируя форму к каналу.',
+      '', '## Письма')
     for (const m of spec.messages) lines.push(`### ${m.id}: ${m.goal}`, `Файл: ${m.path}`, `Главная идея: ${m.mainIdea}`,
       `Тема: ${m.subject}`, ...(m.preheader ? [`Прехедер: ${m.preheader}`] : []), ...(m.hook ? [`Хук: ${m.hook}`] : []),
       ...m.blocks.map(b => `- ${b.type}: ${b.text} [${b.sourceRef}]`),

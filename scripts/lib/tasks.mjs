@@ -133,7 +133,9 @@ function taskErrors(task, plan) {
   need(Number.isInteger(task?.revision) && task.revision >= 0, 'нужна revision')
   need(Array.isArray(task?.dependsOn) && task.dependsOn.every(id => /^W\d+$/.test(id)) && uniq(task.dependsOn || []), 'неверные зависимости')
   need(Array.isArray(task?.inputs) && task.inputs.every(i => KINDS.has(i.kind) && str(i.path) && str(i.purpose)) && uniq((task.inputs || []).map(i => i.path)), 'неверные inputs')
-  need(Array.isArray(task?.expectedOutputs) && task.expectedOutputs.length > 0 && task.expectedOutputs.every(o => str(o.path) && str(o.purpose)) && uniq((task.expectedOutputs || []).map(o => o.path)), 'нужны ожидаемые результаты')
+  need(Array.isArray(task?.expectedOutputs) && task.expectedOutputs.length > 0 &&
+    task.expectedOutputs.every(o => str(o.path) && !o.path.endsWith('/') && str(o.purpose)) &&
+    uniq((task.expectedOutputs || []).map(o => o.path)), 'нужны точные пути файлов результата, не папки')
   need(Array.isArray(task?.scope?.includes) && Array.isArray(task?.scope?.excludes), 'нужны границы задачи')
   need(Array.isArray(task?.steps) && task.steps.every(s => str(s.id) && str(s.action) && ['todo', 'doing', 'done', 'skipped'].includes(s.status) && (s.status !== 'skipped' || str(s.reason))) && uniq((task.steps || []).map(s => s.id)), 'неверные шаги')
   need(Array.isArray(task?.acceptanceCriteria) && task.acceptanceCriteria.length > 0 &&
@@ -270,6 +272,80 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
   return errors
 }
 
+export function creativeNode(root, slug, nodeId, paths = []) {
+  const mapPath = safeTaskPath(root, `${slug}/process.yaml`, { mayBeMissing: true })
+  if (!existsSync(mapPath)) return null
+  if (statSync(mapPath).size > 1024 * 1024) throw Error('Слишком большая карта процесса.')
+  const map = parseYaml(readFileSync(mapPath, 'utf8'))
+  const nodes = (map?.nodes || []).filter(item => ['page', 'series'].includes(item?.kind))
+  const node = nodes.find(item => item.id === nodeId)
+  const matched = nodes.filter(item => paths.some(path => creativeOutput(item, path) ||
+    path === `${slug}/creative/${item.id}/build.md`))
+  if (matched.length > 1) throw Error('Результаты одной карточки принадлежат разным страницам или сериям.')
+  if (matched.length && matched[0].id !== nodeId)
+    throw Error(`Результат ${matched[0].id} указан в карточке с targetNode ${nodeId}.`)
+  return node || null
+}
+
+export function creativeOutput(node, path) {
+  if (!str(node?.source) || !str(path)) return false
+  return path === node.source || path.startsWith(node.source.endsWith('/') ? node.source : `${node.source}/`)
+}
+
+export function creativeTaskChain({ root, slug, node, tasks }) {
+  const errors = [], role = node.kind === 'page' ? 'landing' : 'email'
+  const active = tasks.filter(task => task.status !== 'cancelled' && task.targetNode === node.id)
+  const experts = active.filter(task => task.executor?.kind === 'specialist' && task.executor.role === role && task.mode === 'produce')
+  if (!experts.length) errors.push(`${node.id}: нет задачи специалиста ${role} на подготовку материала`)
+  const specPath = `${slug}/creative/${node.id}/spec.yaml`
+  const specTask = active.find(task => task.executor?.kind === 'main' && task.mode === 'produce' &&
+    task.expectedOutputs?.some(output => output.path === specPath))
+  if (!specTask) errors.push(`${node.id}: нет задачи main на итоговый ${specPath}`)
+  else if (!experts.some(task => specTask.dependsOn?.includes(task.id)))
+    errors.push(`${node.id}: задача main на spec.yaml не зависит от специалиста ${role}`)
+  else if (!experts.some(task => specTask.dependsOn?.includes(task.id) &&
+      task.expectedOutputs?.some(output => specTask.inputs?.some(input => input.path === output.path))))
+    errors.push(`${node.id}: задача main на spec.yaml не читает предложение специалиста ${role}`)
+  const buildPath = `${slug}/creative/${node.id}/build.md`
+  const implementations = active.filter(task => task.executor?.kind === 'main' && task.mode === 'implement' &&
+    (task.inputs?.some(input => input.kind === 'build' && input.path === buildPath) ||
+      task.expectedOutputs?.some(output => creativeOutput(node, output.path))))
+  if (node.kind === 'page') {
+    const implementation = implementations.find(task => task.inputs?.some(input => input.kind === 'build' && input.path === buildPath))
+    if (!implementation) errors.push(`${node.id}: нет задачи main на реализацию по ${buildPath}`)
+    else if (!specTask || !implementation.dependsOn?.includes(specTask.id))
+      errors.push(`${node.id}: реализация не зависит от принятого spec.yaml`)
+  } else {
+    const file = safeTaskPath(root, specPath, { mayBeMissing: true })
+    if (!existsSync(file)) errors.push(`${node.id}: нет ${specPath} для учёта каждого сообщения`)
+    else {
+      if (statSync(file).size > 512 * 1024) throw Error('Слишком большой конфигуратор.')
+      const spec = parseYaml(readFileSync(file, 'utf8'))
+      if (!Array.isArray(spec?.messages) || !spec.messages.length)
+        errors.push(`${node.id}: в spec.yaml нет сообщений для отдельных карточек`)
+      else {
+        const usedTasks = new Set()
+        for (const message of spec.messages) {
+          if (!str(message?.id) || !str(message?.path)) continue
+          const owners = implementations.filter(task => task.expectedOutputs?.some(output => output.path === message.path))
+          if (owners.length !== 1) {
+            errors.push(`${node.id}/${message.id}: нужен один точный результат ${message.path} в отдельной задаче main/implement`)
+            continue
+          }
+          const [task] = owners
+          if (usedTasks.has(task.id)) errors.push(`${node.id}/${message.id}: каждое сообщение требует отдельную рабочую карточку`)
+          usedTasks.add(task.id)
+          if (!task.inputs?.some(input => input.kind === 'build' && input.path === buildPath))
+            errors.push(`${task.id}: для письма ${message.id} нужен вход ${buildPath}`)
+          if (!specTask || !task.dependsOn?.includes(specTask.id))
+            errors.push(`${task.id}: письмо ${message.id} не зависит от принятого spec.yaml`)
+        }
+      }
+    }
+  }
+  return { errors, experts, specTask, implementations }
+}
+
 export function taskReadiness({ root, slug, stage = 'build' }) {
   const planPath = safeTaskPath(root, `${slug}/PLAN.md`, { mayBeMissing: true })
   const plan = existsSync(planPath) ? parseTaskPlan(readFileSync(planPath, 'utf8')) : []
@@ -307,25 +383,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
       const map = parseYaml(readFileSync(mapPath, 'utf8'))
       for (const node of map?.nodes || []) {
         if (!['page', 'series'].includes(node?.kind)) continue
-        const role = node.kind === 'page' ? 'landing' : 'email'
-        const experts = loaded.tasks.filter(t => t.status !== 'cancelled' && t.targetNode === node.id &&
-          t.executor?.kind === 'specialist' && t.executor.role === role && t.mode === 'produce')
-        if (!experts.length) errors.push(`${node.id}: нет задачи специалиста ${role} на подготовку материала`)
-        const specPath = `${slug}/creative/${node.id}/spec.yaml`
-        const specTask = loaded.tasks.find(t => t.status !== 'cancelled' && t.targetNode === node.id &&
-          t.executor?.kind === 'main' && t.mode === 'produce' && t.expectedOutputs?.some(o => o.path === specPath))
-        if (!specTask) errors.push(`${node.id}: нет задачи main на итоговый ${specPath}`)
-        else if (!experts.some(t => specTask.dependsOn?.includes(t.id)))
-          errors.push(`${node.id}: задача main на spec.yaml не зависит от специалиста ${role}`)
-        else if (!experts.some(t => specTask.dependsOn?.includes(t.id) &&
-            t.expectedOutputs?.some(o => specTask.inputs?.some(i => i.path === o.path))))
-          errors.push(`${node.id}: задача main на spec.yaml не читает предложение специалиста ${role}`)
-        const buildPath = `${slug}/creative/${node.id}/build.md`
-        const implementation = loaded.tasks.find(t => t.status !== 'cancelled' && t.targetNode === node.id &&
-          t.executor?.kind === 'main' && t.mode === 'implement' && t.inputs?.some(i => i.kind === 'build' && i.path === buildPath))
-        if (!implementation) errors.push(`${node.id}: нет задачи main на реализацию по ${buildPath}`)
-        else if (!specTask || !implementation.dependsOn?.includes(specTask.id))
-          errors.push(`${node.id}: реализация не зависит от принятого spec.yaml`)
+        errors.push(...creativeTaskChain({ root, slug, node, tasks: loaded.tasks }).errors)
       }
     }
   }

@@ -5,12 +5,13 @@ import { spawnSync } from 'node:child_process'
 import { creativePacket, creativeStatus } from './creative.mjs'
 import { collectImplementation } from './implementation.mjs'
 import { safeTaskPath } from './tasks.mjs'
+import { parseYaml } from './yaml.mjs'
 import { SKILL_DIR } from './project.mjs'
 
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 const inside = (base, target) => target === base || target.startsWith(base + sep)
-const questions = (kind, stage, guidance) => [
+const questions = (kind, stage, guidance, messages = []) => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
@@ -23,6 +24,19 @@ const questions = (kind, stage, guidance) => [
     { id: 'delivery', question: 'Согласованы ли письма со страницей перехода, каналом и автоматизацией?' },
   ]),
   ...(guidance.reviewQuestions || []).map((question, index) => ({ id: `type.${index + 1}`, question })),
+  ...(kind === 'series' ? messages.flatMap(message => stage === 'spec' ? [
+    { id: `message.${message.id}.brief`, messageId: message.id,
+      question: `Достаточно ли конкретно задано сообщение ${message.id}: новая польза, факты и основа для email, мессенджера и короткого текста?` },
+  ] : [
+    { id: `message.${message.id}.email`, messageId: message.id,
+      question: `Даёт ли email-версия ${message.id} обещанную пользу, точные факты и уместное действие?` },
+    { id: `message.${message.id}.messenger`, messageId: message.id,
+      question: `Самостоятельна ли версия plain сообщения ${message.id}, понятная в мессенджере без email-вёрстки?` },
+    { id: `message.${message.id}.short`, messageId: message.id,
+      question: `Сохраняет ли short сообщения ${message.id} главный смысл и действие без обрыва и лишнего обещания?` },
+    { id: `message.${message.id}.render`, messageId: message.id,
+      question: `Просмотрены ли desktop/mobile-рендеры email ${message.id} и соответствует ли вид спецификации?` },
+  ]) : []),
   ...(stage === 'result' ? [
     { id: 'implemented', question: 'Совпадает ли фактическое содержимое и поведение с заданием?' },
     { id: 'visual', question: 'Проверен ли отрендеренный результат на нужных размерах/в канале?' },
@@ -30,7 +44,7 @@ const questions = (kind, stage, guidance) => [
 ]
 
 function outputFiles(root, source) {
-  const base = realpathSync(root), target = safeTaskPath(root, source, { mayBeMissing: true })
+  const base = realpathSync(root), target = safeTaskPath(root, source.replace(/\/$/, ''), { mayBeMissing: true })
   if (!existsSync(target)) throw Error(`Нет результата ${source}`)
   const files = [], seen = new Set()
   let bytes = 0
@@ -70,8 +84,30 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
   let visuals = []
   let implementation = []
+  let messageFiles = []
   if (stage === 'result') {
-    files.push(...outputFiles(root, creative.node.source))
+    const output = outputFiles(root, creative.node.source)
+    files.push(...output)
+    if (creative.node.kind === 'series') {
+      const messages = creative.spec.messages
+      const actual = output.filter(file => file.path.endsWith('.message.yaml'))
+      for (const message of messages) {
+        const variantPrefix = `${message.path.slice(0, -'.message.yaml'.length)}.v`
+        const variants = actual.filter(file => file.path === message.path ||
+          file.path.startsWith(variantPrefix) && /^\d+\.message\.yaml$/.test(file.path.slice(variantPrefix.length)))
+        if (!variants.some(file => file.path === message.path)) throw Error(`Нет итогового письма ${message.path}`)
+        for (const file of variants) {
+          const letter = parseYaml(file.content)
+          for (const field of ['title', 'description', 'subject', 'plain', 'html', 'short'])
+            if (!text(letter?.[field])) throw Error(`${file.path}: нет содержательной версии ${field}`)
+          if (file.path === message.path && letter.subject !== message.subject)
+            throw Error(`${file.path}: тема отличается от принятого spec.yaml`)
+          messageFiles.push({ messageId: message.id, path: file.path })
+        }
+      }
+      const known = new Set(messageFiles.map(file => file.path))
+      for (const file of actual) if (!known.has(file.path)) throw Error(`${file.path}: письмо отсутствует в spec.yaml`)
+    }
     const corpus = collectImplementation({ root, slug })
     const sourceErrors = corpus.checks.flatMap(check => check.errors)
     if (sourceErrors.length) throw Error(`Неполный набор исходников результата: ${sourceErrors.join('; ')}`)
@@ -82,13 +118,16 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     implementation = [...new Map([...code, ...corpus.assets,
       ...creative.assetFiles, ...(creative.automationFile ? [creative.automationFile] : [])]
       .map(f => [f.path, { path: f.path, sha256: f.sha256 }])).values()].sort((a, b) => a.path.localeCompare(b.path))
-    if (!implementation.some(f => f.path === creative.node.source || f.path.startsWith(`${creative.node.source}/`)))
+    const sourcePrefix = creative.node.source.endsWith('/') ? creative.node.source : `${creative.node.source}/`
+    if (!implementation.some(f => f.path === creative.node.source || f.path.startsWith(sourcePrefix)))
       throw Error(`Исходник результата ${creative.node.source} не включён в пакет реализации.`)
     const visualPath = `${slug}/reviews/creative/${nodeId}-visual.json`
     const visualFile = safeTaskPath(root, visualPath)
     if (lstatSync(visualFile).size > 64 * 1024) throw Error('Слишком большое описание снимков.')
     const visual = JSON.parse(readFileSync(visualFile, 'utf8'))
-    if (!Array.isArray(visual.captures) || !visual.captures.length || visual.captures.length > 12) throw Error('Нужны от 1 до 12 снимков результата.')
+    const maxCaptures = creative.node.kind === 'series' ? 120 : 12
+    if (!Array.isArray(visual.captures) || !visual.captures.length || visual.captures.length > maxCaptures)
+      throw Error(`Нужны от 1 до ${maxCaptures} снимков результата.`)
     const git = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 5000 })
     const currentCommit = git.status === 0 ? git.stdout.trim() : null
     const versions = new Set(visual.captures.map(c => c.codeVersion))
@@ -121,13 +160,17 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     })
     if (creative.node.kind === 'page' && !['desktop', 'mobile'].every(view => visuals.some(v => v.viewport === view)))
       throw Error('Для страницы нужны desktop и mobile снимки.')
+    if (creative.node.kind === 'series') for (const message of creative.spec.messages)
+      for (const viewport of ['email-desktop', 'email-mobile'])
+        if (!visuals.some(visual => visual.messageId === message.id && visual.viewport === viewport))
+          throw Error(`Для письма ${message.id} нужен снимок ${viewport}.`)
     files.push({ path: visualPath, content: JSON.stringify(visual) })
   }
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    questions: questions(creative.spec.kind, stage, creative.guidance),
-    files, visuals, implementation, reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
+    questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || []),
+    files, visuals, messageFiles, implementation, reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
 
@@ -149,6 +192,13 @@ function validateReport(report, packet) {
     if (!Array.isArray(answer.evidence) || (answer.status === 'pass' && !answer.evidence.length)) throw Error(`${answer.id}: нужна привязка к материалу.`)
     for (const item of answer.evidence) {
       if (!files.has(item.path) || !text(item.quote) || !files.get(item.path).includes(item.quote)) throw Error(`${answer.id}: цитата не найдена в пакете.`)
+    }
+    const target = packet.questions.find(question => question.id === answer.id)
+    if (answer.status === 'pass' && target?.messageId) {
+      const related = packet.stage === 'spec' ? [`${packet.process}/creative/${packet.nodeId}/spec.yaml`] :
+        packet.messageFiles.filter(file => file.messageId === target.messageId).map(file => file.path)
+      if (!answer.evidence.some(item => related.includes(item.path)))
+        throw Error(`${answer.id}: нужен пример именно из проверяемого письма или его спецификации.`)
     }
     if (answer.status === 'blocking') blocking.push(answer)
     if (answer.status === 'advisory') advisory.push(answer)

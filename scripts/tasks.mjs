@@ -7,7 +7,8 @@ import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
-  expandedTaskInputs, specialistRolePath, taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
+  creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
+  taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['help'])
 const [command, slug, id] = positional
@@ -56,6 +57,42 @@ function context(task, planTask) {
   }
 }
 
+async function creativePrerequisites(task, all, plan) {
+  const paths = [...task.expectedOutputs.map(output => output.path),
+    ...task.inputs.filter(input => input.kind === 'build').map(input => input.path)]
+  const node = task.mode === 'implement' ? creativeNode(root, slug, task.targetNode, paths) : null
+  const creativeWork = node && (task.inputs.some(input => input.kind === 'build') ||
+    task.expectedOutputs.some(output => creativeOutput(node, output.path)))
+  if (!creativeWork) return []
+  const chain = creativeTaskChain({ root, slug, node, tasks: all })
+  const problems = [...chain.errors]
+  if (!chain.implementations.some(item => item.id === task.id))
+    problems.push(`${task.id}: реализация не привязана к заданию ${node.id}`)
+  const buildPath = `${slug}/creative/${node.id}/build.md`
+  if (!task.inputs.some(input => input.kind === 'build' && input.path === buildPath))
+    problems.push(`${task.id}: перед реализацией нужен вход ${buildPath}`)
+  if (chain.specTask && !task.dependsOn.includes(chain.specTask.id))
+    problems.push(`${task.id}: реализация не зависит от принятого spec.yaml`)
+  for (const prerequisite of [chain.specTask, ...chain.experts.filter(item => chain.specTask?.dependsOn?.includes(item.id))]) {
+    if (!prerequisite) continue
+    if (prerequisite.status !== 'done') { problems.push(`${prerequisite.id}: сначала прими результат задачи`); continue }
+    const definition = taskDefinitionDigest(prerequisite, plan.find(item => item.id === prerequisite.planTask))
+    if (prerequisite.acceptance?.definitionDigest !== definition ||
+        prerequisite.acceptance?.inputDigest !== taskInputDigest(root, prerequisite) ||
+        prerequisite.acceptance?.resultDigest !== digest(prerequisite.result) ||
+        acceptanceErrors(root, slug, prerequisite, plan, all).length)
+      problems.push(`${prerequisite.id}: приёмка устарела или неподтверждена`)
+  }
+  if (problems.length) return problems
+  const { creativeStatus } = await import('./lib/creative.mjs')
+  const creative = creativeStatus({ root, slug, nodeId: node.id })
+  if (creative.status !== 'ready') return [`Задание ${node.id} не актуально: ${creative.errors.join('; ')}`]
+  const { creativeReviewStatus } = await import('./lib/creative-review.mjs')
+  const review = creativeReviewStatus({ root, slug, nodeId: node.id, stage: 'spec' })
+  if (review.status !== 'ready') problems.push(`Задание ${node.id} не прошло независимое ревью spec: ${review.error || review.status}`)
+  return problems
+}
+
 try {
   if (command === 'status') { show(taskReadiness({ root, slug, stage: options.stage || 'build' })); process.exit(0) }
   if (command === 'create') {
@@ -73,17 +110,11 @@ try {
   if (command === 'context') { show(context(task, planTask)); process.exit(0) }
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
+    const creativeProblems = await creativePrerequisites(task, all, plan)
+    if (creativeProblems.length) throw Error(creativeProblems.join('; '))
     for (const dep of task.dependsOn) if (all.find(t => t.id === dep)?.status !== 'done') throw Error(`Сначала завершите ${dep}.`)
     const outputs = new Set(task.expectedOutputs.map(o => o.path))
     for (const material of task.inputs) if (!outputs.has(material.path)) safeTaskPath(root, material.path)
-    if (task.mode === 'implement' && task.inputs.some(input => input.kind === 'build')) {
-      const { creativeStatus } = await import('./lib/creative.mjs')
-      const result = creativeStatus({ root, slug, nodeId: task.targetNode })
-      if (result.status !== 'ready') throw Error(`Задание ${task.targetNode} не актуально: ${result.errors.join('; ')}`)
-      const { creativeReviewStatus } = await import('./lib/creative-review.mjs')
-      const review = creativeReviewStatus({ root, slug, nodeId: task.targetNode, stage: 'spec' })
-      if (review.status !== 'ready') throw Error(`Задание ${task.targetNode} не прошло независимое ревью spec: ${review.error || review.status}`)
-    }
     const inputDigest = taskInputDigest(root, task)
     const attemptId = `R${String(task.attempts.length + 1).padStart(3, '0')}`
     const attempt = { id: attemptId, executor: task.executor, session: task.session,
@@ -240,11 +271,7 @@ try {
   if (command === 'accept') {
     if (task.status !== 'result-ready') throw Error('Принимать можно только готовый результат.')
     const problems = acceptanceErrors(root, slug, task, plan, all)
-    if (task.inputs.some(input => input.kind === 'build')) {
-      const { creativeStatus } = await import('./lib/creative.mjs')
-      const creative = creativeStatus({ root, slug, nodeId: task.targetNode })
-      if (creative.status !== 'ready') problems.push(`Задание устарело: ${creative.errors.join('; ')}`)
-    }
+    problems.push(...await creativePrerequisites(task, all, plan))
     const attempt = task.attempts.find(a => a.id === task.result?.attemptId)
     if (attempt?.definitionDigest !== taskDefinitionDigest(task, planTask)) problems.push('Критерии или план изменились после начала попытки.')
     if (attempt?.inputDigest !== taskInputDigest(root, task)) problems.push('Входные материалы изменились после начала попытки.')

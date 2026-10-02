@@ -42,7 +42,7 @@ const UTM_MAPPING_KEY = /^(?:utm_?)(source|medium|campaign|content|term)$/i
 const STEP_TYPES = ['action', 'delay', 'continueCondition', 'condition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-const LETTER_REQUIRED = ['title', 'description', 'subject', 'plain', 'html']
+const LETTER_REQUIRED = ['title', 'description', 'subject', 'plain', 'html', 'short']
 const LETTER_FORBIDDEN = [
   'id', 'key', 'path', 'filename', 'email', 'telegram', 'sms', 'content', 'formats',
   'trigger', 'schedule', 'delay', 'action', 'transport', 'status', 'style', 'metadata',

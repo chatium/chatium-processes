@@ -65,6 +65,11 @@ test('main agent can resume after a KB answer and close a task only with evidenc
     criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{ path: 'demo/reviews/tasks/W001/tests.json', locator: 'valid-email', observation: 'Заявка записана' }] }],
   })
   assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).json.status, 'result-ready')
+  f.put('demo/process.yaml', { nodes: [{ id: 'form', kind: 'page', source: 'demo/form.vue' }] })
+  const oldTask = f.run('accept', 'W001')
+  assert.equal(oldTask.status, 1)
+  assert.match(oldTask.stderr, /нет задачи специалиста landing/)
+  rmSync(join(f.root, 'demo/process.yaml'))
   assert.equal(f.run('accept', 'W001').json.status, 'done')
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(e => e.includes('PLAN.md остаётся открытой')))
   f.put('demo/PLAN.md', readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8').replace('- [ ] T1', '- [x] T1'))
@@ -217,6 +222,55 @@ test('page readiness requires specialist proposal, main spec and main implementa
   const after = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
   assert.doesNotMatch(after, /нет задачи специалиста landing|нет задачи main на итоговый|нет задачи main на реализацию|не зависит от/)
   assert.doesNotMatch(after, /не читает предложение специалиста landing/)
+})
+
+test('series needs one exact task per message and start cannot bypass the brief', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { nodes: [{ id: 'warmup', kind: 'series',
+    source: '.mailings/storage/processes/demo/warmup/', creativeRef: 'demo/creative/warmup/spec.yaml' }] })
+  const paths = ['01-first', '02-second'].map(name => `.mailings/storage/processes/demo/warmup/${name}.message.yaml`)
+  f.put('demo/creative/warmup/spec.yaml', { messages: paths.map((path, i) => ({ id: `m${i + 1}`, path })) })
+  const base = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  base.targetNode = 'warmup'
+  base.expectedOutputs = [{ path: '.mailings/storage/processes/demo/warmup/', purpose: 'Папка писем' }]
+  f.put('task.json', base)
+  const directory = f.run('create', 'W001', '--file', join(f.root, 'task.json'))
+  assert.equal(directory.status, 1)
+  assert.match(directory.stderr, /точные пути файлов результата/)
+  base.expectedOutputs = [{ path: paths[0], purpose: 'Первое письмо' }, { path: paths[1], purpose: 'Второе письмо' }]
+  f.put('task.json', base)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const bypass = f.run('start', 'W001')
+  assert.equal(bypass.status, 1)
+  assert.match(bypass.stderr, /перед реализацией нужен вход|нет задачи специалиста email/)
+  const wrongNode = f.task()
+  wrongNode.targetNode = 'other'
+  f.put('demo/tasks/W001.json', wrongNode)
+  const wrong = f.run('start', 'W001')
+  assert.equal(wrong.status, 1)
+  assert.match(wrong.stderr, /указан в карточке с targetNode other/)
+  f.put('demo/tasks/W001.json', { ...wrongNode, targetNode: 'warmup' })
+  const obsolete = f.task()
+  obsolete.status = 'cancelled'
+  obsolete.cancellation = { reason: 'Заменена отдельными карточками писем', decisionRef: 'demo/PLAN.md' }
+  f.put('demo/tasks/W001.json', obsolete)
+  const expert = { ...base, id: 'W010', executor: { kind: 'specialist', role: 'email' }, mode: 'produce',
+    expectedOutputs: [{ path: 'demo/creative/warmup/proposals/email.md', purpose: 'Проект серии' }] }
+  const spec = { ...base, id: 'W011', mode: 'produce', dependsOn: ['W010'],
+    inputs: [{ kind: 'report', path: expert.expectedOutputs[0].path, purpose: 'Проект серии' }],
+    expectedOutputs: [{ path: 'demo/creative/warmup/spec.yaml', purpose: 'Конфигуратор' }] }
+  const implementation = (id, path) => ({ ...base, id, dependsOn: ['W011'],
+    inputs: [{ kind: 'build', path: 'demo/creative/warmup/build.md', purpose: 'Задание' }],
+    expectedOutputs: [{ path, purpose: 'Готовое сообщение' }] })
+  for (const task of [expert, spec, implementation('W012', paths[0])]) f.put(`demo/tasks/${task.id}.json`, task)
+  const incomplete = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.match(incomplete, /warmup\/m2: нужен один точный результат/)
+  f.put('demo/tasks/W013.json', implementation('W013', paths[1]))
+  const complete = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.doesNotMatch(complete, /warmup\/m[12]: нужен один точный результат|каждое сообщение требует отдельную/)
+  f.put('demo/tasks/W013.json', implementation('W013', paths[0]))
+  const duplicate = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.match(duplicate, /warmup\/m1: нужен один точный результат/)
 })
 
 test('existing output must match its start version before applying changes', t => {
