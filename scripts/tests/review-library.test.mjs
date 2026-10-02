@@ -21,6 +21,8 @@ function fixture(t) {
   put('skills/processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
   put('skills/processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
   put('skills/chatium-development/SKILL.md', '# Development\n[Heap](references/heap.md)\n')
+  put('skills/chatium-development/auth.md', '# Auth\nProtect each handler on the server.\n')
+  put('skills/chatium-development/routing.md', '# Routes\nInventory pages and APIs.\n')
   put('skills/chatium-development/references/heap.md', '# Heap\nFind with an explicit limit.\n')
   t.after(() => rmSync(base, { recursive: true, force: true }))
   const collect = (options = {}) => collectReferenceLibrary({ root, slug: 'demo', stage: 'implementation', skillDir, ...options })
@@ -46,6 +48,8 @@ test('packet contains a navigable manifest without embedding reference texts', t
     'skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md',
   ])
   assert.ok(packet.referenceLibrary.required.includes('skills/processes/build/review-safety.md'))
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-development/auth.md'))
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-development/routing.md'))
   assert.ok(library.files.some(file => file.content.includes('Bound every Heap read')))
   assert.ok(!serialized.includes('Bound every Heap read'))
   assert.ok(!serialized.includes('Find with an explicit limit'))
@@ -225,6 +229,8 @@ test('each role requires both skills and its own mandatory reading', t => {
   assert.ok(!design.required.includes('skills/processes/build/review-safety.md'))
   for (const [stage, path] of [
     ['implementation', 'skills/processes/build/review-safety.md'],
+    ['implementation', 'skills/chatium-development/auth.md'],
+    ['implementation', 'skills/chatium-development/routing.md'],
     ['design', 'skills/processes/method/readiness.md'],
     ['build', 'skills/processes/method/README.md'],
     ['launch', 'skills/chatium-development/SKILL.md'],

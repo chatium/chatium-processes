@@ -66,7 +66,11 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   }
 
   const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md']
-  const required = [...entrypoints, ...(stage === 'implementation' ? ['skills/processes/build/review-safety.md'] :
+  const required = [...entrypoints, ...(stage === 'implementation' ? [
+    'skills/processes/build/review-safety.md',
+    'skills/chatium-development/auth.md',
+    'skills/chatium-development/routing.md',
+  ] :
     ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)
   const sorted = [...files.values()].sort((a, b) => a.path.localeCompare(b.path, 'en'))
