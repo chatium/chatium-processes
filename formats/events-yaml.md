@@ -114,6 +114,9 @@ if (!captured.success) ctx.account.log('CRM не приняла событие',
   `context.customerContacts`; действие сообщения может использовать их или
   получить получателя по бизнес-сущности из события. Контакты есть не во
   всех событиях: для каждого сообщения явно определи источник получателя.
+  Для `customerEvent` нужен хотя бы один контакт в `contacts` или
+  подтверждённые контакты через `appendUserContacts`; иначе CRM вернёт
+  `no_contacts`. Проверяй `captured.success`.
   Передавай все действительно известные контакты, не выдумывай отсутствующие.
   CRM сама формирует `customer_contacts` при `captureCustomerEvent` — не
   передавай его в `metricEventData` и не описывай в `payloadMapping`.
