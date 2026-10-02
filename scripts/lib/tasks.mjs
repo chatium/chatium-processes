@@ -317,6 +317,9 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
         if (!specTask) errors.push(`${node.id}: нет задачи main на итоговый ${specPath}`)
         else if (!experts.some(t => specTask.dependsOn?.includes(t.id)))
           errors.push(`${node.id}: задача main на spec.yaml не зависит от специалиста ${role}`)
+        else if (!experts.some(t => specTask.dependsOn?.includes(t.id) &&
+            t.expectedOutputs?.some(o => specTask.inputs?.some(i => i.path === o.path))))
+          errors.push(`${node.id}: задача main на spec.yaml не читает предложение специалиста ${role}`)
         const buildPath = `${slug}/creative/${node.id}/build.md`
         const implementation = loaded.tasks.find(t => t.status !== 'cancelled' && t.targetNode === node.id &&
           t.executor?.kind === 'main' && t.mode === 'implement' && t.inputs?.some(i => i.kind === 'build' && i.path === buildPath))

@@ -210,8 +210,13 @@ test('page readiness requires specialist proposal, main spec and main implementa
     dependsOn: ['W011'], inputs: [{ kind: 'build', path: 'demo/creative/landing-page/build.md', purpose: 'Задание' }],
     expectedOutputs: [{ path: 'demo/pages/landing.vue', purpose: 'Страница' }] }
   for (const task of [expert, spec, implementation]) f.put(`demo/tasks/${task.id}.json`, task)
+  const withoutProposalInput = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
+  assert.match(withoutProposalInput, /не читает предложение специалиста landing/)
+  spec.inputs = [{ kind: 'report', path: expert.expectedOutputs[0].path, purpose: 'Предложение специалиста' }]
+  f.put('demo/tasks/W011.json', spec)
   const after = taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors.join('\n')
   assert.doesNotMatch(after, /нет задачи специалиста landing|нет задачи main на итоговый|нет задачи main на реализацию|не зависит от/)
+  assert.doesNotMatch(after, /не читает предложение специалиста landing/)
 })
 
 test('existing output must match its start version before applying changes', t => {
