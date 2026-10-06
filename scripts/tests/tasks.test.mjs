@@ -6,10 +6,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { taskReadiness } from '../lib/tasks.mjs'
+import { parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
+
+test('CRLF and deeper indentation preserve plan tasks and criteria', () => {
+  const plan = '# План\r\n\r\n## Задачи\r\n- [ ] T1 Форма\r\n    - T1.A1 [build] Данные сохранены\r\n'
+  assert.deepEqual(parseTaskPlan(plan).map(task => [task.id, task.criteria.map(item => item.id)]), [['T1', ['T1.A1']]])
+})
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-tasks-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))

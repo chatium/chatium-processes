@@ -651,7 +651,7 @@ check('letters', 'Письма шагов отправки и их переме�
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
     const route = step.actionRoute?.routeJson
-    const localAction = Number.isInteger(map?.accountId) && route?.[0] === map.accountId &&
+    const localAction = (Number.isInteger(map?.accountId) || map?.accountId == null) && route?.[0] === map.accountId &&
       typeof route?.[1] === 'string' && moduleFile(route[1])
     let paths
     try { paths = templateFiles(root, step) }

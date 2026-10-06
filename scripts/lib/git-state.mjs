@@ -3,7 +3,8 @@ import { spawnSync } from 'node:child_process'
 export class SnapshotDrift extends Error {}
 
 export function git(root, args) {
-  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 15_000 })
+  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 15_000,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } })
   if (r.error || r.status !== 0) throw Error(`git ${args[0]} failed; cannot verify snapshot freshness`)
   return r.stdout.trim()
 }

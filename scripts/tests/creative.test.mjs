@@ -60,6 +60,17 @@ test('compiler expands selected landing settings and detects changed inputs or g
   assert.equal(creativeStatus(f.args).status, 'stale')
 })
 
+test('source must contain the named nonempty section', t => {
+  const f = fixture(t)
+  f.spec.sources[0].section = 'Условия'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /раздел «Условия» не найден/)
+  f.put('.knowledge-base/processes/demo/offer.md', '# Условия\n\n## Пустой подраздел\n')
+  assert.match(creativePacket(f.args).errors.join('\n'), /раздел «Условия» пуст/)
+  f.put('.knowledge-base/processes/demo/offer.md', '# Условия\n\nМожно получить материал после заявки.\n')
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
 test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'

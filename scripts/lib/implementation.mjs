@@ -97,7 +97,7 @@ export function collectImplementation({ root, slug }) {
     if (path) add(path, true)
   }
   const letters = map?.letters || `.mailings/storage/processes/${slug}`
-  if (map?.letters || existsSync(join(root, letters))) mapped(letters)
+  if ((map?.nodes || []).some(node => node.kind === 'series') || existsSync(join(root, letters))) mapped(letters)
   for (const node of map?.nodes || []) mapped(node?.source)
   for (const link of map?.links || []) if (link?.via) mapped(link.via)
 

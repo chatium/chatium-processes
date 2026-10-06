@@ -44,6 +44,7 @@ export function safeTaskPath(root, path, { mayBeMissing = false } = {}) {
 }
 
 export function parseTaskPlan(source) {
+  source = source.replace(/\r\n?/g, '\n')
   const section = /(?:^|\n)## Задачи[^\n]*\n([\s\S]*?)(?=\n## |$)/.exec(source)?.[1] || ''
   const tasks = [], byId = new Map(), criterionIds = new Set()
   for (const line of section.split('\n')) {
@@ -56,14 +57,14 @@ export function parseTaskPlan(source) {
     }
     const task = tasks.at(-1)
     if (!task) continue
-    const criterion = /^  - (T\d+\.A\d+) \[(design|build|test|launch)\] (.+)$/.exec(line)
+    const criterion = /^ {2,}- (T\d+\.A\d+) \[(design|build|test|launch)\] (.+)$/.exec(line)
     if (criterion && criterion[1].startsWith(task.id + '.')) {
       if (criterionIds.has(criterion[1])) throw Error(`Повторный критерий плана ${criterion[1]}.`)
       criterionIds.add(criterion[1])
       task.criteria.push({ id: criterion[1], stage: criterion[2], condition: criterion[3].trim() })
       continue
     }
-    if (/^  - Рабочие задачи:/.test(line))
+    if (/^ {2,}- Рабочие задачи:/.test(line))
       task.work.push(...[...line.matchAll(/\[(W\d+)\]\(tasks\/(W\d+)\.json\)/g)].filter(m => m[1] === m[2]).map(m => m[1]))
   }
   return tasks.filter(t => t.title !== '…')

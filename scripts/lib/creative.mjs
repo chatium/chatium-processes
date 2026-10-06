@@ -20,6 +20,23 @@ function sourceFiles(root, spec, errors) {
       const file = safeTaskPath(root, source.path)
       if (statSync(file).size > 80000) throw Error('слишком большой источник')
       const content = readFileSync(file, 'utf8')
+      if (!content.trim() || !content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim())
+        throw Error('источник пуст')
+      if (source.section) {
+        const expected = String(source.section).replace(/^#+\s*/, '').trim()
+        const lines = content.split(/\r?\n/)
+        const start = lines.findIndex(line => {
+          const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+          return heading && heading[2].trim() === expected
+        })
+        if (start < 0) throw Error(`раздел «${source.section}» не найден`)
+        const level = /^(#+)/.exec(lines[start])[1].length
+        const end = lines.findIndex((line, index) => index > start &&
+          new RegExp(`^#{1,${level}}\\s+`).test(line))
+        const section = lines.slice(start + 1, end < 0 ? undefined : end)
+          .filter(line => !/^#{1,6}\s+/.test(line)).join('\n').trim()
+        if (!section) throw Error(`раздел «${source.section}» пуст`)
+      }
       files.push({ id: source.id, path: source.path, section: source.section || null, content })
     } catch (error) { errors.push(`Источник ${source.id}: ${error.message}`) }
   }

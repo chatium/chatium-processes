@@ -91,7 +91,11 @@ try {
 
 const kbDir = join(root, map?.knowledge || `.knowledge-base/processes/${slug}/`)
 const kbArticles = walk(kbDir).filter(f => f.endsWith('.md'))
-const kbFilled = kbArticles.filter(f => !/^\s*[-*]?\s*…\s*$/m.test(readFileSync(f, 'utf8')))
+const kbFilled = kbArticles.filter(f => {
+  const body = readFileSync(f, 'utf8').replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim()
+  return body && !/(?:^|\n)\s*(?:[-*]\s*)?(?:TODO|TBD|FIXME)\s*:/im.test(body) &&
+    !/^\s*[-*]?\s*…\s*$/m.test(body)
+})
 
 const planFile = join(dir, 'PLAN.md')
 const plan = existsSync(planFile) ? readFileSync(planFile, 'utf8') : null
