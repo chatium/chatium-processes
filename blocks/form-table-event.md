@@ -25,13 +25,16 @@
    import { captureCustomerEvent } from '@crm/sdk'
    import Bookings from '../tables/bookings.table'
 
-   export async function createBooking(ctx: app.Ctx, input: { name: string; email: string; serviceType: string }) {
+   export async function createBooking(ctx: app.Ctx, input: {
+     name: string; email: string; serviceType: string;
+     utm?: { source?: string; medium?: string; campaign?: string; content?: string; term?: string }
+   }) {
      const row = await Bookings.create(ctx, { name: input.name, email: input.email, serviceType: input.serviceType })
      const captured = await captureCustomerEvent(ctx, {
        event: 'trial_booked',
        name: 'Запись на пробную тренировку',
        contacts: [{ type: 'email', value: row.email }],
-       customer: { displayName: row.name, utm: { source: undefined, medium: undefined, campaign: undefined, content: undefined, term: undefined } },
+       customer: { displayName: row.name, ...(input.utm ? { utm: input.utm } : {}) },
        linkRecords: [row],
        metricEventData: { action_param1: row.id, action_param2: row.serviceType },
      })
@@ -45,6 +48,17 @@
    customerEvent` и `payloadMapping` на те же слоты —
    [формат и правила выбора полей](../formats/events-yaml.md).
 5. **Форма** — Vue-компонент страницы, вызывает POST-роут через `.run(ctx, body)`.
+   При входе со страницы возьми фактические UTM из URL, проверь длину и
+   допустимые значения, передай их в запрос вместе с данными формы. На
+   сервере не подставляй `undefined` вместо известных UTM и не доверяй
+   присланным контактам как доказательству личности клиента.
+6. **Уведомление сотруднику**, если по заявке кто-то должен действовать:
+   после сохранения записи вызови `sendNotification` из `@store/sdk`
+   по [справке Store Inbox](../../chatium-development/references/store-notifications.md).
+   Укажи ответственного Staff+ и стабильный ID уведомления на основе ID
+   заявки; обычным клиентам этот механизм недоступен. Неизвестен
+   ответственный — выясни это до запуска. Ошибка уведомления не должна
+   приводить к повторному созданию заявки.
 
 **Та же связка в других процессах:**
 

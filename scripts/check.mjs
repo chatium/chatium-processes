@@ -280,11 +280,13 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
     warn('config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Настройка каналов не блокирует сборку, доступность каналов проверяется отдельно.')
   }
   const vars = ws.config?.variables
-  if (vars !== undefined && (typeof vars !== 'object' || Array.isArray(vars))) {
+  if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
     error('config.variables должен быть объектом { key: { value, description } }')
   }
   for (const [k, v] of Object.entries(vars || {})) {
     if (typeof v?.value !== 'string') error(`переменная ${k}: value должен быть строкой`)
+    else if (!v.value.trim() && options['task-stage'] === 'launch')
+      error(`переменная ${k}: перед запуском заполните значение или удалите неиспользуемую переменную`)
     if (!v?.description) warn(`переменная ${k}: нет description`)
   }
   const nested = walk(dir).filter(p => p.endsWith('.workspace.json') && dirname(p) !== dir)

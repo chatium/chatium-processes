@@ -59,6 +59,15 @@ test('letter variables are not mistaken for workspace variables', t => {
   assert.doesNotMatch(workspace.errors.join('\n'), /переменная процесса map/)
 })
 
+test('launch refuses an empty business variable while build can continue', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { variables: { price: { value: '  ', description: 'Цена предложения' } } } }))
+  const workspace = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'workspace')
+  assert.doesNotMatch(workspace().errors.join('\n'), /переменная price: перед запуском/)
+  assert.match(workspace('--task-stage', 'launch').errors.join('\n'), /переменная price: перед запуском/)
+})
+
 test('launch check lists missing full automation run as a separate gate', t => {
   const f = fixture(t)
   f.put('demo/automations/welcome.automationConfig.json', '{"title":"Welcome","eventUrls":[],"steps":[]}')
