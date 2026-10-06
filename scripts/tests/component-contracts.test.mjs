@@ -26,7 +26,10 @@ test('site contract catches omitted required page and filter without a field', (
   assert.match(errors, /фильтр unknown/)
   site.requiredRoles = ['home', 'catalog']
   site.pages[1].filters = ['category']
+  site.pages[1].route = '/catalog/:serviceId'
   assert.deepEqual(validateComponentContracts({ map: pagesOnly, site }).errors, [])
+  site.pages[1].route = '/catalog//detail'
+  assert.match(validateComponentContracts({ map: pagesOnly, site }).errors.join('\n'), /безопасный route/)
 })
 
 test('service contract requires access, repeat behavior and failure outcomes', () => {

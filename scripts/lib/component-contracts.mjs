@@ -1,5 +1,8 @@
 const text = value => typeof value === 'string' && value.trim().length > 0
 const unique = values => new Set(values).size === values.length
+const route = value => typeof value === 'string' && value.startsWith('/') &&
+  (value === '/' || value.slice(1).split('/').every(part =>
+    /^[a-zA-Z0-9_-]+$/.test(part) || /^:[a-zA-Z][a-zA-Z0-9_]*$/.test(part)))
 
 /** Structural contracts for services and sites represented by existing board node kinds. */
 export function validateComponentContracts({ map, site, services }) {
@@ -25,7 +28,7 @@ export function validateComponentContracts({ map, site, services }) {
       const where = `site.pages[${index}]`
       if (byId.get(page?.nodeId)?.kind !== 'page') errors.push(`${where}: nodeId ${page?.nodeId} не указывает на страницу карты.`)
       if (!text(page?.role) || !text(page?.purpose) || !text(page?.route) ||
-          !/^\/(?:[a-zA-Z0-9_/-]*)$/.test(page.route) || !Array.isArray(page.filters))
+          !route(page.route) || !Array.isArray(page.filters))
         errors.push(`${where}: нужны role, purpose, безопасный route и filters[].`)
       for (const filter of page?.filters || []) if (!fields.has(filter))
         errors.push(`${where}: фильтр ${filter} не объявлен в entityFields.`)
