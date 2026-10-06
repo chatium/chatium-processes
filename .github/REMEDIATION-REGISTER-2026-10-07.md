@@ -39,7 +39,7 @@
 | R29 | О | P1 | letter.variables.map ошибочно распознаётся как переменная процесса | scripts/tests/check-arguments-automations.test.mjs | в работе | 580b6db |
 | R30 | О | P1 | Апостроф скрывает импорт от проверки зависимостей | scripts/tests/code-review.test.mjs | в работе | 580b6db |
 | R31 | О | P1 | CRLF или отступ скрывают задачу и её критерий | scripts/tests/tasks.test.mjs | в работе | 580b6db |
-| R32 | О | P1 | Одинаковая ошибка возвращает разные коды и непонятный текст | scripts/tests/creative.test.mjs — validate/compile согласованы; остальные команды ещё требуют прохода | в работе | d19a1e9 |
+| R32 | О | P1 | Одинаковая ошибка возвращает разные коды и непонятный текст | scripts/tests/creative.test.mjs; scripts/tests/strict-cli-arguments.test.mjs — ошибка параметров даёт код 2 до записи; предметные ошибки ещё требуют прохода | в работе | d19a1e9 |
 | R33 | О | P1 | ls-remote ждёт интерактивный пароль | scripts/lib/git-state.mjs | в работе | 580b6db |
 | R34 | О | P1 | Ветка или HEAD изменились во время чтения доски, но проверка названа актуальной | scripts/tests/freshness.test.mjs; scripts/lib/git-state.mjs — нужен сквозной прогон | в работе | 5ee604b |
 | R35 | О | P1 | Большой JSON обрывается при завершении команды | scripts/check.mjs | в работе | 24f7ae1 |
@@ -56,7 +56,7 @@
 | R46 | О | P0 | Агент выполняет поручение неуполномоченного участника доски | SKILL.md; build/board-notes.md | в работе | 24f7ae1 |
 | R47 | О | P8 | Тесты падают без соседнего локального checkout | Чистый clone ветки + npm ci + npm test: 208/208 (07.10); scripts/tests/run.mjs | закрыто | be1414b |
 | R48 | О | P8 | Нет единой команды тестов и CI | .github/workflows/ci.yml — источник и установленная копия тестируются одной командой npm test | в работе | be1414b |
-| R49 | О | P8 | Известные ошибки аргументов, задач и снимка не имеют отрицательных тестов | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/tasks.test.mjs; scripts/tests/freshness.test.mjs | в работе | 992c343 |
+| R49 | О | P8 | Известные ошибки аргументов, задач и снимка не имеют отрицательных тестов | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/strict-cli-arguments.test.mjs; scripts/tests/tasks.test.mjs; scripts/tests/freshness.test.mjs | в работе | 992c343 |
 | F01 | О | P2 | Из большого материала потеряны кейсы и специфическая тема | method/topics/business-specific.md; scripts/tests/knowledge-review.test.mjs — нужен реальный разбор длинного источника | в работе | f415923 |
 | F02 | О | P3 | Код строится при пропущенной бизнес-ветви и противоречивых связях | — | открыто | — |
 | F03 | О | P4 | Пустой источник с несуществующим разделом принят | scripts/tests/creative.test.mjs | в работе | 580b6db |

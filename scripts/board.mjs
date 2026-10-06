@@ -4,7 +4,10 @@ import { findRoot, parseArgs } from './lib/project.mjs'
 import { readProcessBoard, readMaterial } from './lib/board.mjs'
 import { respondToNote } from './lib/board-notes.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help'], ['help', 'root', 'from', 'element', 'note', 'status', 'message-file']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug] = positional
 if (options.help || !command || !slug) {
   console.log(`board.mjs read <process> [--root DIR]

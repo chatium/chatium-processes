@@ -8,13 +8,17 @@ import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { creativeReviewPacket, creativeReviewStatus, recordCreativeReview } from './lib/creative-review.mjs'
 import { markReviewPacket } from './lib/review-packets.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help'], ['help', 'root', 'stage', 'out', 'packet', 'report', 'agent']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug, nodeId] = positional
 if (options.help || !command || !slug || !nodeId) {
   console.log('Использование: creative-review.mjs <prepare|record|status> <process> <node-id> --stage spec|result [--out DIR] [--packet FILE --report FILE --agent ID] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 try {
+  if (positional.length !== 3) throw Error('Нужны команда, процесс и ID элемента без лишних аргументов.')
   const root = findRoot(options.root), stage = options.stage || 'spec'
   const args = { root, slug, nodeId, stage }
   let result

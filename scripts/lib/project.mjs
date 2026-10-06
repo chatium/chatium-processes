@@ -66,22 +66,30 @@ export function readText(p) {
  * Разбор аргументов: позиционные + --flag / --key value / --key=value.
  * Флаги из booleans не ждут значения.
  */
-export function parseArgs(argv, booleans = []) {
+export function parseArgs(argv, booleans = [], allowed = null) {
   const positional = []
   const options = {}
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
+    if (allowed && a.startsWith('-') && !a.startsWith('--')) throw Error(`Неизвестный параметр ${a}.`)
     if (!a.startsWith('--')) {
       positional.push(a)
       continue
     }
     const eq = a.indexOf('=')
+    const key = a.slice(2, eq > 0 ? eq : undefined)
+    if (allowed && !allowed.includes(key)) throw Error(`Неизвестный параметр --${key}.`)
+    if (allowed && Object.hasOwn(options, key)) throw Error(`Параметр --${key} указан повторно.`)
+    if (allowed && booleans.includes(key) && eq > 0) throw Error(`Флаг --${key} не принимает значение.`)
     if (eq > 0) {
-      options[a.slice(2, eq)] = a.slice(eq + 1)
-    } else if (booleans.includes(a.slice(2))) {
-      options[a.slice(2)] = true
+      if (allowed && !a.slice(eq + 1)) throw Error(`Нужно значение --${key}.`)
+      options[key] = a.slice(eq + 1)
+    } else if (booleans.includes(key)) {
+      options[key] = true
     } else {
-      options[a.slice(2)] = argv[i + 1]
+      if (allowed && (argv[i + 1] === undefined || argv[i + 1].startsWith('--')))
+        throw Error(`Нужно значение --${key}.`)
+      options[key] = argv[i + 1]
       i++
     }
   }

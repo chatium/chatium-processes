@@ -5,7 +5,10 @@ import { resolve } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { reviewPacketCleanup } from './lib/review-packets.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['apply', 'help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['apply', 'help'], ['apply', 'help', 'days', 'base', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 if (options.help) {
   console.log('review-packets.mjs cleanup [--days 30] [--base /data/external] [--root DIR] [--apply]')
   process.exit(0)

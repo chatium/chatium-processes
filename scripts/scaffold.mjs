@@ -8,7 +8,10 @@ import { findRoot, isProcessSlug, parseArgs, SKILL_DIR } from './lib/project.mjs
 import { parseYaml, requireYaml, stringifyYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['dry-run', 'help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['dry-run', 'help'], ['dry-run', 'help', 'root', 'title', 'topics', 'account-id']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const slug = positional[0]
 
 if (options.help || !slug) {
@@ -16,6 +19,10 @@ if (options.help || !slug) {
     'Использование: scaffold.mjs <process> --title "Название" [--topics audience,offer,journey,pages,series,operations] [--account-id 123] [--root DIR] [--dry-run]',
   )
   process.exit(options.help ? 0 : 2)
+}
+if (positional.length !== 1) {
+  console.error('Нужен один аргумент: слаг процесса.')
+  process.exit(2)
 }
 if (!isProcessSlug(slug)) {
   console.error(`Слаг процесса «${slug}» должен быть латиницей в kebab-case, например trial-class`)

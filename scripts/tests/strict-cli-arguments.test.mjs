@@ -1,0 +1,34 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const script = name => fileURLToPath(new URL(`../${name}.mjs`, import.meta.url))
+
+test('mutating commands reject unknown, valued boolean, missing and duplicate options before writing', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-strict-args-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const cases = [
+    ['scaffold', ['demo', '--root', root, '--no-snapshoto'], /--no-snapshoto/],
+    ['scaffold', ['demo', '--root', root, '--dry-run=false'], /--dry-run/],
+    ['scaffold', ['demo', '--root', root, '--title'], /--title/],
+    ['scaffold', ['demo', '--root', root, '--root', root], /--root/],
+    ['scaffold', ['demo', 'extra', '--root', root], /аргумент/],
+    ['tasks', ['create', 'demo', 'W001', '--root', root, '--file', 'task.json', '--unknown'], /--unknown/],
+    ['creative', ['compile', 'demo', 'page', '--root', root, '--unknown'], /--unknown/],
+    ['creative-review', ['record', 'demo', 'page', '--root', root, '--packte', 'packet.json'], /--packte/],
+    ['board', ['respond-note', 'demo', '--root', root, '--stauts', 'done'], /--stauts/],
+    ['board-notes', ['respond', 'demo', '--root', root, '--stauts', 'done'], /--stauts/],
+    ['review-packets', ['cleanup', '--root', root, '--apply=false'], /--apply/],
+    ['check', ['demo', '--root', root, '--publish-snapshot', '--publish-snapshot'], /--publish-snapshot/],
+  ]
+  for (const [name, args, message] of cases) {
+    const result = spawnSync(process.execPath, [script(name), ...args], { encoding: 'utf8' })
+    assert.equal(result.status, 2, `${name} ${args.join(' ')}: ${result.stderr || result.stdout}`)
+    assert.match(result.stderr, message)
+    assert.deepEqual(readdirSync(root), [])
+  }
+})

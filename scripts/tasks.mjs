@@ -11,12 +11,17 @@ import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTas
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help'],
+  ['help', 'root', 'file', 'stage', 'out', 'step', 'status', 'reason', 'harness', 'agent-id', 'question']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug, id] = positional
 if (options.help || !command || !slug) {
   console.log('Использование: tasks.mjs <create|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
+if (positional.length > 3) { console.error('Лишний аргумент после ID задачи.'); process.exit(2) }
 
 const root = findRoot(options.root)
 const now = () => new Date().toISOString()

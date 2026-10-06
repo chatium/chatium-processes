@@ -65,8 +65,11 @@ const FILE_WRITE_APIS = [
 const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json$/, /\.automationConfig\.json$/]
 
 const boolOptions = ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot', 'publish-snapshot']
-const { positional, options } = parseArgs(process.argv.slice(2), boolOptions)
 const knownOptions = new Set([...boolOptions, 'snapshot-file', 'registry', 'knowledge-stage', 'task-stage', 'root'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), boolOptions, [...knownOptions]) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const unknownOptions = Object.keys(options).filter(name => !knownOptions.has(name))
 const valuedBooleans = boolOptions.filter(name => options[name] !== undefined && options[name] !== true)
 if (unknownOptions.length || positional.length > 1 || Object.entries(options).some(([name, value]) =>
