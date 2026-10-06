@@ -2,12 +2,14 @@
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]
+//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot | --publish-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
 import { verifySnapshot } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
+import { commissionStatus } from './lib/commission.mjs'
+import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
 import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
@@ -39,7 +41,7 @@ const EVENT_FIELD_NAMES = [
 ]
 const CONTACT_MAPPING_KEY = /^(?:contacts?|customer_?contacts?|contact_?(?:email|phone)|recipient_?(?:email|phone)|e?mail|phone|mobile|telephone|telegram|whatsapp|vk)$/i
 const UTM_MAPPING_KEY = /^(?:utm_?)(source|medium|campaign|content|term)$/i
-const STEP_TYPES = ['action', 'delay', 'continueCondition', 'condition', 'draft']
+const STEP_TYPES = ['action', 'delay', 'continueCondition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const LETTER_REQUIRED = ['title', 'description', 'subject', 'plain', 'html', 'short']
@@ -56,14 +58,23 @@ const FILE_WRITE_APIS = [
 ]
 const SKILL_FORBIDDEN = [/\.tsx?$/, /\.vue$/, /\.workspace\.json$/, /\.dir\.json$/, /\.automationConfig\.json$/]
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot'])
+const boolOptions = ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapshot', 'publish-snapshot']
+const { positional, options } = parseArgs(process.argv.slice(2), boolOptions)
+const knownOptions = new Set([...boolOptions, 'snapshot-file', 'registry', 'knowledge-stage', 'task-stage', 'root'])
+const unknownOptions = Object.keys(options).filter(name => !knownOptions.has(name))
+if (unknownOptions.length || positional.length > 1 || Object.entries(options).some(([name, value]) =>
+  !boolOptions.includes(name) &&
+  (typeof value !== 'string' || value.startsWith('--')))) {
+  console.error(`Некорректные параметры check: ${unknownOptions.map(name => `--${name}`).join(', ') || 'проверьте значения и позиционные аргументы'}. Запустите --help.`)
+  process.exit(2)
+}
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--task-stage design|build|test|launch] [--root DIR]')
+  console.log('Использование: check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot | --publish-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--task-stage design|build|test|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
-if (options['no-snapshot'] && options['verify-snapshot']) {
-  console.error('--no-snapshot и --verify-snapshot несовместимы: выберите локальную проверку или чтение доски.')
+if (['no-snapshot', 'verify-snapshot', 'publish-snapshot'].filter(name => options[name]).length > 1) {
+  console.error('--no-snapshot, --verify-snapshot и --publish-snapshot несовместимы.')
   process.exit(2)
 }
 try {
@@ -503,6 +514,8 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
       if (!step?.id) error(`${name}: у шага нет id`)
       else if (ids.has(step.id)) error(`${where}: id повторяется`)
       else ids.add(step.id)
+      if (step?.thenBranch !== undefined || step?.elseBranch !== undefined)
+        error(`${where}: thenBranch/elseBranch не поддерживаются; разделите сценарии на отдельные автоматизации`)
       if (!STEP_TYPES.includes(step?.type)) {
         error(`${where}: type «${step?.type}», допустимы ${STEP_TYPES.join(', ')}`)
         continue
@@ -519,7 +532,8 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
           if (!Array.isArray(d.weekdays) || d.weekdays.some(w => !WEEKDAYS.includes(w))) error(`${where}: weekdays — дни недели по-английски`)
           if (!/^\d{1,2}:\d{2}$/.test(d.weekdayTime || '')) error(`${where}: weekdayTime — «10:00»`)
         } else if (d.type === 'dateExpression') {
-          if (!d.dateExpression) error(`${where}: пустой dateExpression`)
+          if (typeof d.dateExpression !== 'string' || !d.dateExpression.trim()) error(`${where}: пустой dateExpression`)
+          else if (/\{\{|\}\}/.test(d.dateExpression)) error(`${where}: dateExpression должен быть JS-выражением, а не шаблоном {{ ... }}`)
         } else error(`${where}: delay.type «${d.type}» неизвестен`)
       }
       const route = step.type === 'action' ? step.actionRoute : step.conditionRoute
@@ -784,6 +798,21 @@ check('implementation.review', 'Независимое ревью реализа
   for (const issue of result.structuralErrors || []) error(issue)
 })
 
+check('reviews', 'Обязательные заключения комиссии', ({ error }) => {
+  const result = commissionStatus({ root, slug, stage: options['task-stage'] || 'build' })
+  for (const item of result.requirements) if (item.status !== 'ready')
+    error(`${item.id}: ${item.status}${item.error ? ` — ${item.error}` : ''}`)
+})
+
+if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Согласование плана владельцем', ({ error }) => {
+  const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
+  if (decision.status !== 'ready') error(decision.error || decision.status)
+})
+if (options['task-stage'] === 'launch') check('owner.launch', 'Согласование запуска владельцем', ({ error }) => {
+  const decision = ownerDecisionStatus({ root, slug, kind: 'launch' })
+  if (decision.status !== 'ready') error(decision.error || decision.status)
+})
+
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
   const skillRoot = dirname(dirname(dirname(SKILL_DIR))) // <аккаунт>/.agents/skills/<скилл>
   for (const f of walk(SKILL_DIR)) {
@@ -811,13 +840,13 @@ try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
     const snapshot = prepareSnapshot({ root, slug, map, checks, ...(sourceState ? { state: sourceState } : {}) })
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
-    if (options['verify-snapshot']) {
+    if (!options['publish-snapshot']) {
       snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot) }
       if (sourceError) {
         if (snapshotResult.verified) throw sourceError
         snapshotResult.localError = sourceError.message
       }
-    } else if (!options['no-snapshot']) {
+    } else {
       if (sourceError) throw sourceError
       snapshotResult = await publishSnapshot(root, snapshot)
       snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot,
@@ -827,6 +856,11 @@ try {
 } catch (e) {
   snapshotResult = { ...snapshotResult, verified: false, status: e instanceof SnapshotDrift ? 'stale' : 'unavailable', error: e.message }
 }
+if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согласование текущей доски владельцем', ({ error }) => {
+  if (!snapshotResult.verified) return error('Нельзя подтвердить показанную владельцу доску без актуального снимка.')
+  const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
+  if (decision.status !== 'ready') error(decision.error || decision.status)
+})
 
 // ---------- вывод ----------
 

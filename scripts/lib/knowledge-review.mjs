@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFile
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
-import { collectReferenceLibrary, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { changedInspectedReferences, collectReferenceLibrary, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 
 export const REVIEW_STAGES = ['design', 'build', 'launch']
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -89,6 +89,13 @@ export function validateReview(report, packet) {
     return { id: answer.id, status: answer.status, reason: answer.reason, evidence,
       ...(answer.status === 'gap' ? { priority: answer.priority, nextAction: answer.nextAction } : {}) }
   })
+  const evidenced = answers.filter(answer => answer.status !== 'gap')
+  if (evidenced.length >= 3) {
+    const signatures = evidenced.map(answer => JSON.stringify(answer.evidence.map(item =>
+      [item.path, normalized(item.quote)]).sort((a, b) => a[0].localeCompare(b[0]))))
+    if (new Set(signatures).size === 1)
+      throw Error('Одна и та же цитата механически повторена для разных вопросов. Нужны относящиеся к каждому выводу доказательства.')
+  }
   const blocking = answers.filter(a => a.status === 'gap' && a.priority === 'blocking')
   const advisory = answers.filter(a => a.status === 'gap' && a.priority === 'advisory')
   const structuralErrors = packet.staticChecks.flatMap(c => c.errors)
@@ -100,13 +107,18 @@ export function recordReview({ root, slug, stage, packet, report, agentReference
   checkedString(agentReference, 'agentReference', 500)
   const current = makeReviewPacket({ root, slug, stage })
   if (packet.inputDigest !== current.inputDigest) throw Error('Материалы или рубрика изменились после подготовки пакета. Подготовьте новый пакет и повторите ревью.')
-  if (packetDirectory) verifyReferenceSnapshot(packetDirectory, current.referenceLibrary)
+  if (packetDirectory) verifyReferenceSnapshot(packetDirectory, packet.referenceLibrary)
+  const referenceHashes = inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
+  const changed = changedInspectedReferences({ referenceHashes }, current.referenceLibrary)
+  if (changed.length) throw Error(`Прочитанные справки изменились после подготовки пакета: ${changed.join(', ')}`)
   // Validate against freshly read sources, never a potentially modified packet.
   const result = validateReview(report, current)
   const saved = { version: 1, process: slug, stage, status: result.status, inputDigest: current.inputDigest,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
-    referenceDigest: current.referenceLibrary.digest, answers: result.answers }
+    referenceHashes, rubricVersion: current.rubricVersion,
+    skillVersion: current.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    answers: result.answers }
   const path = reviewPath(root, slug, stage)
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify(saved, null, 2) + '\n')
@@ -119,10 +131,15 @@ export function reviewStatus({ root, slug, stage = 'build' }) {
   if (!existsSync(path)) return { status: 'missing', stage, path, inputDigest: packet.inputDigest,
     error: `Нет независимого ревью знаний для этапа ${stage}. Запустите kb-review.mjs prepare.` }
   const report = JSON.parse(readFileSync(path, 'utf8'))
-  if (report.inputDigest !== packet.inputDigest) return { status: 'stale', stage, path,
-    error: 'Знания, план, карта, критерии или библиотека справок изменились после ревью. Нужна новая проверка субагентом.' }
+  if (report.process !== slug || report.stage !== stage || report.version !== 1)
+    throw Error('Отчёт не соответствует процессу или этапу.')
   if (report.reviewer?.kind !== 'subagent' || !text(report.reviewer.reference) || !Number.isFinite(Date.parse(report.reviewedAt)))
     throw Error('В отчёте нет сведений о независимом ревьюере и времени проверки.')
+  const changedReferences = changedInspectedReferences(report, packet.referenceLibrary)
+  if (changedReferences.length) return { status: 'stale', stage, path, changedReferences,
+    error: `Изменились прочитанные справки: ${changedReferences.join(', ')}. Повторите заключение по этой роли.` }
+  if (report.inputDigest !== packet.inputDigest) return { status: 'stale', stage, path,
+    error: 'Знания, план, карта, критерии или обязательные правила изменились после ревью. Нужна новая проверка субагентом.' }
   return { ...validateReview(report, packet), stage, path, inputDigest: packet.inputDigest,
     reviewedAt: report.reviewedAt, reviewer: report.reviewer }
 }

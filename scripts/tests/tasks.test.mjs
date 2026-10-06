@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { taskReadiness } from '../lib/tasks.mjs'
+import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
 function fixture(t) {
@@ -35,11 +36,23 @@ function fixture(t) {
     questions: [], drafts: [], latestAttempt: null, attempts: [], result: null, acceptance: null, cancellation: null,
   }
   put('task.json', task)
+  for (const args of [['init', '-q'], ['config', 'user.email', 'test@example.invalid'],
+    ['config', 'user.name', 'Test'], ['add', '.'], ['commit', '-qm', 'Initial']]) {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  const approve = () => {
+    const packet = prepareOwnerDecision({ root, slug: 'demo', kind: 'plan', boardRevision: null })
+    recordOwnerDecision({ root, slug: 'demo', kind: 'plan', packet,
+      response: { decision: 'approve', message: 'Тестовое согласование плана.',
+        messageReference: 'unit-test/message-1', owner: 'fixture-owner', answeredAt: '2026-10-06T10:00:00Z' } })
+  }
+  approve()
   const run = (command, ...args) => {
     const response = spawnSync(process.execPath, [cli, command, 'demo', ...args, '--root', root], { encoding: 'utf8' })
     return { ...response, json: response.status === 0 ? JSON.parse(response.stdout) : null }
   }
-  return { root, put, run, sha, task: () => JSON.parse(readFileSync(join(root, 'demo/tasks/W001.json'), 'utf8')) }
+  return { root, put, run, sha, approve, task: () => JSON.parse(readFileSync(join(root, 'demo/tasks/W001.json'), 'utf8')) }
 }
 
 test('main agent can resume after a KB answer and close a task only with evidence', t => {
@@ -47,12 +60,15 @@ test('main agent can resume after a KB answer and close a task only with evidenc
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
   assert.match(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), /\[W001\]\(tasks\/W001\.json\)/)
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(e => e.includes('задача не завершена')))
-  assert.equal(f.run('start', 'W001').json.attemptId, 'R001')
+  const firstStart = f.run('start', 'W001')
+  assert.equal(firstStart.status, 0, firstStart.stderr)
+  assert.equal(firstStart.json.attemptId, 'R001')
   f.put('question.json', { questions: [{ id: 'Q1', question: 'Нужно имя?', why: 'Поле формы', blocking: true }] })
   assert.equal(f.run('ask', 'W001', '--file', join(f.root, 'question.json')).json.status, 'needs-input')
   f.put('.knowledge-base/processes/demo/form.md', 'Email обязателен. Имя не требуется.\n')
   f.put('answer.json', { summary: 'Имя не требуется', sourceRefs: ['.knowledge-base/processes/demo/form.md'] })
   assert.equal(f.run('resolve', 'W001', '--question', 'Q1', '--file', join(f.root, 'answer.json')).json.status, 'ready-to-resume')
+  f.approve()
   assert.equal(f.run('start', 'W001').json.attemptId, 'R002')
   assert.equal(f.run('step', 'W001', '--step', 'P1', '--status', 'done').status, 0)
   f.put('demo/form.vue', '<template>Форма</template>\n')
@@ -240,6 +256,7 @@ test('series needs one exact task per message and start cannot bypass the brief'
   base.expectedOutputs = [{ path: paths[0], purpose: 'Первое письмо' }, { path: paths[1], purpose: 'Второе письмо' }]
   f.put('task.json', base)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  f.approve()
   const bypass = f.run('start', 'W001')
   assert.equal(bypass.status, 1)
   assert.match(bypass.stderr, /перед реализацией нужен вход|нет задачи специалиста email/)
@@ -348,4 +365,26 @@ test('unknown review file cannot close a criterion with a forged ready flag', t 
   const rejected = f.run('accept', 'W001')
   assert.equal(rejected.status, 1)
   assert.match(rejected.stderr, /Неподдерживаемый отчёт/)
+})
+
+test('failed attempt retries and accepted card can be reopened with history', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  assert.equal(f.run('start', 'W001').status, 0)
+  f.put('failure.json', { reason: 'Тестовая отправка не дошла' })
+  assert.equal(f.run('fail', 'W001', '--file', join(f.root, 'failure.json')).json.status, 'failed')
+  assert.equal(f.run('start', 'W001').json.attemptId, 'R002')
+  const accepted = f.task()
+  accepted.status = 'done'
+  accepted.acceptance = { decision: 'accepted', at: '2026-10-06T10:00:00Z' }
+  accepted.result = { attemptId: 'R002', summary: 'Старый результат' }
+  f.put('demo/tasks/W001.json', accepted)
+  f.put('reopen.json', { reason: 'После ревью уточнили путь клиента' })
+  const reopened = f.run('reopen', 'W001', '--file', join(f.root, 'reopen.json'))
+  assert.equal(reopened.status, 0, reopened.stderr)
+  assert.equal(f.task().status, 'queued')
+  assert.equal(f.task().reopens.length, 1)
+  assert.equal(f.task().acceptance, null)
+  assert.equal(f.task().result, null)
+  assert.equal(f.run('start', 'W001').json.attemptId, 'R003')
 })

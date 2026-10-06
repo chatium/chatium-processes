@@ -66,10 +66,14 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   }
 
   const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md']
-  const required = [...entrypoints, ...(stage === 'implementation' ? [
+  const required = [...entrypoints, ...(stage === 'implementation' || stage === 'agents' ? [
     'skills/processes/build/review-safety.md',
     'skills/chatium-development/auth.md',
     'skills/chatium-development/routing.md',
+  ] : stage === 'architecture' ? [
+    'skills/processes/formats/plan-md.md',
+    'skills/processes/formats/process-yaml.md',
+    'skills/chatium-development/auth.md',
   ] :
     ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)
@@ -80,9 +84,28 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
 
 export function withReferenceLibrary(base, library) {
   const value = { ...base, referenceLibrary: library.manifest }
-  const packet = { ...value, inputDigest: hash(JSON.stringify(value)) }
+  // A report is about the process and rules the reviewer actually used. Keep
+  // the full library available for navigation without hashing unrelated files.
+  const required = library.manifest.files.filter(file => library.manifest.required.includes(file.path))
+    .map(({ path, sha256 }) => ({ path, sha256 }))
+  const packet = { ...value, inputDigest: hash(JSON.stringify({ ...base, required })) }
   contents.set(packet, library.files)
   return packet
+}
+
+export function inspectedReferenceHashes(manifest, paths) {
+  const files = new Map(manifest.files.map(file => [file.path, file.sha256]))
+  if (!Array.isArray(paths) || new Set(paths).size !== paths.length || paths.some(path => !files.has(path)))
+    throw Error('inspectedReferences содержит неизвестную или повторную справку.')
+  return Object.fromEntries([...paths].sort().map(path => [path, files.get(path)]))
+}
+
+export function changedInspectedReferences(saved, manifest) {
+  if (!saved || typeof saved !== 'object' || !saved.referenceHashes)
+    return ['Формат старого заключения: нет хешей прочитанных справок']
+  const files = new Map(manifest.files.map(file => [file.path, file.sha256]))
+  return Object.entries(saved.referenceHashes).filter(([path, digest]) => files.get(path) !== digest)
+    .map(([path]) => path)
 }
 
 export function writeReferenceSnapshot(directory, packet) {

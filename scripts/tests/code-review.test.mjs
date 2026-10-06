@@ -48,9 +48,9 @@ function syntheticReport(packet) {
   return { version: 1, process: packet.process, stage: packet.stage, inputDigest: packet.inputDigest,
     inspectedFiles: packet.files.map(file => file.path),
     inspectedReferences: [...packet.referenceLibrary.required],
-    answers: packet.questions.map(question => ({ id: question.id, status: 'covered',
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Unit-only synthetic answer to exercise the structural validator.',
-      evidence: [{ path: codePath, quote }] })) }
+      evidence: [{ path: codePath, quote: quote.slice(index % 3) }] })) }
 }
 function save(f, packet, report = syntheticReport(packet)) {
   return recordCodeReview({ root: f.root, slug: 'demo', packet, report,

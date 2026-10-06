@@ -34,7 +34,7 @@ function fixture(t) {
     const report = { version: 1, process: 'demo', stage, inputDigest: packet.inputDigest,
       inspectedFiles: packet.files.map(f => f.path),
       inspectedReferences: [...packet.referenceLibrary.required],
-      answers: packet.questions.map(q => ({ id: q.id, status: 'covered', reason: 'Unit-only structural fixture.', evidence: [{ path: article, quote }] })) }
+      answers: packet.questions.map((q, index) => ({ id: q.id, status: 'covered', reason: 'Unit-only structural fixture.', evidence: [{ path: article, quote: quote.slice(index % 3) }] })) }
     recordReview({ root, slug: 'demo', stage, packet, report, agentReference: 'unit-test:integration' })
   }
   return { root, put, plan, run, check, record }

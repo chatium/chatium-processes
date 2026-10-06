@@ -24,10 +24,12 @@ node .agents/skills/processes/scripts/context.mjs <process>
 
 ```sh
 # Сначала commit и push своей ветки.
-node .agents/skills/processes/scripts/check.mjs <process>
+node .agents/skills/processes/scripts/check.mjs <process> --publish-snapshot
 ```
 
 Этот запуск сверяет код и карту, публикует снимок и читает его обратно.
+Обычный `check <process>` только читает карту; опечатка в параметре
+завершается ошибкой до сетевого вызова.
 Подтверждение требует:
 
 - чистого Git-дерева до проверки и после чтения;
@@ -52,7 +54,7 @@ node .agents/skills/processes/scripts/check.mjs <process> --verify-snapshot --js
 
 - `snapshot.status = stale`: нет снимка, SHA или содержимое отличаются,
   дерево грязное либо ветка изменилась. Разбери расхождение, закончи правки,
-  commit/push и повтори обычный `check`. Скрипт сам не коммитит и не пушит.
+  commit/push и явно выполни `check --publish-snapshot`. Скрипт сам не коммитит и не пушит.
 - `snapshot.status = unavailable`: SDK, сеть, Git или ответ сервера
   недоступны/некорректны. Актуальность **не подтверждена**. После ошибки
   записи сначала вызови `--verify-snapshot`: запись могла успеть пройти.

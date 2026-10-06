@@ -54,9 +54,12 @@
 | `type` шага | Поля | Что делает |
 | --- | --- | --- |
 | `action` | `id`, `actionName`, `actionRoute`, `params` | Вызывает функцию; её `result` доступен дальше как `steps.<id>.*` |
-| `delay` | `id`, `delay` | Ждёт: `{ type: delay, amount, units: seconds/minutes/hours/days }`, `{ type: exactTime, exactTime: ISO }`, `{ type: waitForTime, weekdays: [monday…], weekdayTime: "10:00" }`, `{ type: dateExpression, dateExpression: "{{ steps.prepare.startsAt }}" }` |
+| `delay` | `id`, `delay` | Ждёт: `{ type: delay, amount, units: seconds/minutes/hours/days }`, `{ type: exactTime, exactTime: ISO }`, `{ type: waitForTime, weekdays: [monday…], weekdayTime: "10:00" }`, `{ type: dateExpression, dateExpression: "steps.prepare.startsAt" }`. Последнее — JS-выражение, не шаблон `{{ ... }}`. |
 | `continueCondition` | `id`, `conditionName`, `conditionRoute`, `params` | Идёт дальше, только если условие выполнено |
-| `condition` | `id`, `conditionName`, `conditionRoute`, `params`, `thenBranch`, `elseBranch` | Ветвление; ветка — `{ steps: [...], afterBranch: continue/stop }` |
+
+Шаг `condition` и поля `thenBranch`/`elseBranch` текущий рантайм не поддерживает.
+Для разных исходов создавай отдельные автоматизации с собственными условиями
+продолжения и событиями; не представляй их одним ветвящимся конфигом.
 
 **Ссылка на функцию** — `routeJson: [<accountId>, "<модуль>", "<путь>"]`:
 числовой id аккаунта из `process.yaml`, путь модуля от корня аккаунта без

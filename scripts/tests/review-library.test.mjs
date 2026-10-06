@@ -60,19 +60,19 @@ test('packet contains a navigable manifest without embedding reference texts', t
   assert.equal(packet.inputDigest, f.packet().inputDigest)
 })
 
-test('reference docs, entrypoints and typings each invalidate the packet digest', t => {
+test('only mandatory rules affect the packet digest; all references remain navigable', t => {
   const f = fixture(t)
   f.put('account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): void }\n')
   let previous = f.packet()
-  for (const [path, content] of [
-    ['skills/chatium-development/references/heap.md', '# Heap\nRequire limit <= 100.\n'],
-    ['skills/processes/SKILL.md', '# Processes\nUpdated navigation.\n'],
-    ['account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): Promise<void> }\n'],
+  for (const [path, content, affectsInput] of [
+    ['skills/chatium-development/references/heap.md', '# Heap\nRequire limit <= 100.\n', false],
+    ['skills/processes/SKILL.md', '# Processes\nUpdated navigation.\n', true],
+    ['account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): Promise<void> }\n', false],
   ]) {
     f.put(path, content)
     const current = f.packet()
     assert.notEqual(current.referenceLibrary.digest, previous.referenceLibrary.digest, path)
-    assert.notEqual(current.inputDigest, previous.inputDigest, path)
+    assert.equal(current.inputDigest !== previous.inputDigest, affectsInput, path)
     previous = current
   }
 })
@@ -268,9 +268,9 @@ test('both saved review roles become stale when a referenced platform declaratio
   // Synthetic answers only exercise report validation/invalidation. They are
   // not an independent semantic audit of the temporary process.
   const report = packet => ({ version: 1, process: slug, stage: packet.stage, inputDigest: packet.inputDigest,
-    inspectedFiles: packet.files.map(file => file.path), inspectedReferences: packet.referenceLibrary.required,
-    answers: packet.questions.map(question => ({ id: question.id, status: 'covered',
-      reason: 'Synthetic unit answer testing snapshot freshness only.', evidence: [{ path: kbPath, quote }] })) })
+    inspectedFiles: packet.files.map(file => file.path), inspectedReferences: [...packet.referenceLibrary.required, 'typings/.typings/platform.d.ts'],
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
+      reason: 'Synthetic unit answer testing snapshot freshness only.', evidence: [{ path: kbPath, quote: quote.slice(index % 3) }] })) })
   const records = []
   for (const stage of ['implementation', 'design']) {
     const packet = stage === 'implementation' ? makeCodeReviewPacket({ root, slug }) : makeReviewPacket({ root, slug, stage })
@@ -293,10 +293,10 @@ test('both saved review roles become stale when a referenced platform declaratio
   f.put('account/.typings/platform.d.ts', 'declare const version: 2\n')
   assert.equal(codeReviewStatus({ root, slug }).status, 'stale')
   assert.equal(reviewStatus({ root, slug, stage: 'design' }).status, 'stale')
-  for (const { args, record } of records) assert.throws(() => record(args), /изменились/)
+  assert.deepEqual(codeReviewStatus({ root, slug }).changedReferences, ['typings/.typings/platform.d.ts'])
+  for (const { args, record } of records) assert.throws(() => record(args), /измен/)
   f.put('account/.typings/platform.d.ts', 'declare const version: 1\n')
   f.put('account/.typings/new-api.d.ts', 'declare const newApi: true\n')
-  assert.equal(codeReviewStatus({ root, slug }).status, 'stale')
-  assert.equal(reviewStatus({ root, slug, stage: 'design' }).status, 'stale')
-  for (const { args, record } of records) assert.throws(() => record(args), /изменились/)
+  assert.equal(codeReviewStatus({ root, slug }).status, 'ready')
+  assert.equal(reviewStatus({ root, slug, stage: 'design' }).status, 'ready')
 })

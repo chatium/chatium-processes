@@ -9,10 +9,13 @@ export async function readBoard(root, target) {
 
 // Time changes on every check. Object key order is not part of the contract.
 // A previous optional typecheck need not be rerun just to read the board.
-function content(snapshot, includeTypecheck) {
+function content(snapshot) {
   const { checkedAt, ...rest } = snapshot
+  // Validation gates vary with --task-stage and --knowledge-stage. The map is
+  // tied to the published commit; a stage-only check must not stale the board.
+  const stageChecks = new Set(['tasks', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.launch', 'owner.launch.board'])
   return JSON.parse(JSON.stringify({ ...rest,
-    checks: snapshot.checks.filter(c => includeTypecheck || c.id !== 'typecheck'),
+    checks: snapshot.checks.filter(c => !stageChecks.has(c.id) && c.id !== 'typecheck'),
   }))
 }
 
@@ -31,8 +34,7 @@ export function compareSnapshot(expected, board, expectedRevision) {
     throw new SnapshotDrift(`Карта отстала: снимок ${actual.commit}, HEAD ${expected.commit}. Повторите check после push.`)
   if (expectedRevision !== undefined && (stored.revision !== expectedRevision || actual.checkedAt !== expected.checkedAt))
     throw new SnapshotDrift('После записи снимок изменился. Прочитайте доску и повторите check.')
-  if (!isDeepStrictEqual(content(expected, expected.checks.some(c => c.id === 'typecheck')),
-    content(actual, expected.checks.some(c => c.id === 'typecheck'))))
+  if (!isDeepStrictEqual(content(expected), content(actual)))
     throw new SnapshotDrift('Коммит совпал, но содержимое карты или результаты проверок отличаются. Повторите check для обновления снимка.')
 }
 

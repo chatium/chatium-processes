@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
+import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
@@ -13,7 +14,7 @@ import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTas
 const { positional, options } = parseArgs(process.argv.slice(2), ['help'])
 const [command, slug, id] = positional
 if (options.help || !command || !slug) {
-  console.log('Использование: tasks.mjs <create|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
+  console.log('Использование: tasks.mjs <create|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 
@@ -110,6 +111,10 @@ try {
   if (command === 'context') { show(context(task, planTask)); process.exit(0) }
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
+    if (task.mode === 'implement') {
+      const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
+      if (decision.status !== 'ready') throw Error(`Начать реализацию нельзя: ${decision.error || decision.status}`)
+    }
     const creativeProblems = await creativePrerequisites(task, all, plan)
     if (creativeProblems.length) throw Error(creativeProblems.join('; '))
     for (const dep of task.dependsOn) if (all.find(t => t.id === dep)?.status !== 'done') throw Error(`Сначала завершите ${dep}.`)
@@ -282,6 +287,31 @@ try {
       resultDigest: digest(task.result), reason: 'Все критерии подтверждены актуальным результатом' }
     task.status = 'done'; save(task, previous)
     show({ status: task.status, acceptance: task.acceptance })
+    process.exit(0)
+  }
+  if (command === 'fail') {
+    if (!['running', 'result-ready'].includes(task.status)) throw Error('Отметить сбой можно у текущей попытки.')
+    const failure = input()
+    if (typeof failure.reason !== 'string' || !failure.reason.trim()) throw Error('Укажите причину сбоя.')
+    const previous = task.revision, attempt = task.attempts.at(-1)
+    attempt.status = 'failed'; attempt.finishedAt = now(); attempt.failure = failure
+    task.status = 'failed'; task.result = null; task.acceptance = null
+    save(task, previous)
+    show({ status: task.status, attemptId: attempt.id, failure })
+    process.exit(0)
+  }
+  if (command === 'reopen') {
+    if (task.status !== 'done') throw Error('Повторно открыть можно только принятую задачу.')
+    const decision = input()
+    if (typeof decision.reason !== 'string' || !decision.reason.trim()) throw Error('Нужна причина повторной работы.')
+    const previous = task.revision
+    task.reopens ||= []
+    task.reopens.push({ at: now(), reason: decision.reason,
+      acceptance: task.acceptance, result: task.result })
+    task.acceptance = null; task.result = null; task.status = 'queued'
+    task.steps = task.steps.map(step => ({ ...step, status: 'todo', reason: null }))
+    save(task, previous)
+    show({ status: task.status, reopened: task.reopens.length, next: `tasks.mjs start ${slug} ${id}` })
     process.exit(0)
   }
   if (command === 'cancel') {

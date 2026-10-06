@@ -36,16 +36,15 @@ function fixture(t) {
   return { base, root, put, packet, run }
 }
 
-// These answers exercise the structural validator only. Reusing one quote for
-// every question is deliberately NOT a real semantic review or acceptance case.
+// These answers exercise structural validation only, not semantic acceptance.
 function syntheticReport(packet) {
   return {
     version: 1, process: packet.process, stage: packet.stage, inputDigest: packet.inputDigest,
     inspectedFiles: packet.files.map(file => file.path),
     inspectedReferences: [...packet.referenceLibrary.required],
-    answers: packet.questions.map(question => ({ id: question.id, status: 'covered',
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки формата валидатора.',
-      evidence: [{ path: articlePath, quote }] })),
+      evidence: [{ path: articlePath, quote: quote.slice(index % 3) }] })),
   }
 }
 
@@ -53,6 +52,13 @@ function save(f, packet, report = syntheticReport(packet)) {
   return recordReview({ root: f.root, slug: 'demo', stage: packet.stage, packet, report,
     agentReference: 'unit-test-only:synthetic-review' })
 }
+
+test('one mechanically repeated citation cannot make every different answer green', t => {
+  const packet = fixture(t).packet()
+  const report = syntheticReport(packet)
+  for (const answer of report.answers) answer.evidence = [{ path: articlePath, quote }]
+  assert.throws(() => validateReview(report, packet), /механически повторена/)
+})
 
 test('stage question sets grow from design to build to launch, with unique IDs', t => {
   const f = fixture(t)
