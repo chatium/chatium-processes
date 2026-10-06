@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { collectImplementation } from './implementation.mjs'
+import { reviewPlan, reviewWorkspace } from './review-normalization.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
@@ -20,8 +21,11 @@ export function makeCodeReviewPacket({ root, slug }) {
   // the task requirements and real implementation sources in the packet.
   const planPath = `${slug}/PLAN.md`
   const files = corpus.files.filter(file => !file.path.startsWith(`${slug}/tasks/`) &&
+    file.path !== `${slug}/tests/records.ts` && file.path !== `${slug}/tests/automation-smoke.json` &&
     !new RegExp(`^${slug}/creative/[^/]+/build\\.md$`).test(file.path))
-    .map(file => file.path === planPath ? { ...file, content: file.content.replace(/^- \[[xX ]\] (T\d+)/gm, '- [ ] $1') } : file)
+    .map(file => file.path === planPath ? { ...file, content: reviewPlan(file.content) }
+      : file.path === `${slug}/.workspace.json` ? { ...file, content: reviewWorkspace(file.content) }
+      : file)
   const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
   const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))

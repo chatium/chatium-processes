@@ -3,6 +3,7 @@
 import { lstatSync, realpathSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { isProcessSlug, rel } from './project.mjs'
+import { reviewPlan } from './review-normalization.mjs'
 import { parseYaml, requireYaml } from './yaml.mjs'
 
 export const KNOWLEDGE_LIMITS = Object.freeze({ files: 300, bytes: 5 * 1024 * 1024, fileBytes: 1024 * 1024, entries: 10000 })
@@ -318,7 +319,7 @@ export function collectKnowledge({ root, slug }) {
     }
   }
   const plan = read(join(root, slug, 'PLAN.md'), { optional: true })
-  if (plan) followLinks(plan, plan.content)
+  if (plan) followLinks(plan, reviewPlan(plan.content))
   else warn(scope, `${slug}/PLAN.md: плана пока нет; это допустимо до планирования`)
   if (!articleQueue.some(file => kbPath && inside(kbPath, join(root, file.path)))) fail(scope, 'В разделе знаний процесса нет статей .md')
   // The queue may grow when a business article links to another relevant article.

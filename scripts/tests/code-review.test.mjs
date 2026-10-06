@@ -76,6 +76,22 @@ test('source packet includes subtree, linked KB, central letters and mapped exte
     { id: 'T2', title: 'Проверить повторную заявку', markedDone: false }])
 })
 
+test('code conclusion ignores bookkeeping and launch toggle but tracks business changes', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: true },
+    variables: { price: { value: '500', description: 'Цена' } } } }))
+  f.put('demo/tests/records.ts', 'export const TEST_RECORDS = {}\n')
+  const before = f.packet().inputDigest
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Собрать форму заявки\n- [x] T2 Проверить повторную заявку\n')
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: false },
+    variables: { price: { value: '500', description: 'Цена' } } } }))
+  f.put('demo/tests/records.ts', 'export const TEST_RECORDS = { orders: ["test-1"] }\n')
+  assert.equal(f.packet().inputDigest, before)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: false },
+    variables: { price: { value: '700', description: 'Цена' } } } }))
+  assert.notEqual(f.packet().inputDigest, before)
+})
+
 test('no letters is valid without a letters directory; explicit missing letters is an error', t => {
   const f = fixture(t)
   rmSync(join(f.root, '.mailings/storage/processes/demo'), { recursive: true })

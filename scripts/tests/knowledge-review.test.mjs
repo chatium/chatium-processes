@@ -188,6 +188,16 @@ test('digest tracks article, PLAN and map changes but ignores code, reports and 
   }
 })
 
+test('knowledge conclusion survives task bookkeeping and consent record updates', t => {
+  const f = fixture(t)
+  f.put('demo/PLAN.md', '# План\n\nФорма заявки.\n## Задачи\n- [ ] T1 Собрать форму\n  - Рабочие задачи: [W1](tasks/W1.json)\n## Согласования\n- План: не согласован\n- Запуск: не согласован\n')
+  const before = f.packet().inputDigest
+  f.put('demo/PLAN.md', '# План\n\nФорма заявки.\n## Задачи\n- [x] T1 Собрать форму\n  - Рабочие задачи: [W2](tasks/W2.json)\n## Согласования\n- План: согласован 07.10\n- Запуск: согласован 07.10\n')
+  assert.equal(f.packet().inputDigest, before)
+  f.put('demo/PLAN.md', '# План\n\nФорма оплаты.\n## Задачи\n- [x] T1 Собрать форму\n  - Рабочие задачи: [W2](tasks/W2.json)\n## Согласования\n- План: согласован 07.10\n- Запуск: согласован 07.10\n')
+  assert.notEqual(f.packet().inputDigest, before)
+})
+
 test('stale input packets cannot record a previously passing review', t => {
   const f = fixture(t), packet = f.packet()
   f.put(articlePath, article(`${quote}\nУслуга временно недоступна.`))

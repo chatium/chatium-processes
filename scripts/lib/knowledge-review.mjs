@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
+import { reviewPlan } from './review-normalization.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 
@@ -46,7 +47,8 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
   const questions = rubric.questions.filter(q => REVIEW_STAGES.indexOf(q.fromStage) <= REVIEW_STAGES.indexOf(stage))
   const reviewerInstructions = readFileSync(join(method, 'reviewer.md'), 'utf8')
   const base = { version: 1, process: slug, stage, rubricVersion: rubric.version, questions,
-    reviewerInstructions, files: knowledge.files, staticChecks: knowledge.checks }
+    reviewerInstructions, files: knowledge.files.map(file => file.path === `${slug}/PLAN.md`
+      ? { ...file, content: reviewPlan(file.content) } : file), staticChecks: knowledge.checks }
   // Reports themselves, Git SHA, timestamps and unrelated processes are excluded.
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage }))
 }
