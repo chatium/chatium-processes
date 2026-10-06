@@ -32,6 +32,17 @@ test('unknown option exits before any snapshot or output-file write', t => {
   assert.throws(() => readFileSync(target))
 })
 
+test('boolean snapshot option with an equals value is rejected before writing', t => {
+  const f = fixture(t)
+  const target = join(f.root, 'should-not-exist.json')
+  const result = spawnSync(process.execPath,
+    [checkScript, 'demo', '--root', f.root, '--publish-snapshot=false', '--snapshot-file', target],
+    { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /--publish-snapshot/)
+  assert.throws(() => readFileSync(target))
+})
+
 test('design gate asks for design review without requiring implementation sources', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: home\n    kind: page\n    stage: Lead\n    title: Home\n    purpose: Capture\n    source: demo/home/\nlinks: []\n')

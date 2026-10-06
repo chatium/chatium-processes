@@ -67,10 +67,11 @@ const boolOptions = ['json', 'typecheck', 'help', 'no-snapshot', 'verify-snapsho
 const { positional, options } = parseArgs(process.argv.slice(2), boolOptions)
 const knownOptions = new Set([...boolOptions, 'snapshot-file', 'registry', 'knowledge-stage', 'task-stage', 'root'])
 const unknownOptions = Object.keys(options).filter(name => !knownOptions.has(name))
+const valuedBooleans = boolOptions.filter(name => options[name] !== undefined && options[name] !== true)
 if (unknownOptions.length || positional.length > 1 || Object.entries(options).some(([name, value]) =>
   !boolOptions.includes(name) &&
-  (typeof value !== 'string' || value.startsWith('--')))) {
-  console.error(`Некорректные параметры check: ${unknownOptions.map(name => `--${name}`).join(', ') || 'проверьте значения и позиционные аргументы'}. Запустите --help.`)
+  (typeof value !== 'string' || value.startsWith('--'))) || valuedBooleans.length) {
+  console.error(`Некорректные параметры check: ${[...unknownOptions, ...valuedBooleans].map(name => `--${name}`).join(', ') || 'проверьте значения и позиционные аргументы'}. Запустите --help.`)
   process.exit(2)
 }
 const slug = positional[0]
