@@ -46,6 +46,7 @@ function sourceFiles(root, spec, errors) {
 
 function validateLanding(spec, errors, references) {
   const types = catalog('landing-types.json'), mechanics = catalog('mechanics.json'), styles = catalog('styles.json')
+  const copywriting = catalog('copywriting.json')
   references.push('creative/catalog/landing-quality.md')
   const type = types.types[spec.landingType]
   if (!type) { errors.push(`Неизвестный landingType ${spec.landingType}`); return null }
@@ -108,6 +109,12 @@ function validateLanding(spec, errors, references) {
       if (!design[key] || Array.isArray(design[key]) && !design[key].length) errors.push(`Свой стиль: не заполнено ${key}.`)
   }
   if (design && !text(design.adaptation)) errors.push('Нужно объяснить адаптацию дизайн-системы под задачу.')
+  const writing = spec.copywriting
+  if (writing !== undefined) {
+    if (!text(writing?.styleId) || !copywriting.styles[writing.styleId])
+      errors.push(`Неизвестная подача текста ${writing?.styleId || '?'}.`)
+    if (!text(writing?.adaptation)) errors.push('Подача текста: объясни адаптацию под аудиторию и бренд.')
+  }
   for (const image of spec.images || []) {
     if (!text(image.id) || !text(image.sectionId) || !text(image.purpose) || !text(image.alt) ||
         !(text(image.asset) || text(image.generationBrief)) || !text(image.aspect) || !text(image.mobileCrop))
@@ -123,6 +130,7 @@ function validateLanding(spec, errors, references) {
         ab.variants.some(v => !text(v.key) || !text(v.changes))) errors.push('A/B: нужны два различающихся варианта с уникальными ключами и описанными отличиями.')
   }
   return { ...type, style: design?.styleId === 'custom' ? design : styles.styles[design?.styleId],
+    writing: writing && copywriting.styles[writing.styleId],
     mechanics: Object.fromEntries(selected.map(m => [m.type, mechanics.mechanics[m.type]]).filter(([, rule]) => rule)) }
 }
 
@@ -270,7 +278,11 @@ export function compileCreative(packet) {
     if (spec.event) lines.push('', '## Сценарий мероприятия', json(spec.event))
     if (spec.quiz) lines.push('', '## Результат квиза', json(spec.quiz))
     if (spec.redesign) lines.push('', '## Исходник и границы редизайна', json(spec.redesign))
-    lines.push('', '## Дизайн-система', json(guidance.style), `Адаптация: ${spec.design.adaptation}`, '', '## Изображения')
+    lines.push('', '## Дизайн-система', json(guidance.style), `Адаптация: ${spec.design.adaptation}`)
+    if (spec.copywriting) lines.push('', '## Подача текста', json(guidance.writing),
+      `Адаптация под аудиторию и бренд: ${spec.copywriting.adaptation}`,
+      'Все факты, цифры, случаи, сроки и обещания сверяй с источниками; неподтверждённые не добавляй.')
+    lines.push('', '## Изображения')
     for (const image of spec.images || []) lines.push(`- ${image.id}: ${json(image)}`)
     lines.push('', '## A/B', json(spec.abTesting))
   } else {

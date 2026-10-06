@@ -84,6 +84,30 @@ test('page catalog keeps the V4 scenario coverage with review guidance', () => {
   }
 })
 
+test('copywriting direction rejects an unknown style and reaches the page brief', t => {
+  const f = fixture(t)
+  const styles = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/copywriting.json'), 'utf8')).styles
+  const v4Styles = ['corporate', 'expert', 'educational', 'dan_kennedy', 'frank_kern',
+    'russell_brunson', 'gary_halbert', 'info_style', 'carnegie', 'zverev',
+    'minimalist', 'startup', 'storytelling', 'conversational', 'inspirational',
+    'provocative', 'humorous', 'luxury', 'aida', 'science_pop', 'pas', 'faq_style', 'community']
+  for (const id of v4Styles) assert.ok(styles[id]?.when && styles[id]?.guidance && styles[id]?.avoid, id)
+  f.spec.copywriting = { styleId: 'unknown', adaptation: 'Коротко объяснить пользу начинающим' }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /Неизвестная подача текста/)
+  f.spec.copywriting.styleId = 'educational'
+  delete f.spec.copywriting.adaptation
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /адаптацию под аудиторию и бренд/)
+  f.spec.copywriting.adaptation = 'Коротко объяснить пользу начинающим'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  const brief = compileCreative(creativePacket(f.args))
+  assert.match(brief, /Подача текста/)
+  assert.match(brief, /Коротко объяснить пользу начинающим/)
+  assert.match(brief, /неподтверждён/)
+})
+
 test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'

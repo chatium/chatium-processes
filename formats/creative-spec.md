@@ -38,6 +38,9 @@ mechanics: []
 design:
   styleId: clean_service
   adaptation: Спокойная цветовая схема соответствует материалам бизнеса
+copywriting:
+  styleId: educational
+  adaptation: Объяснить пользу простыми словами для новых посетителей
 images: []
 abTesting:
   mode: none
@@ -47,6 +50,10 @@ acceptance: [Заявка записана, пользователь видит 
 
 Допустимые `landingType`, `styleId` и типы механик смотри в
 `creative/catalog/`. Для `sales` нужен реальный путь к покупке или заявке.
+Если выбираешь направление текста, укажи `copywriting.styleId` из
+`creative/catalog/copywriting.json` и объясни его адаптацию под аудиторию и
+бренд. Это ориентиры для подачи, не шаблоны обещаний и не требование
+подражать конкретному автору. Все факты и примеры берутся из источников.
 Для `webinar` заполни `event.date`, `timezone`, `format`, `program`,
 `presenter`, `registrationOutcome` и механику регистрации. Для
 `autowebinar` вместо даты нужен `event.schedule`; запись нельзя выдавать
