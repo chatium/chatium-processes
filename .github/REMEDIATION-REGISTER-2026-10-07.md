@@ -44,7 +44,7 @@
 | R34 | О | P1 | Проверен один коммит, исполнен другой; ветка/HEAD меняются во время чтения | scripts/tests/freshness.test.mjs: смена ветки/HEAD и чужой Executed commit на чтении/записи отвергаются | закрыто | 1dbe616 |
 | R35 | О | P1 | Большой JSON обрывается при завершении команды | scripts/tests/check-arguments-automations.test.mjs: результат более 1 МиБ полностью разбирается после кода 1 | закрыто | 41a01c7 |
 | R36 | О | P1 | check --json раздувается всей доской | scripts/tests/freshness.test.mjs: реальная доска прочитана, но elements и заметка не попали в JSON проверки | закрыто | 3372f39 |
-| R37 | О | P8 | Старые пакеты ревью занимают /data/external | scripts/tests/review-packets.test.mjs | в работе | 7c55c3b |
+| R37 | О | P8 | Старые пакеты ревью занимают /data/external | scripts/tests/review-packets.test.mjs: старый управляемый пакет удаляется по --apply; чужой, ручной и свежий сохраняются; build/commission.md | закрыто | 7c55c3b |
 | R38 | О | P8 | Документация допускает Node, на котором CLI не работает | package.json; build/environment.md | в работе | cb165f1 |
 | R39 | О | P8 | Основной SKILL.md требует читать подробности всех режимов | SKILL.md; WORKFLOW.md | в работе | 24f7ae1 |
 | R40 | О | P8 | Запрос «собери автоворонку» не находит скилл | SKILL.md | в работе | 24f7ae1 |
@@ -56,7 +56,7 @@
 | R46 | О | P0 | Агент выполняет поручение неуполномоченного участника доски | SKILL.md; build/board-notes.md | в работе | 24f7ae1 |
 | R47 | О | P8 | Тесты падают без соседнего локального checkout | Чистый clone ветки + npm ci + npm test: 208/208 (07.10); scripts/tests/run.mjs | закрыто | be1414b |
 | R48 | О | P8 | Нет единой команды тестов и CI | .github/workflows/ci.yml — источник и установленная копия тестируются npm test; теги проходят release-check; нужен результат hosted CI | в работе | fa71b76 |
-| R49 | О | P8 | Известные ошибки аргументов, задач и снимка не имеют отрицательных тестов | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/strict-cli-arguments.test.mjs; scripts/tests/tasks.test.mjs; scripts/tests/freshness.test.mjs | в работе | 992c343 |
+| R49 | О | P8 | Известные ошибки аргументов, задач и снимка не имеют отрицательных тестов | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/strict-cli-arguments.test.mjs: неверный флаг до записи; scripts/tests/tasks.test.mjs: retry/reopen; scripts/tests/freshness.test.mjs и scripts/tests/snapshot.test.mjs: расхождение и предел размера | закрыто | 992c343 |
 | F01 | О | P2 | Из большого материала потеряны кейсы и специфическая тема | method/topics/business-specific.md; scripts/tests/knowledge-review.test.mjs — нужен реальный разбор длинного источника | в работе | f415923 |
 | F02 | О | P3 | Код строится при пропущенной бизнес-ветви и противоречивых связях | — | открыто | — |
 | F03 | О | P4 | Пустой источник с несуществующим разделом принят | scripts/tests/creative.test.mjs: несуществующий/пустой раздел и источник-заглушка отвергаются | закрыто | 2887294 |
