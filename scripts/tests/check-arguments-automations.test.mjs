@@ -32,6 +32,22 @@ test('unknown option exits before any snapshot or output-file write', t => {
   assert.throws(() => readFileSync(target))
 })
 
+test('large JSON result is complete when check exits with failed checks', t => {
+  const f = fixture(t)
+  f.put('demo/automations/large.automationConfig.json', JSON.stringify({
+    title: 'Large validation', eventUrls: ['event://external/test'],
+    steps: Array.from({ length: 12_000 }, (_, index) => ({ id: `step-${index}`, type: 'unsupported' })),
+  }))
+  const result = spawnSync(process.execPath,
+    [checkScript, 'demo', '--root', f.root, '--no-snapshot', '--json'],
+    { encoding: 'utf8', timeout: 30_000, maxBuffer: 8 * 1024 * 1024 })
+  assert.equal(result.status, 1, result.stderr)
+  assert.ok(Buffer.byteLength(result.stdout) > 1024 * 1024, 'output must exercise a result over 1 MiB')
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.checks.find(check => check.id === 'automations').errors.length, 12_000)
+  assert.ok(report.snapshot)
+})
+
 test('boolean snapshot option with an equals value is rejected before writing', t => {
   const f = fixture(t)
   const target = join(f.root, 'should-not-exist.json')
