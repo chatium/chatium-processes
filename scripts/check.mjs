@@ -509,12 +509,29 @@ check('events.used', 'Каждое событие кто-то пишет и кт
 })
 
 check('analytics.spec', 'Связность аналитической воронки', ({ error }) => {
-  if (analyticsRes.missing) return
+  if (analyticsRes.missing) {
+    if ([...codeSources.values()].some(source => /\bqueryAi\s*\(/.test(source)))
+      error('Для собственного аналитического запроса нужен specs/analytics.yaml с вопросом владельца и реальными источниками.')
+    return
+  }
   if (analyticsRes.parseError) return error(`analytics.yaml не разбирается: ${analyticsRes.parseError}`)
-  const funnels = analyticsRes.data?.funnels
-  if (!Array.isArray(funnels) || !funnels.length || funnels.length > 50)
-    return error('analytics.yaml: нужен непустой список funnels (не более 50).')
+  const funnels = analyticsRes.data?.funnels ?? []
+  const metrics = analyticsRes.data?.metrics ?? []
+  if (!Array.isArray(funnels) || !Array.isArray(metrics) ||
+      funnels.length + metrics.length < 1 || funnels.length + metrics.length > 50)
+    return error('analytics.yaml: нужны funnels или metrics (в сумме от 1 до 50).')
   const ids = new Set()
+  for (const [index, metric] of metrics.entries()) {
+    const where = `analytics.metrics[${index}]${metric?.id ? ` (${metric.id})` : ''}`
+    if (typeof metric?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(metric.id) || ids.has(metric.id))
+      error(`${where}: нужен уникальный id в snake_case.`)
+    if (metric?.id) ids.add(metric.id)
+    if (typeof metric?.question !== 'string' || !metric.question.trim()) error(`${where}: нужен бизнес-вопрос question.`)
+    if (!Array.isArray(metric?.sourceEvents) || metric.sourceEvents.length !== 1)
+      error(`${where}: простая метрика должна ссылаться на одно событие; для конверсии разных событий опиши funnels.`)
+    for (const key of Array.isArray(metric?.sourceEvents) ? metric.sourceEvents : [])
+      if (!eventByKey.has(key)) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+  }
   for (const [index, funnel] of funnels.entries()) {
     const where = `analytics.funnels[${index}]${funnel?.id ? ` (${funnel.id})` : ''}`
     if (typeof funnel?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(funnel.id) || ids.has(funnel.id))

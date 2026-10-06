@@ -154,3 +154,23 @@ ${dedup ? '    deduplicateBy: orderId\n' : ''}`
   f.put('demo/specs/analytics.yaml', analytics(true))
   assert.equal(named(f.run(), 'analytics.spec').ok, true)
 })
+
+test('custom analytics query needs a documented funnel contract', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', 'events: []\n')
+  f.put('demo/api/report.ts', 'export async function report(ctx) { return queryAi(ctx, "select count() from events") }\n')
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /нужен specs\/analytics.yaml/)
+  f.put('demo/specs/events.yaml', `events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка
+    description: Клиент оставил заявку
+    payloadMapping: {}
+`)
+  f.put('demo/specs/analytics.yaml', `metrics:
+  - id: lead_count
+    question: Сколько было заявок?
+    sourceEvents: [lead_created]
+`)
+  assert.equal(named(f.run(), 'analytics.spec').ok, true)
+})
