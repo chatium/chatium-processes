@@ -189,6 +189,8 @@ if (code.includes('writeProcessSnapshot')) {
   }
   let result = check(['--verify-snapshot'])
   assert.equal(result.report.snapshot.verified, true)
+  assert.equal(result.report.snapshot.elements, undefined)
+  assert.doesNotMatch(result.stdout, /Please review/)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\n')
   assert.equal(result.status, result.report.passed === result.report.total ? 0 : 1)
   result = check([])
