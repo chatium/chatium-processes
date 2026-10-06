@@ -13,3 +13,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
+      - name: Test installed copy without development files
+        run: |
+          mkdir -p "$RUNNER_TEMP/processes-installed"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/processes-installed"
+          rm -r "$RUNNER_TEMP/processes-installed/.github"
+          rm "$RUNNER_TEMP/processes-installed/README.md"
+          cd "$RUNNER_TEMP/processes-installed"
+          npm ci --ignore-scripts
+          npm test

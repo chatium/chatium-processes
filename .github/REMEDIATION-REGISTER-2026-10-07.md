@@ -48,14 +48,14 @@
 | R38 | О | P8 | Документация допускает Node, на котором CLI не работает | package.json; build/environment.md | в работе | cb165f1 |
 | R39 | О | P8 | Основной SKILL.md требует читать подробности всех режимов | SKILL.md; WORKFLOW.md | в работе | 24f7ae1 |
 | R40 | О | P8 | Запрос «собери автоворонку» не находит скилл | SKILL.md | в работе | 24f7ae1 |
-| R41 | О | P8 | В установленной копии есть внутренняя дорожная карта и пути Start | README.md; creative/catalog/*.json | в работе | cb165f1 |
+| R41 | О | P8 | В установленной копии есть внутренняя дорожная карта и пути Start | README.md; .github/workflows/ci.yml — CI испытывает копию без служебных файлов; нужен осмотр фактической VM | в работе | cb165f1 |
 | R42 | О | P8 | Публичный выпуск без версии, условий распространения и канала обновления | — | открыто | — |
 | R43 | О | P8 | Число вопросов и текст документации расходятся с рубрикой | method/review.md; build/review.md; scripts/tests/knowledge-review.test.mjs — числовое утверждение удалено, нужна проверка в DSH | в работе | f415923 |
 | R44 | О | P2 | Процесс без выбора региона получает московский часовой пояс | scripts/tests/check-arguments-automations.test.mjs | в работе | e35a2e2 |
 | R45 | О | P8 | Инструкция Sender ведёт на устаревший интерфейс | blocks/channels.md; chatium-development/references/sender/entities.md | в работе | 6e06e5e |
 | R46 | О | P0 | Агент выполняет поручение неуполномоченного участника доски | SKILL.md; build/board-notes.md | в работе | 24f7ae1 |
 | R47 | О | P8 | Тесты падают без соседнего локального checkout | Чистый clone ветки + npm ci + npm test: 208/208 (07.10); scripts/tests/run.mjs | закрыто | be1414b |
-| R48 | О | P8 | Нет единой команды тестов и CI | .github/workflows/ci.yml | в работе | be1414b |
+| R48 | О | P8 | Нет единой команды тестов и CI | .github/workflows/ci.yml — источник и установленная копия тестируются одной командой npm test | в работе | be1414b |
 | R49 | О | P8 | Известные ошибки аргументов, задач и снимка не имеют отрицательных тестов | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/tasks.test.mjs; scripts/tests/freshness.test.mjs | в работе | 992c343 |
 | F01 | О | P2 | Из большого материала потеряны кейсы и специфическая тема | method/topics/business-specific.md; scripts/tests/knowledge-review.test.mjs — нужен реальный разбор длинного источника | в работе | f415923 |
 | F02 | О | P3 | Код строится при пропущенной бизнес-ветви и противоречивых связях | — | открыто | — |
