@@ -4,7 +4,7 @@ import { validateProcessAgents } from './agents.mjs'
 import { collectImplementation } from './implementation.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
-import { changedInspectedReferences, collectReferenceLibrary, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 import { parseYaml } from './yaml.mjs'
 
 export function agentReviewPath(root, slug) {
@@ -60,7 +60,7 @@ export function recordAgentReview({ root, slug, packet, report, agentReference, 
   if (packet.inputDigest !== current.inputDigest) throw Error('Материалы или критерии изменились. Подготовьте новый пакет и повторите ревью.')
   if (packetDirectory) verifyReferenceSnapshot(packetDirectory, packet.referenceLibrary)
   const referenceHashes = inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
-  const changed = changedInspectedReferences({ referenceHashes }, current.referenceLibrary)
+  const changed = changedInspectedReferences({ referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests }, current.referenceLibrary)
   if (changed.length) throw Error(`Прочитанные справки изменились: ${changed.join(', ')}`)
   const result = validateReview(report, current)
   const path = agentReviewPath(root, slug)
@@ -69,8 +69,9 @@ export function recordAgentReview({ root, slug, packet, report, agentReference, 
     inputDigest: current.inputDigest, reviewer: { kind: 'subagent', reference: agentReference },
     reviewedAt: new Date().toISOString(), inspectedFiles: report.inspectedFiles,
     inspectedReferences: report.inspectedReferences, referenceHashes,
+    ruleDigests: packet.referenceLibrary.ruleDigests,
     rubricVersion: current.rubricVersion,
-    skillVersion: current.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
     answers: result.answers }, null, 2) + '\n')
   return { ...result, path }
 }
@@ -90,5 +91,6 @@ export function agentReviewStatus({ root, slug }) {
   if (report.inputDigest !== packet.inputDigest) return { status: 'stale', path,
     error: 'Инструкции, знания, инструменты, сценарии или обязательные правила изменились после ревью помощников.' }
   return { ...validateReview(report, packet), path, inputDigest: packet.inputDigest,
+    informationalReferences: informationalReferenceChanges(report, packet.referenceLibrary),
     reviewedAt: report.reviewedAt, reviewer: report.reviewer }
 }

@@ -10,6 +10,14 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const posix = value => value.split(sep).join('/')
 const within = (base, path) => path === base || path.startsWith(base + sep)
 const ignored = new Set(['.git', '.cache', '__pycache__', '.bin'])
+const ruleSections = {
+  'skills/processes/SKILL.md': ['Начало работы', 'Этапы и обязательные ворота'],
+  'skills/chatium-development/SKILL.md': ['Runtime and module boundaries', 'API source of truth'],
+}
+function commonRules(source, headings) {
+  const sections = source.split(/(?=^## )/m)
+  return headings.map(heading => sections.find(section => section.startsWith(`## ${heading}\n`)) || '').join('\n')
+}
 
 export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DIR, limits = LIBRARY_LIMITS }) {
   const files = new Map()
@@ -91,7 +99,9 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)
   const sorted = [...files.values()].sort((a, b) => a.path.localeCompare(b.path, 'en'))
-  const base = { version: 1, entrypoints, required, files: sorted.map(({ content, ...file }) => file) }
+  const ruleDigests = Object.fromEntries(entrypoints.map(path => [path,
+    hash(commonRules(files.get(path).content, ruleSections[path]))]))
+  const base = { version: 1, entrypoints, required, ruleDigests, files: sorted.map(({ content, ...file }) => file) }
   return { manifest: { ...base, digest: hash(JSON.stringify(base)) }, files: sorted }
 }
 
@@ -99,9 +109,10 @@ export function withReferenceLibrary(base, library) {
   const value = { ...base, referenceLibrary: library.manifest }
   // A report is about the process and rules the reviewer actually used. Keep
   // the full library available for navigation without hashing unrelated files.
-  const required = library.manifest.files.filter(file => library.manifest.required.includes(file.path))
+  const required = library.manifest.files.filter(file => library.manifest.required.includes(file.path) &&
+    !library.manifest.entrypoints.includes(file.path))
     .map(({ path, sha256 }) => ({ path, sha256 }))
-  const packet = { ...value, inputDigest: hash(JSON.stringify({ ...base, required })) }
+  const packet = { ...value, inputDigest: hash(JSON.stringify({ ...base, required, ruleDigests: library.manifest.ruleDigests })) }
   contents.set(packet, library.files)
   return packet
 }
@@ -114,11 +125,22 @@ export function inspectedReferenceHashes(manifest, paths) {
 }
 
 export function changedInspectedReferences(saved, manifest) {
-  if (!saved || typeof saved !== 'object' || !saved.referenceHashes)
+  if (!saved || typeof saved !== 'object' || !saved.referenceHashes || !saved.ruleDigests)
     return ['Формат старого заключения: нет хешей прочитанных справок']
   const files = new Map(manifest.files.map(file => [file.path, file.sha256]))
-  return Object.entries(saved.referenceHashes).filter(([path, digest]) => files.get(path) !== digest)
+  const rules = Object.entries(manifest.ruleDigests).filter(([path, digest]) => saved.ruleDigests[path] !== digest)
+    .map(([path]) => `${path}#обязательные-правила`)
+  const references = Object.entries(saved.referenceHashes)
+    .filter(([path, digest]) => !manifest.entrypoints.includes(path) && files.get(path) !== digest)
     .map(([path]) => path)
+  return [...rules, ...references]
+}
+
+export function informationalReferenceChanges(saved, manifest) {
+  const files = new Map(manifest.files.map(file => [file.path, file.sha256]))
+  return manifest.entrypoints.filter(path => saved?.referenceHashes?.[path] &&
+    saved.referenceHashes[path] !== files.get(path) &&
+    saved.ruleDigests?.[path] === manifest.ruleDigests[path])
 }
 
 export function writeReferenceSnapshot(directory, packet) {

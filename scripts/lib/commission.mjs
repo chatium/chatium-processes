@@ -47,6 +47,7 @@ export function commissionStatus({ root, slug, stage = 'test' }) {
       return { ...requirement, status: report.status, path: report.path,
         ...(report.error ? { error: report.error } : {}),
         ...(report.changedReferences ? { changedReferences: report.changedReferences } : {}),
+        ...(report.informationalReferences?.length ? { informationalReferences: report.informationalReferences } : {}),
         blocking: (report.blocking || []).map(item => ({ id: item.id, reason: item.reason })) }
     } catch (error) { return { ...requirement, status: 'invalid', error: error.message } }
   })

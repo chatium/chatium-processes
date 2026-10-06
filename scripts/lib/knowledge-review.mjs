@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFile
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
-import { changedInspectedReferences, collectReferenceLibrary, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 
 export const REVIEW_STAGES = ['design', 'build', 'launch']
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -109,15 +109,15 @@ export function recordReview({ root, slug, stage, packet, report, agentReference
   if (packet.inputDigest !== current.inputDigest) throw Error('Материалы или рубрика изменились после подготовки пакета. Подготовьте новый пакет и повторите ревью.')
   if (packetDirectory) verifyReferenceSnapshot(packetDirectory, packet.referenceLibrary)
   const referenceHashes = inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
-  const changed = changedInspectedReferences({ referenceHashes }, current.referenceLibrary)
+  const changed = changedInspectedReferences({ referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests }, current.referenceLibrary)
   if (changed.length) throw Error(`Прочитанные справки изменились после подготовки пакета: ${changed.join(', ')}`)
   // Validate against freshly read sources, never a potentially modified packet.
   const result = validateReview(report, current)
   const saved = { version: 1, process: slug, stage, status: result.status, inputDigest: current.inputDigest,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
-    referenceHashes, rubricVersion: current.rubricVersion,
-    skillVersion: current.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests, rubricVersion: current.rubricVersion,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
     answers: result.answers }
   const path = reviewPath(root, slug, stage)
   mkdirSync(dirname(path), { recursive: true })
@@ -141,5 +141,6 @@ export function reviewStatus({ root, slug, stage = 'build' }) {
   if (report.inputDigest !== packet.inputDigest) return { status: 'stale', stage, path,
     error: 'Знания, план, карта, критерии или обязательные правила изменились после ревью. Нужна новая проверка субагентом.' }
   return { ...validateReview(report, packet), stage, path, inputDigest: packet.inputDigest,
+    informationalReferences: informationalReferenceChanges(report, packet.referenceLibrary),
     reviewedAt: report.reviewedAt, reviewer: report.reviewer }
 }

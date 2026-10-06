@@ -3,7 +3,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
-import { changedInspectedReferences, collectReferenceLibrary, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 
 export function architectureReviewPath(root, slug) {
   if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
@@ -35,7 +35,7 @@ export function recordArchitectureReview({ root, slug, packet, report, agentRefe
   if (packet.inputDigest !== current.inputDigest) throw Error('План, карта, знания или рубрика изменились. Подготовьте новое заключение.')
   if (packetDirectory) verifyReferenceSnapshot(packetDirectory, packet.referenceLibrary)
   const referenceHashes = inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
-  const changed = changedInspectedReferences({ referenceHashes }, current.referenceLibrary)
+  const changed = changedInspectedReferences({ referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests }, current.referenceLibrary)
   if (changed.length) throw Error(`Прочитанные справки изменились: ${changed.join(', ')}`)
   const result = validateReview(report, current)
   const path = architectureReviewPath(root, slug)
@@ -44,7 +44,8 @@ export function recordArchitectureReview({ root, slug, packet, report, agentRefe
     status: result.status, inputDigest: current.inputDigest, rubricVersion: current.rubricVersion,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
-    referenceHashes, skillVersion: current.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
     answers: result.answers }, null, 2) + '\n')
   return { ...result, path }
 }
@@ -61,5 +62,6 @@ export function architectureReviewStatus({ root, slug, skillDir = SKILL_DIR }) {
     error: `Изменились прочитанные справки: ${changedReferences.join(', ')}` }
   if (report.inputDigest !== packet.inputDigest) return { status: 'stale', path,
     error: 'План, карта, знания, рубрика или обязательные правила изменились.' }
-  return { ...validateReview(report, packet), path, reviewedAt: report.reviewedAt, reviewer: report.reviewer }
+  return { ...validateReview(report, packet), path, reviewedAt: report.reviewedAt, reviewer: report.reviewer,
+    informationalReferences: informationalReferenceChanges(report, packet.referenceLibrary) }
 }

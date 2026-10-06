@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { collectReferenceLibrary, LIBRARY_LIMITS, referencePrompt, verifyReferenceSnapshot,
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, LIBRARY_LIMITS, referencePrompt, verifyReferenceSnapshot,
   withReferenceLibrary, writeReferenceSnapshot } from '../lib/review-library.mjs'
 import { codeReviewStatus, makeCodeReviewPacket, recordCodeReview } from '../lib/code-review.mjs'
 import { makeReviewPacket, recordReview, reviewStatus } from '../lib/knowledge-review.mjs'
@@ -16,11 +16,11 @@ function fixture(t) {
     mkdirSync(dirname(join(base, path)), { recursive: true })
     writeFileSync(join(base, path), content)
   }
-  put('skills/processes/SKILL.md', '# Processes\n[Readiness](method/readiness.md)\n')
+  put('skills/processes/SKILL.md', '# Processes\n[Readiness](method/readiness.md)\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
   put('skills/processes/method/README.md', '# Method\nInterview before design.\n')
   put('skills/processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
   put('skills/processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
-  put('skills/chatium-development/SKILL.md', '# Development\n[Heap](references/heap.md)\n')
+  put('skills/chatium-development/SKILL.md', '# Development\n[Heap](references/heap.md)\n## Runtime and module boundaries\nReview API boundaries.\n## API source of truth\nUse published contracts.\n')
   put('skills/chatium-development/auth.md', '# Auth\nProtect each handler on the server.\n')
   put('skills/chatium-development/routing.md', '# Routes\nInventory pages and APIs.\n')
   put('skills/chatium-development/references/heap.md', '# Heap\nFind with an explicit limit.\n')
@@ -66,7 +66,7 @@ test('only mandatory rules affect the packet digest; all references remain navig
   let previous = f.packet()
   for (const [path, content, affectsInput] of [
     ['skills/chatium-development/references/heap.md', '# Heap\nRequire limit <= 100.\n', false],
-    ['skills/processes/SKILL.md', '# Processes\nUpdated navigation.\n', true],
+    ['skills/processes/SKILL.md', '# Processes\nUpdated navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n', false],
     ['account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): Promise<void> }\n', false],
   ]) {
     f.put(path, content)
@@ -75,6 +75,29 @@ test('only mandatory rules affect the packet digest; all references remain navig
     assert.equal(current.inputDigest !== previous.inputDigest, affectsInput, path)
     previous = current
   }
+})
+
+test('navigation changes are informational, but common rules and inspected references invalidate a review', t => {
+  const f = fixture(t), original = f.packet()
+  const references = Object.fromEntries(original.referenceLibrary.files
+    .filter(file => ['skills/processes/SKILL.md', 'skills/chatium-development/SKILL.md',
+      'skills/chatium-development/references/heap.md'].includes(file.path))
+    .map(file => [file.path, file.sha256]))
+  const saved = { referenceHashes: references, ruleDigests: original.referenceLibrary.ruleDigests }
+  f.put('skills/processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
+  let current = f.packet()
+  assert.equal(current.inputDigest, original.inputDigest)
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
+  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/processes/SKILL.md'])
+  f.put('skills/chatium-development/references/heap.md', '# Heap\nUse a smaller limit.\n')
+  current = f.packet()
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), ['skills/chatium-development/references/heap.md'])
+  f.put('skills/processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire a new approval.\n')
+  current = f.packet()
+  assert.notEqual(current.inputDigest, original.inputDigest)
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [
+    'skills/processes/SKILL.md#обязательные-правила', 'skills/chatium-development/references/heap.md',
+  ])
 })
 
 test('snapshot retains collected bytes even when original references change before writing', t => {
