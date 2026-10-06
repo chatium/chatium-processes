@@ -84,8 +84,10 @@ test('changing only the validation stage does not stale an unchanged board', t =
   const f = fixture(t), board = structuredClone(f.board)
   board.snapshot.snapshot.checks.push({ id: 'tasks', title: 'Test stage', ok: false, errors: ['pending test'], warnings: [] })
   board.snapshot.snapshot.checks.push({ id: 'knowledge.review', title: 'Launch', ok: false, errors: ['pending launch'], warnings: [] })
+  board.snapshot.snapshot.checks.push({ id: 'automation.smoke', title: 'Launch smoke', ok: false, errors: ['pending smoke'], warnings: [] })
   const expected = structuredClone(f.expected)
   expected.checks.push({ id: 'tasks', title: 'Build stage', ok: true, errors: [], warnings: [] })
+  expected.checks.push({ id: 'launch.variables', title: 'Launch variables', ok: false, errors: ['empty price'], warnings: [] })
   assert.doesNotThrow(() => compareSnapshot(expected, board))
 })
 

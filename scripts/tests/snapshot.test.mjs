@@ -20,5 +20,6 @@ test('absent source is missing even when it needs approval',()=>{const s=build({
 test('invalid maps are not published as empty or healthy',()=>assert.throws(()=>build({checks:[{id:'map',ok:false,errors:['invalid'],warnings:[]}]})))
 test('traversal is rejected before reading files',()=>assert.throws(()=>build({map:{...map,nodes:[{...map.nodes[0],source:'../outside'}]}})))
 test('path-specific errors override existence',()=>{const s=build({checks:[{id:'code',ok:false,errors:['demo/page/index.ts is broken'],warnings:[]}]});assert.equal(s.nodes[0].status,'error')})
+test('stage-only failures do not change node state or reason',()=>{const stable=build();const launch=build({checks:[{id:'automation.smoke',ok:false,errors:['demo/page/: safe run pending'],warnings:[]},{id:'launch.variables',ok:false,errors:['price empty'],warnings:[]}]});assert.deepEqual(launch.nodes,stable.nodes)})
 test('shared automation omits another series and its trailing waits',()=>{const other={...map,nodes:[...map.nodes,{id:'other',stage:'Follow up',kind:'series',title:'Other',purpose:'',source:'.mailings/storage/processes/demo/other/'}],links:[{from:'page',to:'other',via:'demo/automations/',when:'Now'}]};assert.equal(build({map:other}).links[0].steps.length,0)})
 process.on('exit',()=>rmSync(root,{recursive:true,force:true}))

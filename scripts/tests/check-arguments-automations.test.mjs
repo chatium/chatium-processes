@@ -63,9 +63,9 @@ test('launch refuses an empty business variable while build can continue', t => 
   const f = fixture(t)
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
     config: { variables: { price: { value: '  ', description: 'Цена предложения' } } } }))
-  const workspace = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'workspace')
-  assert.doesNotMatch(workspace().errors.join('\n'), /переменная price: перед запуском/)
-  assert.match(workspace('--task-stage', 'launch').errors.join('\n'), /переменная price: перед запуском/)
+  const checks = (...flags) => JSON.parse(f.run(...flags).stdout).checks
+  assert.equal(checks().some(check => check.id === 'launch.variables'), false)
+  assert.match(checks('--task-stage', 'launch').find(check => check.id === 'launch.variables').errors.join('\n'), /переменная price: перед запуском/)
 })
 
 test('launch check lists missing full automation run as a separate gate', t => {

@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { startExec } from './snapshot.mjs'
+import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 export async function readBoard(root, target) {
   return startExec(root,
@@ -13,9 +14,8 @@ function content(snapshot) {
   const { checkedAt, ...rest } = snapshot
   // Validation gates vary with --task-stage and --knowledge-stage. The map is
   // tied to the published commit; a stage-only check must not stale the board.
-  const stageChecks = new Set(['tasks', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.launch', 'owner.launch.board'])
   return JSON.parse(JSON.stringify({ ...rest,
-    checks: snapshot.checks.filter(c => !stageChecks.has(c.id) && c.id !== 'typecheck'),
+    checks: snapshot.checks.filter(c => !STAGE_CHECKS.has(c.id)),
   }))
 }
 

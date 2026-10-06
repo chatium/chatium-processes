@@ -6,6 +6,7 @@ import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 import { gitState, assertPublishedState } from './git-state.mjs'
+import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 function safePath(root, value) {
   if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Unsafe snapshot source path')
@@ -66,7 +67,8 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
   const rawNeeds = map.needsInput ?? []
   if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('Invalid needsInput')
   const needsInput = rawNeeds.map(item => typeof item === 'string' ? { title: item } : { title: item.title, ...(item.nodeId ? { nodeId: item.nodeId } : {}) })
-  const allErrors = checks.flatMap(c => c.errors)
+  const stableChecks = checks.filter(check => !STAGE_CHECKS.has(check.id))
+  const allErrors = stableChecks.flatMap(c => c.errors)
   const nodes = map.nodes.map(node => {
     const source = safePath(root, node.source), present = isFile(source) || isDir(source)
     const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
@@ -80,7 +82,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
     return { id: node.id, stage: node.stage, kind: node.kind === 'agent' ? 'external' : node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
-      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (checks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
+      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {

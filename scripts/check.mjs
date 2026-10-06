@@ -285,8 +285,6 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   }
   for (const [k, v] of Object.entries(vars || {})) {
     if (typeof v?.value !== 'string') error(`переменная ${k}: value должен быть строкой`)
-    else if (!v.value.trim() && options['task-stage'] === 'launch')
-      error(`переменная ${k}: перед запуском заполните значение или удалите неиспользуемую переменную`)
     if (!v?.description) warn(`переменная ${k}: нет description`)
   }
   const nested = walk(dir).filter(p => p.endsWith('.workspace.json') && dirname(p) !== dir)
@@ -297,6 +295,18 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
       if (!vars || !(m[1] in vars)) error(`${rel(root, file)}: переменная процесса ${m[1]} не объявлена в config.variables`)
     }
   }
+})
+
+if (options['task-stage'] === 'launch') check('launch.variables', 'Значения процесса перед запуском', ({ error }) => {
+  const file = join(dir, '.workspace.json')
+  if (!isFile(file)) return
+  let vars
+  try { vars = JSON.parse(readFileSync(file, 'utf8'))?.config?.variables }
+  catch { return }
+  if (!vars || typeof vars !== 'object' || Array.isArray(vars)) return
+  for (const [key, item] of Object.entries(vars))
+    if (typeof item?.value === 'string' && !item.value.trim())
+      error(`переменная ${key}: перед запуском заполните значение или удалите неиспользуемую переменную`)
 })
 
 check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
