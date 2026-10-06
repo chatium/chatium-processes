@@ -40,7 +40,10 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     bytes += content.length
     files.set(libraryPath, { path: libraryPath, bytes: content.length, sha256: hash(content), content: content.toString('utf8') })
   }
-  for (const [name, path] of [['processes', skillDir], ['chatium-development', join(skillDir, '../chatium-development')]]) {
+  const developmentDir = skillDir === SKILL_DIR && process.env.PROCESSES_TEST_DEVELOPMENT_SKILL
+    ? resolve(process.env.PROCESSES_TEST_DEVELOPMENT_SKILL)
+    : join(skillDir, '../chatium-development')
+  for (const [name, path] of [['processes', skillDir], ['chatium-development', developmentDir]]) {
     if (!existsSync(path))
       throw Error(`Не найден скилл ${name}: ${path}. Установите processes и chatium-development рядом; см. processes/build/environment.md.`)
     const base = realpathSync(path)

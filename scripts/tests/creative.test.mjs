@@ -10,6 +10,7 @@ import { creativePacket, creativeStatus, writeCreativeBuild } from '../lib/creat
 import { creativeReviewPacket, creativeReviewStatus, recordCreativeReview } from '../lib/creative-review.mjs'
 import { expandedTaskInputs, parseTaskPlan, taskDefinitionDigest, taskInputDigest, taskReadiness } from '../lib/tasks.mjs'
 import { SKILL_DIR } from '../lib/project.mjs'
+import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-creative-'))
@@ -358,6 +359,15 @@ test('creative implementation starts after accepted expert and spec tasks with c
     answers: packet.questions.map(question => ({ id: question.id, status: 'pass', reason: 'Подтверждено источником.',
       evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг' }] })) }
   recordCreativeReview({ ...f.args, stage: 'spec', packet, report, agentReference: 'reviewer-1' })
+  for (const args of [['init', '-q'], ['config', 'user.email', 'test@example.invalid'],
+    ['config', 'user.name', 'Test'], ['add', '.'], ['commit', '-qm', 'Initial']]) {
+    const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  const decisionPacket = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet: decisionPacket,
+    response: { decision: 'approve', message: 'Да, строим.', messageReference: 'unit-test/message-1',
+      owner: 'fixture-owner', answeredAt: '2026-10-06T10:00:00Z' } })
   const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
   const started = spawnSync(process.execPath, [cli, 'start', 'demo', 'W001', '--root', f.root], { encoding: 'utf8' })
   assert.equal(started.status, 0, started.stderr)

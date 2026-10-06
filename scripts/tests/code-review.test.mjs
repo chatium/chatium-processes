@@ -84,6 +84,13 @@ test('no letters is valid without a letters directory; explicit missing letters 
   assert.ok(errors(f.collect()).some(error => error.includes('missing-letters')))
 })
 
+test('owner decision records do not invalidate implementation review inputs', t => {
+  const f = fixture(t)
+  const before = f.packet().inputDigest
+  f.put('demo/decisions/launch.json', '{"decision":"approve"}\n')
+  assert.equal(f.packet().inputDigest, before)
+})
+
 test('import scanner finds import, re-export, require and literal import while ignoring comments and quoted code', () => {
   const source = `// import './commented'
     /* export * from './commented-again' */

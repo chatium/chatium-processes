@@ -25,7 +25,7 @@ export function collectImplementation({ root, slug }) {
   const addError = value => { if (!errors.includes(value)) errors.push(value) }
   const excluded = path => {
     const parts = relative(root, path).split(sep)
-    return parts.some(p => OMIT.has(p)) || (parts[0] === slug && parts[1] === 'reviews')
+    return parts.some(p => OMIT.has(p)) || (parts[0] === slug && ['reviews', 'decisions'].includes(parts[1]))
   }
   function safe(path, explicit = false) {
     if (!inside(root, path)) { addError(`Путь вне аккаунта: ${rel(root, path)}`); return null }
@@ -52,7 +52,7 @@ export function collectImplementation({ root, slug }) {
       visited.add(real)
       for (const name of readdirSync(real).sort()) {
         if (++entries > IMPLEMENTATION_LIMITS.entries) { exhausted = true; addError('Превышен лимит обхода исходников; пакет неполон.'); break }
-        if (OMIT.has(name) || (real === join(root, slug) && name === 'reviews')) continue
+        if (OMIT.has(name) || (real === join(root, slug) && ['reviews', 'decisions'].includes(name))) continue
         add(join(real, name))
       }
       return

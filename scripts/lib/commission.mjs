@@ -2,10 +2,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { architectureReviewStatus } from './architecture-review.mjs'
 import { agentReviewStatus } from './agent-review.mjs'
+import { validateProcessAgents } from './agents.mjs'
 import { codeReviewStatus } from './code-review.mjs'
 import { creativeReviewStatus } from './creative-review.mjs'
 import { reviewStatus } from './knowledge-review.mjs'
-import { isProcessSlug, walk } from './project.mjs'
+import { isProcessSlug } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 
 export const COMMISSION_STAGES = ['design', 'build', 'test', 'launch']
@@ -25,8 +26,7 @@ export function reviewRequirements({ root, slug, stage = 'test' }) {
     if (['test', 'launch'].includes(stage))
       requirements.push({ id: `creative-${node.id}-result`, role: 'creative', nodeId: node.id, reviewStage: 'result', stage })
   }
-  const agents = walk(join(root, slug)).some(file => file.endsWith('.agent.json')) ||
-    nodes.some(node => typeof node.source === 'string' && node.source.endsWith('.agent.json'))
+  const agents = validateProcessAgents({ root, slug, map }).enabled
   if (agents && stage !== 'design') requirements.push({ id: 'agents', role: 'agents', stage })
   return requirements
 }
