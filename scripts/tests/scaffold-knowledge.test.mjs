@@ -9,6 +9,7 @@ import { parseYaml } from '../lib/yaml.mjs'
 import { collectKnowledge } from '../lib/knowledge.mjs'
 
 const cli = fileURLToPath(new URL('../scaffold.mjs', import.meta.url))
+const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
 const knowledge = '.knowledge-base/processes/demo'
 const allTopics = ['audience', 'offer', 'journey', 'pages', 'series', 'operations']
 
@@ -46,6 +47,15 @@ test('default scaffold creates only overview and no shared business articles', t
   assert.deepEqual(f.yaml(`${knowledge}/.knowledge.yml`), { title: 'Пробное: занятие', order: ['overview.md'] })
   assert.match(f.read(`${knowledge}/overview.md`), /Пробное: занятие/)
   assert.doesNotMatch(f.read(`${knowledge}/overview.md`), /__PROCESS__|__TITLE__/)
+})
+
+test('a newly scaffolded TODO article keeps context at the interview stage', t => {
+  const f = fixture(t)
+  assert.equal(f.run().status, 0)
+  const context = spawnSync(process.execPath, [contextCli, 'demo', '--root', f.root, '--offline', '--no-cards'], { encoding: 'utf8' })
+  assert.equal(context.status, 0, context.stderr)
+  assert.match(context.stdout, /1\. Знания/)
+  assert.doesNotMatch(context.stdout, /Этап: 2\. План/)
 })
 
 test('selected topics are created in requested order with no duplicate entries', t => {
