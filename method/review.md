@@ -2,7 +2,7 @@
 
 Прочитай этот файл перед первым ревью. Смысловые критерии —
 [readiness.md](readiness.md), пул вопросов —
-[review-questions.json](review-questions.json). В пуле 26 вопросов; пакет
+[review-questions.json](review-questions.json). В пуле 28 вопросов; пакет
 выбирает только вопросы текущего этапа и предшествующих ему.
 
 ## 1. Статическая проверка

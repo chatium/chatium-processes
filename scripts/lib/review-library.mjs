@@ -66,7 +66,17 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   }
 
   const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md']
-  const required = [...entrypoints, ...(stage === 'implementation' || stage === 'agents' ? [
+  const required = [...entrypoints, ...(stage === 'agents' ? [
+    'skills/processes/blocks/ai-agent.md',
+    'skills/processes/build/agent-instructions.md',
+    'skills/processes/formats/agents.md',
+    'skills/chatium-development/references/ai/agents.md',
+    'skills/chatium-development/references/ai/agent-config.md',
+    'skills/chatium-development/references/ai/routing-and-handoff.md',
+    'skills/chatium-development/references/ai/autonomy.md',
+    'skills/chatium-development/references/ai/context-and-knowledge.md',
+    'skills/chatium-development/references/ai/tools.md',
+  ] : stage === 'implementation' ? [
     'skills/processes/build/review-safety.md',
     'skills/chatium-development/auth.md',
     'skills/chatium-development/routing.md',

@@ -207,6 +207,7 @@ if (kinds.has('series')) cards.push('message-series.md')
 if ((map?.links || []).some(l => l.via) || automations.length > 0) cards.push('automation.md')
 if (kinds.has('payment')) cards.push('payment.md')
 if (kinds.has('crm')) cards.push('crm.md')
+if (kinds.has('agent')) cards.push('ai-agent.md')
 
 if (!options['no-cards']) {
   for (const card of cards) {

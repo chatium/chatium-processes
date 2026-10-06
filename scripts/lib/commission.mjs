@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { architectureReviewStatus } from './architecture-review.mjs'
+import { agentReviewStatus } from './agent-review.mjs'
 import { codeReviewStatus } from './code-review.mjs'
 import { creativeReviewStatus } from './creative-review.mjs'
 import { reviewStatus } from './knowledge-review.mjs'
@@ -35,10 +36,7 @@ function readRequirement({ root, slug, requirement }) {
   if (requirement.role === 'architecture') return architectureReviewStatus({ root, slug })
   if (requirement.role === 'implementation') return codeReviewStatus({ root, slug })
   if (requirement.role === 'creative') return creativeReviewStatus({ root, slug, nodeId: requirement.nodeId, stage: requirement.reviewStage })
-  if (requirement.role === 'agents') {
-    // The AI workstream contributes this adapter before the branch is merged.
-    return { status: 'missing', error: 'Обнаружен агент процесса, но профильное ревью ещё не подключено к общей комиссии.' }
-  }
+  if (requirement.role === 'agents') return agentReviewStatus({ root, slug })
   throw Error(`Неизвестная роль ${requirement.role}`)
 }
 
