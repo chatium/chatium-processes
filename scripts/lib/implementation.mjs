@@ -167,7 +167,9 @@ export function collectImplementation({ root, slug }) {
           if (!value || typeof value !== 'object') return
           if (Array.isArray(value.routeJson) && typeof value.routeJson[1] === 'string') {
             const [account, module] = value.routeJson
-            if (!Number.isInteger(map?.accountId) || map.accountId <= 0) {
+            if (!Number.isInteger(account) || account <= 0) {
+              addError(`${file.path}: routeJson требует положительный числовой accountId для ${module}; null не означает общий маршрут`)
+            } else if (!Number.isInteger(map?.accountId) || map.accountId <= 0) {
               addError(`${file.path}: нужен accountId карты для определения области routeJson ${module}`)
             } else if (account === map.accountId) {
               const base = localPath(module, `${file.path}: routeJson`)

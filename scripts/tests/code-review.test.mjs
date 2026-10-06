@@ -224,6 +224,17 @@ test('configured local routeJson modules are followed and external accounts stay
   assert.ok(corpus.dependencies.some(dep => dep.kind === 'configured-external' && dep.module === 'shared/actions/collision'))
 })
 
+test('routeJson without an account ID is invalid, not a harmless external dependency', t => {
+  const f = fixture(t)
+  f.put('demo/flow.automationConfig.json', JSON.stringify({ steps: [
+    { routeJson: [null, 'demo/actions/send', '/run'] },
+  ] }))
+  f.put('demo/actions/send.ts', "export const run = app.function('/run').handle(() => true)\n")
+  const corpus = f.collect()
+  assert.match(errors(corpus).join('\n'), /routeJson.*accountId|routeJson.*id аккаунта/)
+  assert.ok(!corpus.dependencies.some(dependency => dependency.kind === 'configured-external'))
+})
+
 test('automation configurations discovered by imports also contribute routeJson source modules', t => {
   const f = fixture(t)
   f.put(codePath, `${quote}\nimport '../shared/flow.automationConfig.json'\n`)
