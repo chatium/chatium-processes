@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { creativePacket, creativeStatus } from './creative.mjs'
@@ -11,6 +11,31 @@ import { SKILL_DIR } from './project.mjs'
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 const inside = (base, target) => target === base || target.startsWith(base + sep)
+function adjacentCreativeFiles(root, slug, nodeId) {
+  const mapPath = `${slug}/process.yaml`
+  const mapContent = readFileSync(safeTaskPath(root, mapPath), 'utf8')
+  const map = parseYaml(mapContent)
+  const links = Array.isArray(map?.links) ? map.links : []
+  const related = new Set(links.flatMap(link => link.from === nodeId ? [link.to] : link.to === nodeId ? [link.from] : []))
+  const nodes = (Array.isArray(map?.nodes) ? map.nodes : [])
+    .filter(node => node?.id !== nodeId && related.has(node?.id) && ['page', 'series'].includes(node?.kind))
+  if (nodes.length > 12) throw Error('Слишком много соседних страниц и серий для одного ревью; разделите маршрут.')
+  const relevant = new Set([nodeId, ...nodes.map(node => node.id)])
+  const route = { title: map?.title, nodes: (map?.nodes || []).filter(node => relevant.has(node?.id)),
+    links: links.filter(link => (link.from === nodeId || link.to === nodeId) &&
+      relevant.has(link.from) && relevant.has(link.to)) }
+  const files = [{ path: `${mapPath}#related:${nodeId}`, content: JSON.stringify(route, null, 2) }]
+  const missing = []
+  for (const node of nodes) {
+    const path = `${slug}/creative/${node.id}/spec.yaml`
+    if (node.creativeRef !== path) { missing.push(node.id); continue }
+    const file = safeTaskPath(root, path, { mayBeMissing: true })
+    if (!existsSync(file)) { missing.push(node.id); continue }
+    if (statSync(file).size > 80 * 1024) throw Error(`Слишком большая спецификация соседнего узла ${node.id}.`)
+    files.push({ path, content: readFileSync(file, 'utf8') })
+  }
+  return { files, missing }
+}
 const questions = (kind, stage, guidance, messages = [], visualMode = 'png') => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
@@ -22,6 +47,7 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png') => 
   ] : [
     { id: 'series', question: 'Развивается ли мысль между письмами, различаются ли их роли и согласован ли голос?' },
     { id: 'delivery', question: 'Согласованы ли письма со страницей перехода, каналом и автоматизацией?' },
+    { id: 'series-consistency', question: 'Не расходится ли серия с соседними страницами и сериями в обещаниях, цене, адресате и следующем шаге?' },
   ]),
   ...(guidance.reviewQuestions || []).map((question, index) => ({ id: `type.${index + 1}`, question })),
   ...(kind === 'series' ? messages.flatMap(message => stage === 'spec' ? [
@@ -86,6 +112,8 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     ...creative.copyFiles.map(f => f.path),
     ...creative.referenceFiles.map(f => f.path)]
   const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
+  const adjacent = creative.spec.kind === 'series' ? adjacentCreativeFiles(root, slug, nodeId) : null
+  if (adjacent) files.push(...adjacent.files)
   let visuals = []
   let visualMode = 'png'
   let implementation = []
@@ -191,7 +219,8 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
     visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode),
-    files, visuals, messageFiles, implementation, reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
+    files, adjacentMissing: adjacent?.missing || [], visuals, messageFiles, implementation,
+    reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
 

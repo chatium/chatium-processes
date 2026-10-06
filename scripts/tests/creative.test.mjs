@@ -235,6 +235,29 @@ test('series keeps each email distinct and checks its automation dependency', t 
   assert.deepEqual(creativePacket(args).errors, [])
   writeCreativeBuild(args)
   assert.equal(creativeStatus(args).status, 'ready')
+  const linkedMap = { title: 'Проба', nodes: [
+    { id: 'followup', kind: 'series', title: 'Серия после заявки',
+      source: '.mailings/storage/processes/demo/followup/', creativeRef: 'demo/creative/followup/spec.yaml' },
+    { id: 'reminder', kind: 'series', title: 'Напоминание',
+      source: '.mailings/storage/processes/demo/reminder/', creativeRef: 'demo/creative/reminder/spec.yaml' },
+  ], links: [{ from: 'followup', to: 'reminder', when: 'Через день' }] }
+  f.put('demo/process.yaml', linkedMap)
+  const beforeNeighbor = creativeReviewPacket({ ...args, stage: 'spec' })
+  assert.deepEqual(beforeNeighbor.adjacentMissing, ['reminder'])
+  f.put('demo/creative/reminder/spec.yaml', { version: 1, kind: 'series', targetNode: 'reminder',
+    objective: 'Напомнить об условиях', audience: 'Те же лиды',
+    messages: [{ id: 'm1', subject: 'Другая цена', mainIdea: 'Цена отличается от первой серии' }] })
+  const adjacent = creativeReviewPacket({ ...args, stage: 'spec' })
+  assert.notEqual(adjacent.inputDigest, beforeNeighbor.inputDigest)
+  assert.ok(adjacent.files.some(file => file.path === 'demo/creative/reminder/spec.yaml'))
+  assert.ok(adjacent.questions.some(question => question.id === 'series-consistency'))
+  linkedMap.nodes.push({ id: 'unrelated', kind: 'page', title: 'Вне маршрута', source: 'demo/unrelated/' })
+  f.put('demo/process.yaml', linkedMap)
+  assert.equal(creativeReviewPacket({ ...args, stage: 'spec' }).inputDigest, adjacent.inputDigest)
+  f.put('demo/creative/reminder/spec.yaml', { version: 1, kind: 'series', targetNode: 'reminder',
+    objective: 'Напомнить об условиях', audience: 'Те же лиды',
+    messages: [{ id: 'm1', subject: 'Та же цена', mainIdea: 'Цена подтверждена первой серией' }] })
+  assert.notEqual(creativeReviewPacket({ ...args, stage: 'spec' }).inputDigest, adjacent.inputDigest)
   spec.messages.push({ id: 'm2', path: '.mailings/storage/processes/demo/followup/2.message.yaml',
     goal: 'Ответить на вопрос читателя', mainIdea: 'Как пользоваться материалом', subject: 'Ответ на ваш вопрос',
     blocks: [{ type: 'answer-in-one-paragraph', text: 'Материал помогает сделать первый шаг', sourceRef: 'offer' }] })
