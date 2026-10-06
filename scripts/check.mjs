@@ -12,7 +12,7 @@ import { commissionStatus } from './lib/commission.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
-import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
+import { safeTaskPath, taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
 import { creativeStatus } from './lib/creative.mjs'
 import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
@@ -26,6 +26,7 @@ import { templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 import { agentReviewStatus } from './lib/agent-review.mjs'
+import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -517,6 +518,12 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
     }
     const c = a.config
     if (!c.title) error(`${name}: нет title`)
+    if (c.defaultTimezone !== undefined) {
+      try { new Intl.DateTimeFormat('ru', { timeZone: c.defaultTimezone }) }
+      catch { error(`${name}: defaultTimezone должен быть действительным часовым поясом IANA, согласованным с владельцем`) }
+    } else if ((c.steps || []).some(step => step?.delay?.type === 'waitForTime')) {
+      error(`${name}: для ожидания по местному времени нужен согласованный defaultTimezone`)
+    }
     if (!Array.isArray(c.eventUrls) || c.eventUrls.length === 0) error(`${name}: пустой eventUrls`)
     for (const url of c.eventUrls || []) {
       const found = eventFromUrl(url)
@@ -552,6 +559,7 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
         } else if (d.type === 'dateExpression') {
           if (typeof d.dateExpression !== 'string' || !d.dateExpression.trim()) error(`${where}: пустой dateExpression`)
           else if (/\{\{|\}\}/.test(d.dateExpression)) error(`${where}: dateExpression должен быть JS-выражением, а не шаблоном {{ ... }}`)
+          else warn(`${where}: dateExpression нужно проверить на реальных входных данных в тестовом прогоне; статическая проверка не исполняет JS`)
         } else error(`${where}: delay.type «${d.type}» неизвестен`)
       }
       const route = step.type === 'action' ? step.actionRoute : step.conditionRoute
@@ -648,6 +656,16 @@ check('automations.refs', 'Параметры шагов ведут на сущ�
 
 check('letters', 'Письма шагов отправки и их переменные', ({ error, warn }) => {
   const sent = new Set()
+  const manuallyInvoked = new Set()
+  for (const node of nodes.filter(node => node.kind === 'series' && typeof node.creativeRef === 'string')) {
+    let spec
+    try { spec = loadYamlFile(safeTaskPath(root, node.creativeRef)) }
+    catch { continue } // Creative checks report an unsafe or missing spec.
+    const manual = spec.data?.deliveryMode === 'manual' &&
+      ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
+    if (manual) for (const message of spec.data.messages || []) if (typeof message.path === 'string')
+      manuallyInvoked.add(message.path)
+  }
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
     const route = step.actionRoute?.routeJson
@@ -709,7 +727,7 @@ check('letters', 'Письма шагов отправки и их переме�
       if (!v?.name || !v?.description) error(`${p}: у переменной нет name или description`)
       else if (!used.has(v.name)) warn(`${p}: переменная ${v.name} объявлена, но не используется`)
     }
-    if (!sent.has(p)) error(`${p}: письмо не отправляет ни один шаг автоматизации`)
+    if (!sent.has(p) && !manuallyInvoked.has(p)) error(`${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`)
   }
 })
 
@@ -829,6 +847,9 @@ if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Сог
 if (options['task-stage'] === 'launch') check('owner.launch', 'Согласование запуска владельцем', ({ error }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch' })
   if (decision.status !== 'ready') error(decision.error || decision.status)
+})
+if (options['task-stage'] === 'launch') check('automation.smoke', 'Полный безопасный прогон автоматизаций', ({ error }) => {
+  for (const issue of automationSmokeStatus({ root, slug, automationFiles: automations.map(item => item.file) }).errors) error(issue)
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {

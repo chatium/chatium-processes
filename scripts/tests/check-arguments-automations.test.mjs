@@ -58,3 +58,39 @@ test('letter variables are not mistaken for workspace variables', t => {
   assert.match(workspace.errors.join('\n'), /переменная процесса price/)
   assert.doesNotMatch(workspace.errors.join('\n'), /переменная процесса map/)
 })
+
+test('launch check lists missing full automation run as a separate gate', t => {
+  const f = fixture(t)
+  f.put('demo/automations/welcome.automationConfig.json', '{"title":"Welcome","eventUrls":[],"steps":[]}')
+  const result = f.run('--task-stage', 'launch')
+  const smoke = JSON.parse(result.stdout).checks.find(check => check.id === 'automation.smoke')
+  assert.equal(smoke.ok, false)
+  assert.match(smoke.errors.join('\n'), /полного тестового прогона/)
+})
+
+test('local-time delay requires a real timezone instead of an example placeholder', t => {
+  const f = fixture(t)
+  const config = { title: 'Reminder', eventUrls: ['event://external/test'],
+    steps: [{ id: 'wait', type: 'delay', delay: { type: 'waitForTime', weekdays: ['monday'], weekdayTime: '10:00' } }] }
+  f.put('demo/automations/reminder.automationConfig.json', JSON.stringify(config))
+  const errors = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'automations').errors.join('\n')
+  assert.match(errors(), /defaultTimezone/)
+  config.defaultTimezone = '<часовой пояс бизнеса>'
+  f.put('demo/automations/reminder.automationConfig.json', JSON.stringify(config))
+  assert.match(errors(), /IANA/)
+  config.defaultTimezone = 'Asia/Almaty'
+  f.put('demo/automations/reminder.automationConfig.json', JSON.stringify(config))
+  assert.doesNotMatch(errors(), /defaultTimezone/)
+})
+
+test('manual series letters do not require a fictional automation', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nknowledge: .knowledge-base/processes/demo/\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    purpose: Reply\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
+  const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nsubject: Здравствуйте\nplain: Текст\nhtml: <p>Текст</p>\nshort: Текст\n')
+  f.put('demo/creative/followup/spec.yaml', JSON.stringify({ deliveryMode: 'manual',
+    manualInvocation: { caller: 'Менеджер', trigger: 'После звонка', recipient: 'Контакт клиента', stop: 'Отказ' },
+    messages: [{ path }] }))
+  const letters = JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters')
+  assert.doesNotMatch(letters.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+})

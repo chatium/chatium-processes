@@ -32,7 +32,7 @@
   "title": "Напоминания о консультации",
   "description": "Подтверждение заявки и напоминание накануне",
   "eventUrls": ["event://crm/customer/event/consult-booking/consultation_requested"],
-  "defaultTimezone": "Europe/Moscow",
+  "defaultTimezone": "<часовой пояс бизнеса после подтверждения владельцем>",
   "settings": { "continueOnError": true },
   "steps": [
     {
@@ -125,7 +125,9 @@ export const prepareConsultationAction = app
   версии и синхронизацию плагина. Для прежних аккаунтов фактический ID также
   бери из SDK или интерфейса.
 - Включение — `enableAutomation(ctx, id)` из `@automations/sdk` в
-  `chatium exec`, выключение — `disableAutomation`. Журнал выполнений —
+  `chatium exec`; продолжай только при `{ success: true }`, при отказе покажи
+  `reason` и оставь запуск незавершённым. Выключение — `disableAutomation`,
+  его ответ тоже проверяй. Журнал выполнений —
   `getAutomationLogs(ctx, { workspacePath: '<process>' })`.
 - Автоматические события обрабатывает только `main`. Ветка подходит для
   просмотра конфига и ручного тестового запуска. После изменения URL событий
@@ -162,7 +164,8 @@ export const prepareConsultationAction = app
   показывает события процесса, `getAutomationActions` из `@automations/sdk`
   — действия.
 - Живая проверка — только с `config.mailings.testOnly: true` и на тестовом контакте:
-  данные ветки и прода общие.
+  данные ветки и прода общие. Перед боевым включением нужен полный прогон
+  каждого актуального конфига и запись в [реестре](../formats/test-records.md#полный-прогон-автоматизаций).
 
 ## Грабли
 

@@ -125,7 +125,13 @@ function validateSeries(spec, errors, references) {
       errors.push(`Письмо ${m.id}: приём не обоснован источником.`)
   }
   if (spec.seriesType === 'sales' && !(spec.messages || []).some(m => m.cta)) errors.push('В продающей серии нужен хотя бы один обоснованный следующий шаг к покупке.')
-  if (!text(spec.automationRef)) errors.push('Серия должна ссылаться на автоматизацию для проверки запуска и остановки.')
+  if (spec.deliveryMode && !['automation', 'manual'].includes(spec.deliveryMode))
+    errors.push('deliveryMode серии: нужен automation или manual.')
+  if (spec.deliveryMode === 'manual') {
+    if (spec.automationRef) errors.push('Ручная серия не должна ссылаться на фиктивную автоматизацию.')
+    for (const field of ['caller', 'trigger', 'recipient', 'stop'])
+      if (!text(spec.manualInvocation?.[field])) errors.push(`Ручная серия: нужен manualInvocation.${field}.`)
+  } else if (!text(spec.automationRef)) errors.push('Автоматической серии нужна automationRef для проверки запуска и остановки.')
   return { guidance: catalogData.types[spec.seriesType], blocks: catalogData.blocks }
 }
 
@@ -250,7 +256,8 @@ export function compileCreative(packet) {
       ...m.blocks.map(b => `- ${b.type}: ${b.text} [${b.sourceRef}]`),
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')
-    lines.push('## Автоматизация', spec.automationRef)
+    if (spec.deliveryMode === 'manual') lines.push('## Ручной запуск', json(spec.manualInvocation))
+    else lines.push('## Автоматизация', spec.automationRef)
   }
   lines.push('', '## Критерии приёмки', ...spec.acceptance.map(a => `- ${a}`), '',
     '## Вопросы независимому reviewer', ...(guidance.reviewQuestions || ['Достаточно ли содержания для задачи и аудитории?']).map(q => `- ${q}`), '')

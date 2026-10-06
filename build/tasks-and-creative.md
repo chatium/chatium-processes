@@ -90,7 +90,9 @@ node .agents/skills/processes/scripts/tasks.mjs accept <process> W001
 ```
 
 `record` связывает результат с текущей попыткой; `accept` требует все
-критерии с актуальными подтверждениями. В результате `outputs` — пути файлов,
+критерии с актуальными подтверждениями. Поля результата описаны в
+[формате карточки](../formats/work-task.md#результат-для-tasksmjs-record).
+В результате `outputs` — пути файлов,
 `criteriaResults` — по одному `pass/fail` на каждый критерий, с evidence
 `{path,locator,observation}`. Для `test` evidence указывает на JSON-отчёт
 `{version: 1, method: "как запускали", inputDigest: "хеш входов попытки", testedFiles: [{path,sha256}], checks: [{id,status: "pass"}]}`.
@@ -155,6 +157,8 @@ node .agents/skills/processes/scripts/tasks.mjs prepare <process> W001
 типы/правила из `creative/catalog/landing-types.json`, для серии —
 `email-types.json`. Стиль-пак раскрывается полностью. A/B включается по
 задаче с гипотезой, ключами вариантов и метрикой. Не придумывай доказательства.
+Полная схема и примеры страницы, автоматической и ручной серии —
+[formats/creative-spec.md](../formats/creative-spec.md).
 
 Каталоги типов предлагают идеи, а не обязательный набор блоков. Агент
 сам выбирает секции страницы, их названия, порядок и состав, исходя из

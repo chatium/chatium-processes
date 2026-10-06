@@ -27,3 +27,33 @@ export const TEST_RECORDS: Record<string, string[]> = {
   [серия сообщений](../blocks/message-series.md).
 - Тестовые строки таблиц можно удалить на запуске — с согласия владельца.
   Из событий и логов их не удалить, поэтому они и живут в реестре.
+
+## Полный прогон автоматизаций
+
+Перед боевым включением запусти каждую цепочку на опубликованной безопасной
+версии `main`, пока `config.mailings.testOnly: true`. Сверь фактический журнал
+и получателя. В `<process>/tests/automation-smoke.json` запиши проверяемые
+сведения; `check --task-stage launch` сопоставляет хеш конфига и предшествующий
+коммит для каждой автоматизации:
+
+```json
+{
+  "version": 1,
+  "runs": [{
+    "path": "<process>/automations/welcome/welcome.automationConfig.json",
+    "configSha256": "<sha256 содержимого конфига>",
+    "branch": "main",
+    "testedCommit": "<40-символьный SHA исполненной версии main>",
+    "testedAt": "2026-10-07T10:00:00.000Z",
+    "testOnly": true,
+    "testContact": { "type": "email", "value": "test@example.com" },
+    "executionId": "<ID в журнале Automations>",
+    "result": "passed"
+  }]
+}
+```
+
+Это запись агента о проведённой проверке, а не защищённое платформой
+доказательство. При изменении конфига результат устаревает. Проверка
+действий с реальными побочными эффектами требует отдельной изоляции: один
+лишь `testOnly` Mailings не защищает, например, платёж или запись в CRM.

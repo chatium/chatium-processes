@@ -75,3 +75,34 @@ email с темой и вёрсткой, содержательные `plain` и
 `build.md` добавляются к входам автоматически при подготовке пакета.
 Смена входов после приёмки делает карточку устаревшей. Прямое изменение
 `status` не заменяет `tasks.mjs accept`.
+
+## Результат для `tasks.mjs record`
+
+Сохрани JSON вне аккаунта и передай `--file`. `attemptId` возьми из ответа
+`tasks.mjs start`, пути должны в точности совпадать с `expectedOutputs`.
+Хеши файлов `record` вычислит сам. Для каждого критерия нужен свой исход
+и ссылка на проверяемый файл:
+
+```json
+{
+  "attemptId": "<id текущей попытки>",
+  "summary": "Форма создаёт заявку и показывает подтверждение",
+  "outputs": [{ "path": "<process>/form.vue" }],
+  "criteriaResults": [{
+    "criterionId": "C1",
+    "outcome": "pass",
+    "evidence": [{
+      "path": "<process>/reviews/tasks/W001/tests.json",
+      "locator": "form.submission",
+      "observation": "Тестовая заявка записана один раз, событие содержит её ID"
+    }]
+  }]
+}
+```
+
+Для критерия `verification.kind: test` файл evidence содержит
+`{version: 1, method, inputDigest, testedFiles: [{path, sha256}],
+checks: [{id, status: "pass"}]}`. `inputDigest` виден в контексте попытки;
+`testedFiles` перечисляет проверенные выходы. Для `review` evidence ссылается
+на актуальное положительное заключение независимого ревьюера. `accept` ещё
+раз проверит исходы и версии; произвольная запись `ready` не принимается.

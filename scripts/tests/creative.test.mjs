@@ -137,6 +137,30 @@ test('series keeps each email distinct and checks its automation dependency', t 
   assert.ok(creativePacket(args).errors.some(e => e.includes('следующий шаг')))
 })
 
+test('manual series has a real invocation contract without a fake automation', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'followup', kind: 'series', title: 'Сообщение после разговора',
+    source: '.mailings/storage/processes/demo/followup/', creativeRef: 'demo/creative/followup/spec.yaml' }] })
+  const spec = { version: 1, kind: 'series', targetNode: 'followup', seriesType: 'welcome',
+    objective: 'Помочь начать', audience: 'Клиенты после разговора',
+    sources: [{ id: 'offer', path: '.knowledge-base/processes/demo/offer.md' }],
+    voice: { addressing: 'вы', character: 'спокойный', emotionality: 'сдержанно', example: 'Ваш следующий шаг.' },
+    emailDesign: { layout: 'Одна колонка', components: 'Текст', colors: 'Контраст', mobile: 'По ширине экрана' },
+    messages: [{ id: 'm1', path: '.mailings/storage/processes/demo/followup/01.message.yaml',
+      goal: 'Подтвердить разговор', mainIdea: 'Материал помогает начать', subject: 'Первый шаг',
+      blocks: [{ type: 'value', text: 'Материал помогает начать', sourceRef: 'offer' }] }],
+    deliveryMode: 'manual', openQuestions: [], acceptance: ['Менеджер отправляет по запросу'],
+  }
+  const args = { root: f.root, slug: 'demo', nodeId: 'followup' }
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.match(creativePacket(args).errors.join('\n'), /manualInvocation.caller/)
+  spec.manualInvocation = { caller: 'Менеджер', trigger: 'После разговора', recipient: 'Контакт текущего клиента', stop: 'Если клиент отказался' }
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.deepEqual(creativePacket(args).errors, [])
+  const build = writeCreativeBuild(args)
+  assert.match(readFileSync(join(f.root, build.path), 'utf8'), /Ручной запуск/)
+})
+
 test('series result checks every channel version and email render per message', t => {
   const f = fixture(t)
   const messagePath = '.mailings/storage/processes/demo/followup/01-value.message.yaml'

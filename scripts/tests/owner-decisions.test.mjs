@@ -55,3 +55,18 @@ test('launch decision detects changed delivery and board revision', t => {
   f.put('.mailings/storage/processes/demo/welcome/01.message.yaml', 'subject: Другое обещание\n')
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
 })
+
+test('the approved launch survives only the testOnly deployment switch', t => {
+  const f = fixture(t)
+  const workspace = testOnly => JSON.stringify({ type: 'process', config: {
+    senderChannels: ['mail'], mailings: { testOnly, testContacts: [{ type: 'email', value: 'test@example.com' }] },
+  } })
+  f.put('demo/.workspace.json', workspace(true))
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: 1 })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
+    response: { ...response, message: 'Да, запускаем после безопасного прогона.' } })
+  f.put('demo/.workspace.json', workspace(false))
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'ready')
+  f.put('demo/.workspace.json', workspace(false).replace('mail', 'sms'))
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
+})

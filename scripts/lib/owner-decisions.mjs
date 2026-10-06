@@ -41,6 +41,15 @@ function commit(root) {
 }
 
 function normalized(path, content) {
+  if (path.endsWith('/.workspace.json')) {
+    try {
+      const config = JSON.parse(content)
+      if (typeof config?.config?.mailings?.testOnly === 'boolean') {
+        config.config.mailings.testOnly = 'launch-toggle'
+        return JSON.stringify(config)
+      }
+    } catch { /* The ordinary validator reports an invalid workspace. */ }
+  }
   if (!path.endsWith('/PLAN.md')) return content
   return content.replace(/^- \[[xX]\]/gm, '- [ ]')
     .replace(/^- (?:Строим|Запуск):.*$/gm, '')
@@ -65,7 +74,7 @@ export function approvalScope({ root, slug, kind }) {
       const relative = rel(root, path)
       if (/\/(?:tasks|reviews|decisions)\//.test(relative) || relative.endsWith('/PLAN.md')) continue
       if (!/\.(?:json|ya?ml|md|tpl)$/.test(relative)) continue
-      files.set(relative, readFileSync(path, 'utf8'))
+      files.set(relative, normalized(relative, readFileSync(path, 'utf8')))
     }
     for (const path of approvalFiles(root, join(root, '.mailings/storage/processes', slug))) {
       if (path.endsWith('.message.yaml')) files.set(rel(root, path), readFileSync(path, 'utf8'))
