@@ -158,8 +158,9 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
    актуального ревью реализации. Затем push ветки и
    `check <process> --knowledge-stage launch --publish-snapshot` перед публикацией.
 2. Merge ветки в `main`, push — публикация.
-3. Включение автоматизаций: `enableAutomation` из `@automations/sdk` в
-   `chatium exec`, id — `source-file:<путь конфига>`
+3. Включение автоматизаций: сначала `getAutomationByPath(ctx, path, 'main')`,
+   затем `enableAutomation(ctx, automationId)` из `@automations/sdk` в
+   `chatium exec`. Не составляй ID из пути
    ([automation.md](../blocks/automation.md#включение)).
 4. Заверши правки реестра/плана; при изменении плана/карты повтори ревью
    знаний `launch` и реализации. При необходимости commit и разрешённый push в `main`; затем
