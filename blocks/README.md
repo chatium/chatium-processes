@@ -13,6 +13,7 @@
 | Каналы и настройки процесса | — | [channels.md](channels.md) | `references/sender/entities.md` |
 | Оплата | `payment` | [payment.md](payment.md) | `references/payments.md` |
 | CRM | `crm` | [crm.md](crm.md) | `references/automations/events.md` |
+| Самостоятельный помощник | `agent` | [ai-agent.md](ai-agent.md) | `references/ai/agent-config.md`, `references/ai/routing-and-handoff.md`, `references/ai/autonomy.md`, `references/ai/tools.md` |
 
 Общая разработка — роуты, Vue, Heap, auth, jobs, `chatium exec`, SDK
 модулей — в скилле `chatium-development`. Карточки её не повторяют: они
