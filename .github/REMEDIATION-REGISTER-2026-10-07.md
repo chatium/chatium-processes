@@ -20,7 +20,7 @@
 | R10 | О | P0 | Реализация начинается без ответа владельца на план | scripts/tests/owner-decisions.test.mjs | в работе | 5ee604b |
 | R11 | О | P1 | Опечатка --no-snapshto или --publish-snapshot=false вызывает запись снимка | scripts/tests/check-arguments-automations.test.mjs: код 2, файл не создан | закрыто | ee8dec7 |
 | R12 | О | P1 | Процесс без писем не проходит ревью реализации | scripts/tests/code-review.test.mjs | в работе | 580b6db |
-| R13 | О | P5 | Локальное действие с accountId null ошибочно считается общим | scripts/tests/letters.test.mjs | в работе | 580b6db |
+| R13 | О | P5 | Локальное действие с accountId null ошибочно считается общим | scripts/tests/code-review.test.mjs: null routeJson не попадает во внешние зависимости и даёт ошибку; общий check тоже отвергает | закрыто | bd2bcdf |
 | R14 | О | P4 | Задание нельзя составить по документации; standalone требует автоматизацию | formats/creative-spec.md; scripts/tests/creative.test.mjs | в работе | 580b6db |
 | R15 | О | P0 | Учётная отметка требует повторить все ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/code-review.test.mjs: отметка/ссылка не меняет digest, смысловая правка меняет | закрыто | afe0d46 |
 | R16 | О | P8 | Простое уведомление менеджеру требует полной творческой цепочки | scripts/tests/commission.test.mjs; SKILL.md — нужен замер обязательного чтения на DSH | в работе | 3e4f962 |
