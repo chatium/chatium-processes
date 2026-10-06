@@ -9,7 +9,7 @@
 | ID | Было | Блок | Отрицательный сценарий | Проверка | Итог | Коммит |
 |---|---|---|---|---|---|---|
 | R01 | О | P1 | Агент публикует процесс прямо в main по общей инструкции DSH | SKILL.md; build/procedure.md | в работе | 24f7ae1 |
-| R02 | О | P0 | Неиспользуемая справка обновилась — устарели все ревью | scripts/tests/review-library.test.mjs | в работе | d91ec3a |
+| R02 | О | P0 | Неиспользуемая справка обновилась — устарели все ревью | scripts/tests/review-library.test.mjs: неиспользуемая справка/typing не устаревают, прочитанная и общая обязательная устаревают | закрыто | d91ec3a |
 | R03 | О | P1 | После правки принятую задачу нельзя повторить | scripts/tests/tasks.test.mjs | в работе | 5ee604b |
 | R04 | О | P4 | Требуется визуальное ревью, а доступное превью не принимается | scripts/tests/creative.test.mjs; build/tasks-and-creative.md | в работе | 51b85b5 |
 | R05 | О | P1 | Проверка этапа test делает снимок старым без изменения кода | scripts/tests/freshness.test.mjs; scripts/tests/snapshot.test.mjs: смена только этапа сохраняет актуальность | закрыто | 992c343 |
@@ -22,7 +22,7 @@
 | R12 | О | P1 | Процесс без писем не проходит ревью реализации | scripts/tests/code-review.test.mjs | в работе | 580b6db |
 | R13 | О | P5 | Локальное действие с accountId null ошибочно считается общим | scripts/tests/letters.test.mjs | в работе | 580b6db |
 | R14 | О | P4 | Задание нельзя составить по документации; standalone требует автоматизацию | formats/creative-spec.md; scripts/tests/creative.test.mjs | в работе | 580b6db |
-| R15 | О | P0 | Учётная отметка требует повторить все ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/code-review.test.mjs | в работе | afe0d46 |
+| R15 | О | P0 | Учётная отметка требует повторить все ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/code-review.test.mjs: отметка/ссылка не меняет digest, смысловая правка меняет | закрыто | afe0d46 |
 | R16 | О | P8 | Простое уведомление менеджеру требует полной творческой цепочки | scripts/tests/commission.test.mjs; SKILL.md — нужен замер обязательного чтения на DSH | в работе | 3e4f962 |
 | R17 | О | P0 | Одна цитата на все ответы даёт зелёное ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/creative.test.mjs | в работе | 51b85b5 |
 | R18 | О | P7 | После запуска нет способа остановить или проследить процесс | build/operations.md; build/review-questions.json | в работе | 0fbc612 |
@@ -36,9 +36,9 @@
 | R26 | О | P2 | Интервью не запросило отзывы, кейсы и фотографии | method/interview.md | в работе | e35a2e2 |
 | R27 | О | P4 | Специалист не получает типы и референсы V4 | creative/catalog/landing-types.json; creative/catalog/copywriting.json; scripts/tests/creative.test.mjs — типы и подача текста покрыты, визуальные стили и механики ещё нет | в работе | 625074b |
 | R28 | О | P1 | Снимок превышает лимит сервера и не сохраняется | scripts/tests/snapshot.test.mjs: локальный отказ по тому же пределу 250 000 символов до Git/SDK | закрыто | a4cf4c4 |
-| R29 | О | P1 | letter.variables.map ошибочно распознаётся как переменная процесса | scripts/tests/check-arguments-automations.test.mjs | в работе | 580b6db |
-| R30 | О | P1 | Апостроф скрывает импорт от проверки зависимостей | scripts/tests/code-review.test.mjs | в работе | 580b6db |
-| R31 | О | P1 | CRLF или отступ скрывают задачу и её критерий | scripts/tests/tasks.test.mjs | в работе | 580b6db |
+| R29 | О | P1 | letter.variables.map ошибочно распознаётся как переменная процесса | scripts/tests/check-arguments-automations.test.mjs: map игнорируется, реальная config.variables.price проверяется | закрыто | 580b6db |
+| R30 | О | P1 | Апостроф скрывает импорт от проверки зависимостей | scripts/tests/code-review.test.mjs: одинарные/двойные импорты, require и re-export входят в корпус | закрыто | 580b6db |
+| R31 | О | P1 | CRLF или отступ скрывают задачу и её критерий | scripts/tests/tasks.test.mjs: CRLF и вложенный критерий распознаются | закрыто | 580b6db |
 | R32 | О | P1 | Одинаковая ошибка возвращает разные коды и непонятный текст | scripts/tests/creative.test.mjs; scripts/tests/strict-cli-arguments.test.mjs — ошибка параметров даёт код 2 до записи; предметные ошибки ещё требуют прохода | в работе | d19a1e9 |
 | R33 | О | P1 | ls-remote ждёт интерактивный пароль | scripts/tests/freshness.test.mjs: фиктивный Git зависает при разрешённом prompt; скилл отказывает без ожидания | закрыто | 2ae5be0 |
 | R34 | О | P1 | Проверен один коммит, исполнен другой; ветка/HEAD меняются во время чтения | scripts/tests/freshness.test.mjs: смена ветки/HEAD и чужой Executed commit на чтении/записи отвергаются | закрыто | 1dbe616 |
