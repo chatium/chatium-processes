@@ -65,6 +65,10 @@ test('design gate asks for design review without requiring implementation source
   const checks = JSON.parse(f.run('--task-stage', 'design').stdout).checks
   assert.equal(checks.find(check => check.id === 'implementation.review'), undefined)
   assert.match(checks.find(check => check.id === 'knowledge.review').title, /design/)
+  const commission = checks.find(check => check.id === 'reviews')
+  assert.equal(commission.ok, false)
+  assert.match(commission.errors.join('\n'), /knowledge-design/)
+  assert.match(commission.errors.join('\n'), /architecture/)
   assert.equal(checks.find(check => check.id === 'map.sources').ok, true)
   assert.match(checks.find(check => check.id === 'map.sources').warnings.join('\n'), /этапе сборки/)
 })
