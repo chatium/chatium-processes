@@ -7,6 +7,8 @@ import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { commissionStatus } from './lib/commission.mjs'
+import { assertSkillProcess } from './lib/process-format.mjs'
 import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
@@ -119,6 +121,13 @@ try {
     if (task.mode === 'implement') {
       const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
       if (decision.status !== 'ready') throw Error(`Начать реализацию нельзя: ${decision.error || decision.status}`)
+      // Marked v2 processes must pass independent design review before code work.
+      if (existsSync(join(root, slug, '.workspace.json'))) {
+        assertSkillProcess(root, slug)
+        const design = commissionStatus({ root, slug, stage: 'design' })
+        if (design.status !== 'ready') throw Error(`Начать реализацию нельзя: независимое ревью design не принято — ${design.requirements
+          .filter(item => item.status !== 'ready').map(item => `${item.id}: ${item.status}`).join(', ')}`)
+      }
     }
     const creativeProblems = await creativePrerequisites(task, all, plan)
     if (creativeProblems.length) throw Error(creativeProblems.join('; '))

@@ -26,6 +26,17 @@ test('implementation cannot start without a current owner plan answer', t => {
   f.approve()
   assert.equal(f.run('start', 'W001').status, 0)
 })
+
+test('v2 implementation cannot start before independent design conclusions', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', { type: 'process', processEngine: 'processes-v2' })
+  f.put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\nlinks: []\n')
+  f.approve()
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const result = f.run('start', 'W001')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ревью.*design|архитектур/i)
+})
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-tasks-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
