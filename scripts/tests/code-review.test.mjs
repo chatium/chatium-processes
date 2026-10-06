@@ -95,6 +95,8 @@ test('import scanner finds import, re-export, require and literal import while i
   const source = `// import './commented'
     /* export * from './commented-again' */
     const example = "import './string-only'";
+    // Клиенту не нужен чужой модуль
+    const ownerText = "it's a customer-facing instruction";
     import './side-effect';
     import type { Type } from './types';
     export { entry } from './re-export';

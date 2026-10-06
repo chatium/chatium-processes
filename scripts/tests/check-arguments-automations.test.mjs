@@ -49,3 +49,12 @@ test('unsupported branches and templated dateExpression fail automations check',
   assert.match(automations.errors.join('\n'), /thenBranch/)
   assert.match(automations.errors.join('\n'), /JS-выражением/)
 })
+
+test('letter variables are not mistaken for workspace variables', t => {
+  const f = fixture(t)
+  f.put('demo/message.ts', 'letter.variables.map(item => item.name); config.variables?.price?.value;\n')
+  const result = f.run()
+  const workspace = JSON.parse(result.stdout).checks.find(check => check.id === 'workspace')
+  assert.match(workspace.errors.join('\n'), /переменная процесса price/)
+  assert.doesNotMatch(workspace.errors.join('\n'), /переменная процесса map/)
+})

@@ -289,7 +289,7 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   for (const p of nested) error(`вложенный воркспейс ${rel(root, p)} отрезает папку от процесса`)
   // переменные процесса, на которые ссылается код
   for (const [file, src] of codeSources) {
-    for (const m of src.matchAll(/variables\??\.\s*([a-zA-Z_][a-zA-Z0-9_]*)/g)) {
+    for (const m of src.matchAll(/\bconfig\??\.\s*variables\??\.\s*([a-zA-Z_][a-zA-Z0-9_]*)/g)) {
       if (!vars || !(m[1] in vars)) error(`${rel(root, file)}: переменная процесса ${m[1]} не объявлена в config.variables`)
     }
   }
@@ -887,7 +887,8 @@ const total = checks.length
 const warnCount = checks.reduce((s, c) => s + c.warnings.length, 0)
 
 if (options.json) {
-  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotResult }, null, 2))
+  const { elements, ...snapshotSummary } = snapshotResult
+  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotSummary }, null, 2))
 } else {
   console.log(`check ${slug}`)
   for (const c of checks) {
@@ -904,4 +905,4 @@ if (!options.json) {
     ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
     : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')
 }
-process.exit(passed !== total || snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : 0)
+process.exitCode = passed !== total || snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : 0
