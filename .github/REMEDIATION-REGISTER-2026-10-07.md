@@ -35,7 +35,7 @@
 | R25 | О | P3 | Реализация начинается при противоречивой архитектуре | scripts/tests/architecture-review.test.mjs | в работе | 5ee604b |
 | R26 | О | P2 | Интервью не запросило отзывы, кейсы и фотографии | method/interview.md | в работе | e35a2e2 |
 | R27 | О | P4 | Специалист не получает типы и референсы V4 | creative/catalog/landing-types.json; creative/catalog/copywriting.json; scripts/tests/creative.test.mjs — типы и подача текста покрыты, визуальные стили и механики ещё нет | в работе | 625074b |
-| R28 | О | P1 | Снимок превышает лимит сервера и не сохраняется | scripts/tests/snapshot.test.mjs | в работе | 24f7ae1 |
+| R28 | О | P1 | Снимок превышает лимит сервера и не сохраняется | scripts/tests/snapshot.test.mjs: локальный отказ по тому же пределу 250 000 символов до Git/SDK | закрыто | a4cf4c4 |
 | R29 | О | P1 | letter.variables.map ошибочно распознаётся как переменная процесса | scripts/tests/check-arguments-automations.test.mjs | в работе | 580b6db |
 | R30 | О | P1 | Апостроф скрывает импорт от проверки зависимостей | scripts/tests/code-review.test.mjs | в работе | 580b6db |
 | R31 | О | P1 | CRLF или отступ скрывают задачу и её критерий | scripts/tests/tasks.test.mjs | в работе | 580b6db |
