@@ -72,6 +72,8 @@ test('stage question sets grow from design to build to launch, with unique IDs',
   assert.ok(design.questions.every(q => q.fromStage === 'design'))
   assert.ok(build.questions.every(q => ['design', 'build'].includes(q.fromStage)))
   assert.ok(!ids(design).includes('artifacts.alignment'))
+  assert.ok(ids(design).includes('evidence.materials'))
+  assert.ok(ids(design).includes('business.specific'))
   assert.ok(ids(build).includes('artifacts.alignment'))
   assert.ok(!ids(build).includes('launch.permission'))
   assert.ok(ids(launch).includes('launch.permission'))
