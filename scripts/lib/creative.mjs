@@ -11,6 +11,31 @@ const unique = values => new Set(values).size === values.length
 const catalog = name => JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog', name), 'utf8'))
 const json = value => JSON.stringify(value, null, 2)
 
+function selectedText(content, section) {
+  if (!section) return content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '')
+  const expected = String(section).replace(/^#+\s*/, '').trim()
+  if (!expected) throw Error('нужно имя раздела после #')
+  const lines = content.split(/\r?\n/)
+  const start = lines.findIndex(line => {
+    const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+    return heading && heading[2].trim() === expected
+  })
+  if (start < 0) throw Error(`раздел «${section}» не найден`)
+  const level = /^(#+)/.exec(lines[start])[1].length
+  const end = lines.findIndex((line, index) => index > start &&
+    new RegExp(`^#{1,${level}}\\s+`).test(line))
+  return lines.slice(start + 1, end < 0 ? undefined : end).join('\n')
+}
+
+function requireContent(content, section) {
+  const selected = selectedText(content, section)
+  const visible = selected.replace(/<!--[\s\S]*?-->/g, '').replace(/^\s{0,3}#{1,6}\s.*$/gm, '').trim()
+  if (!/[\p{L}\p{N}]/u.test(visible)) throw Error(section ? `раздел «${section}» пуст` : 'источник пуст')
+  if (/(?:^|\n)\s*(?:[-*+]\s+)?(?:…|\.{3}|TODO|TBD)\s*$/im.test(visible) ||
+      /(?<![\p{L}\p{N}_])(?:TODO|TBD|FIXME)\s*:|\[(?:TODO|TBD|FIXME)\]/iu.test(visible))
+    throw Error(section ? `раздел «${section}» содержит незаполненную заглушку` : 'источник содержит незаполненную заглушку')
+}
+
 function sourceFiles(root, spec, errors) {
   const files = [], seen = new Set()
   for (const source of spec.sources || []) {
@@ -20,23 +45,7 @@ function sourceFiles(root, spec, errors) {
       const file = safeTaskPath(root, source.path)
       if (statSync(file).size > 80000) throw Error('слишком большой источник')
       const content = readFileSync(file, 'utf8')
-      if (!content.trim() || !content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim())
-        throw Error('источник пуст')
-      if (source.section) {
-        const expected = String(source.section).replace(/^#+\s*/, '').trim()
-        const lines = content.split(/\r?\n/)
-        const start = lines.findIndex(line => {
-          const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
-          return heading && heading[2].trim() === expected
-        })
-        if (start < 0) throw Error(`раздел «${source.section}» не найден`)
-        const level = /^(#+)/.exec(lines[start])[1].length
-        const end = lines.findIndex((line, index) => index > start &&
-          new RegExp(`^#{1,${level}}\\s+`).test(line))
-        const section = lines.slice(start + 1, end < 0 ? undefined : end)
-          .filter(line => !/^#{1,6}\s+/.test(line)).join('\n').trim()
-        if (!section) throw Error(`раздел «${source.section}» пуст`)
-      }
+      requireContent(content, source.section)
       files.push({ id: source.id, path: source.path, section: source.section || null, content })
     } catch (error) { errors.push(`Источник ${source.id}: ${error.message}`) }
   }
@@ -204,11 +213,12 @@ export function creativePacket({ root, slug, nodeId }) {
   const copyFiles = [], assetFiles = []
   if (spec?.kind === 'landing') {
     for (const section of spec.sections || []) if (text(section.copyRef)) {
-      const path = section.copyRef.split('#', 1)[0]
+      const [path, namedSection] = section.copyRef.split('#', 2)
       try {
         const file = safeTaskPath(root, path)
         if (statSync(file).size > 80000) throw Error('слишком большой файл текста')
         const content = readFileSync(file, 'utf8')
+        requireContent(content, section.copyRef.includes('#') ? namedSection || '#' : null)
         if (!copyFiles.some(file => file.path === path)) copyFiles.push({ path, content })
       } catch (error) { errors.push(`Текст секции ${section.id}: ${error.message}`) }
     }

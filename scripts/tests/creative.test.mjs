@@ -71,6 +71,21 @@ test('source must contain the named nonempty section', t => {
   assert.deepEqual(creativePacket(f.args).errors, [])
 })
 
+test('creative sources and copied sections reject placeholders or missing text', t => {
+  const f = fixture(t)
+  f.put('.knowledge-base/processes/demo/offer.md', '---\ntitle: Предложение\n---\n# Условия\n<!-- нужен текст -->\nTODO: уточнить цену\n')
+  assert.match(creativePacket(f.args).errors.join('\n'), /Источник offer:.*заглушк/)
+  f.put('.knowledge-base/processes/demo/offer.md', '# Условия\nЦена известна владельцу.\n')
+  f.spec.sections[0].copyRef = 'demo/copy.md#Смысл'
+  f.put('demo/copy.md', '# Другое\nТекст другой секции.\n')
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /Текст секции hero:.*Смысл.*не найден/)
+  f.put('demo/copy.md', '# Смысл\n<!-- пока пусто -->\n')
+  assert.match(creativePacket(f.args).errors.join('\n'), /Текст секции hero:.*пуст/)
+  f.put('demo/copy.md', '# Смысл\nЗаявку передадут менеджеру.\n')
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
 test('page catalog keeps the V4 scenario coverage with review guidance', () => {
   const catalog = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/landing-types.json'), 'utf8'))
   const v4 = ['sales', 'lead_magnet', 'course', 'service', 'quiz', 'content', 'event', 'webinar',
