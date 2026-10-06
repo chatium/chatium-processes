@@ -805,6 +805,8 @@ check('letters', 'Письма шагов отправки и их переме�
     for (const field of LETTER_REQUIRED) {
       if (typeof letter[field] !== 'string' || !letter[field].trim()) error(`${p}: пустое или нет поле ${field}`)
     }
+    if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
+      warn(`${p}: короткая версия выглядит обрезанной (многоточие в конце); проверьте законченность мысли и ссылку`)
     for (const field of LETTER_FORBIDDEN) if (field in letter) error(`${p}: поля ${field} нет в схеме письма`)
     const used = letterVariables(letter)
     const declared = new Set((Array.isArray(letter.variables) ? letter.variables : []).map(v => v?.name))
