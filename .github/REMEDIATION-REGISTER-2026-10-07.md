@@ -10,16 +10,16 @@
 |---|---|---|---|---|---|---|
 | R01 | О | P1 | Агент публикует процесс прямо в main по общей инструкции DSH | SKILL.md; build/procedure.md | в работе | 24f7ae1 |
 | R02 | О | P0 | Неиспользуемая справка обновилась — устарели все ревью | scripts/tests/review-library.test.mjs: неиспользуемая справка/typing не устаревают, прочитанная и общая обязательная устаревают | закрыто | d91ec3a |
-| R03 | О | P1 | После правки принятую задачу нельзя повторить | scripts/tests/tasks.test.mjs | в работе | 5ee604b |
+| R03 | О | P1 | После правки принятую задачу нельзя повторить | scripts/tests/tasks.test.mjs: принятую карточку можно переоткрыть, история и попытки сохраняются | закрыто | 5ee604b |
 | R04 | О | P4 | Требуется визуальное ревью, а доступное превью не принимается | scripts/tests/creative.test.mjs; build/tasks-and-creative.md | в работе | 51b85b5 |
 | R05 | О | P1 | Проверка этапа test делает снимок старым без изменения кода | scripts/tests/freshness.test.mjs; scripts/tests/snapshot.test.mjs: смена только этапа сохраняет актуальность | закрыто | 992c343 |
 | R06 | О | P5 | condition или шаблонный dateExpression проходят check | scripts/tests/check-arguments-automations.test.mjs: оба варианта отвергаются | закрыто | 5ee604b |
 | R07 | О | P5 | Первый полный прогон автоматизации затрагивает реального клиента | scripts/tests/automation-smoke.test.mjs | в работе | e35a2e2 |
 | R08 | О | P1 | Знания пишутся до создания ветки и каркаса | SKILL.md; build/procedure.md | в работе | 24f7ae1 |
 | R09 | О | P1 | TODO в шаблоне считается завершённым интервью | scripts/context.mjs; scripts/lib/knowledge.mjs | в работе | 580b6db |
-| R10 | О | P0 | Реализация начинается без ответа владельца на план | scripts/tests/owner-decisions.test.mjs | в работе | 5ee604b |
+| R10 | О | P0 | Реализация начинается без ответа владельца на план | scripts/tests/tasks.test.mjs: start отказывает без ответа и проходит после реального record; scripts/tests/owner-decisions.test.mjs | закрыто | b9a7c2a |
 | R11 | О | P1 | Опечатка --no-snapshto или --publish-snapshot=false вызывает запись снимка | scripts/tests/check-arguments-automations.test.mjs: код 2, файл не создан | закрыто | ee8dec7 |
-| R12 | О | P1 | Процесс без писем не проходит ревью реализации | scripts/tests/code-review.test.mjs | в работе | 580b6db |
+| R12 | О | P1 | Процесс без писем не проходит ревью реализации | scripts/tests/code-review.test.mjs: папка писем не требуется без серии, явная ссылка на отсутствующую папку ошибочна | закрыто | 580b6db |
 | R13 | О | P5 | Локальное действие с accountId null ошибочно считается общим | scripts/tests/code-review.test.mjs: null routeJson не попадает во внешние зависимости и даёт ошибку; общий check тоже отвергает | закрыто | bd2bcdf |
 | R14 | О | P4 | Задание нельзя составить по документации; standalone требует автоматизацию | formats/creative-spec.md; scripts/tests/creative.test.mjs | в работе | 580b6db |
 | R15 | О | P0 | Учётная отметка требует повторить все ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/code-review.test.mjs: отметка/ссылка не меняет digest, смысловая правка меняет | закрыто | afe0d46 |
@@ -66,8 +66,8 @@
 | F07 | О | P5 | Самостоятельная серия отклонена из-за отсутствия автоматизации | scripts/tests/creative.test.mjs | в работе | 580b6db |
 | F08 | В | P6 | Сломанный .agent.json или недоступный инструмент остался вне приёмки | scripts/tests/agents.test.mjs; scripts/lib/agent-review.mjs | в работе | 2094ef0 |
 | F09 | О | P7 | Отчёт строит конверсию из несвязанных событий | scripts/tests/events-contract.test.mjs; blocks/analytics.md — нужен тест реального запроса | в работе | d8ad384 |
-| F10 | О | P0 | Не вызван обязательный ревьюер, но итог объявлен готовым | scripts/tests/commission.test.mjs | в работе | 5ee604b |
-| F11 | О | P1 | После исправления причины ошибки процесс застрял в состоянии задачи | scripts/tests/tasks.test.mjs | в работе | 5ee604b |
+| F10 | О | P0 | Не вызван обязательный ревьюер, но итог объявлен готовым | scripts/tests/commission.test.mjs; scripts/tests/check-arguments-automations.test.mjs: отсутствующие заключения делают check красным | закрыто | 76cd24d |
+| F11 | О | P1 | После исправления причины ошибки процесс застрял в состоянии задачи | scripts/tests/tasks.test.mjs: fail → start и accepted → reopen → start сохраняют историю | закрыто | 5ee604b |
 | F12 | О | P3 | Пустая цена проходит проверку готовности к запуску | scripts/tests/check-arguments-automations.test.mjs | в работе | 6e06e5e |
 | M01 | П | P2 | Агент выдаёт длинную анкету вместо предметного предложения и одного следующего вопроса | — | требует подтверждения | — |
 | M02 | О | P2 | Фото и отзывы не запрошены при первичном сборе сведений | method/interview.md; method/review-questions.json — нужен реальный сценарий | в работе | f415923 |
@@ -161,7 +161,7 @@
 | Q04 | О | P1 | Ошибка одного компонента скрыта общим успехом | — | открыто | — |
 | Q05 | О | P1 | Автоматизация включена до появления её действия | — | открыто | — |
 | Q06 | О | P1 | Контекст показал старую готовность после изменения | — | открыто | — |
-| Q07 | О | P1 | Исправленную задачу нельзя снова выполнить | — | открыто | — |
+| Q07 | О | P1 | Исправленную задачу нельзя снова выполнить | scripts/tests/tasks.test.mjs: завершённая карточка переоткрывается и создаёт новую попытку | закрыто | 5ee604b |
 | Q08 | О | P0 | Сборка началась без актуального согласования | scripts/tests/owner-decisions.test.mjs | в работе | 5ee604b |
 | Q09 | О | P0 | Ревьюер изменил проверяемые исходники | build/commission.md | в работе | — |
 | Q10 | П | P0 | Профильное нарушение не входит в рубрику | — | требует подтверждения | — |
