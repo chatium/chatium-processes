@@ -36,3 +36,4 @@ description: "Бизнес-процессы и автоворонки в Chatium
 | Проверить архитектуру, код, права и нагрузку | [build/commission.md](build/commission.md), [build/review-safety.md](build/review-safety.md) |
 | Собрать страницы, письма или ИИ-помощника | [build/tasks-and-creative.md](build/tasks-and-creative.md), [blocks/message-series.md](blocks/message-series.md), [blocks/ai-agent.md](blocks/ai-agent.md) |
 | Показать результат и карту | [build/preview.md](build/preview.md), [build/map-freshness.md](build/map-freshness.md) |
+| Запустить, наблюдать или остановить процесс | [build/procedure.md](build/procedure.md), [build/operations.md](build/operations.md) |
