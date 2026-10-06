@@ -29,6 +29,7 @@ import { agentReviewStatus } from './lib/agent-review.mjs'
 import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 import { retirementStatus } from './lib/component-retirements.mjs'
 import { tableChangeStatus } from './lib/table-changes.mjs'
+import { validateComponentContracts } from './lib/component-contracts.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -168,6 +169,8 @@ const eventsRes = loadYamlFile(join(dir, 'specs', 'events.yaml'))
 const events = Array.isArray(eventsRes.data?.events) ? eventsRes.data.events : []
 const eventByKey = new Map(events.filter(e => e && e.key).map(e => [e.key, e]))
 const analyticsRes = loadYamlFile(join(dir, 'specs', 'analytics.yaml'))
+const siteRes = loadYamlFile(join(dir, 'specs', 'site.yaml'))
+const servicesRes = loadYamlFile(join(dir, 'specs', 'services.yaml'))
 // URL события строится от процесса: workspaceEvent — event://account/<процесс>/<ключ>,
 // customerEvent (captureCustomerEvent из @crm/sdk) — event://crm/customer/event/<процесс>/<ключ>
 const EVENT_URL_PREFIX = {
@@ -358,6 +361,16 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
 
 check('retirements', 'Осознанный вывод компонентов', ({ error }) => {
   for (const issue of retirementStatus({ root, slug, map, automationFiles: automations.map(item => item.file) }).errors) error(issue)
+})
+
+check('components.contracts', 'Контракты сайта и сервисов', ({ error }) => {
+  for (const [name, result] of [['site.yaml', siteRes], ['services.yaml', servicesRes]])
+    if (result.parseError) error(`${name} не разбирается: ${result.parseError}`)
+  if (siteRes.parseError || servicesRes.parseError) return
+  for (const issue of validateComponentContracts({ map,
+    ...(siteRes.missing ? {} : { site: siteRes.data }),
+    ...(servicesRes.missing ? {} : { services: servicesRes.data }),
+  }).errors) error(issue)
 })
 
 check('table.changes', 'Защита схемы действующих таблиц', ({ error }) => {

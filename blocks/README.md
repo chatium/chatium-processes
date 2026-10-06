@@ -7,6 +7,7 @@
 | Компонент | Вид в карте | Карточка | Справка `chatium-development` |
 | --- | --- | --- | --- |
 | Страница / лендинг | `page` | [page.md](page.md) | `coding.md`, `routing.md` |
+| Многостраничный сайт и сервис | `page` / `external` | [site-service.md](site-service.md) | `routing.md`, `auth.md`, `coding.md` |
 | Форма → таблица → событие | `page` + `table` | [form-table-event.md](form-table-event.md) | `references/forms.md`, `references/automations/events.md`, `heap.md` |
 | Серия сообщений | `series` | [message-series.md](message-series.md) | `references/sender/messaging.md` |
 | Автоматизация | стрелка с `via` | [automation.md](automation.md) | `references/automations/*` |

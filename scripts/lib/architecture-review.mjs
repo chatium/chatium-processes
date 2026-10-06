@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
@@ -16,6 +16,14 @@ export function architectureReviewPath(root, slug) {
 export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR }) {
   architectureReviewPath(root, slug)
   const knowledge = collectKnowledge({ root, slug })
+  const account = realpathSync(root)
+  const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml'].flatMap(name => {
+    const path = join(root, slug, 'specs', name)
+    if (!existsSync(path)) return []
+    if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
+      throw Error(`Спецификация ${name} недоступна или слишком велика для ревью.`)
+    return [{ path: `${slug}/specs/${name}`, content: readFileSync(path, 'utf8') }]
+  })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
   if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
@@ -24,7 +32,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     throw Error('Некорректная рубрика архитектуры.')
   const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
     questions: rubric.questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
-    files: knowledge.files, staticChecks: knowledge.checks }
+    files: [...knowledge.files, ...specFiles].sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
 }
 
