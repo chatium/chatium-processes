@@ -34,7 +34,7 @@ function fixture(t) {
       purpose: `Объяснить ${type}`, points: [{ text: 'Материал помогает сделать первый шаг', sourceRef: 'offer' }],
       presentation: { desktop: 'Крупный текст и видимая форма', mobile: 'Одна колонка' },
       mechanicRefs: type === 'form_section' ? ['signup'] : [], acceptance: ['Содержание видно и понятно'] })),
-    mechanics: [{ id: 'signup', type: 'form', purpose: 'Получить контакт', placement: 'form_section',
+    mechanics: [{ id: 'signup', type: 'form', purpose: 'Получить контакт', expectedOutcome: 'Клиент получает материал после заявки', placement: 'form_section',
       fields: ['email'], target: 'demo/form-submit', success: 'Показать подтверждение',
       error: 'Показать ошибку', mobile: 'Поля в одну колонку' }],
     design: { styleId: 'clean_service', adaptation: 'Использовать контрастную кнопку для выдачи материала' },
@@ -108,6 +108,24 @@ test('copywriting direction rejects an unknown style and reaches the page brief'
   assert.match(brief, /неподтверждён/)
 })
 
+test('mechanic needs an expected outcome and a real section reference', t => {
+  const f = fixture(t)
+  delete f.spec.mechanics[0].expectedOutcome
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /ожидаемый результат/)
+  f.spec.mechanics[0].expectedOutcome = 'Клиент получает материал после заявки'
+  f.spec.mechanics[0].placement = 'missing-section'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /нет секции missing-section/)
+  f.spec.mechanics[0].placement = 'form_section'
+  f.spec.sections[2].mechanicRefs = []
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /не привязана к секции form_section/)
+  f.spec.sections[2].mechanicRefs = ['signup']
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
 test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'
@@ -147,11 +165,12 @@ test('webinar and quiz use their own page brief and a working registration path'
   delete f.spec.event
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.match(creativePacket(f.args).errors.join('\n'), /quiz: нужна настроенная механика quiz/)
-  f.spec.mechanics.push({ id: 'profile', type: 'quiz', purpose: 'Подобрать первый шаг', placement: 'form_section',
+  f.spec.mechanics.push({ id: 'profile', type: 'quiz', purpose: 'Подобрать первый шаг', expectedOutcome: 'Человек видит рекомендацию', placement: 'form_section',
     fields: ['experience'], target: 'demo/quiz-result', success: 'Показать рекомендацию',
     error: 'Попросить ответить на вопрос', mobile: 'Вопросы по одному' })
   f.spec.quiz = { resultRule: 'По ответу experience', outcomes: 'Новичку или опытному — разные советы',
     nextStep: 'Показать материал для выбранной группы' }
+  f.spec.sections[2].mechanicRefs.push('profile')
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.deepEqual(creativePacket(f.args).errors, [])
 })

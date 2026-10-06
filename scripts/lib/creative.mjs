@@ -68,13 +68,22 @@ function validateLanding(spec, errors, references) {
     const rule = mechanics.mechanics[m.type]
     if (!rule) { errors.push(`Неизвестная механика ${m.type}`); continue }
     if (!text(m.id) || !text(m.purpose) || !text(m.placement)) errors.push(`Механика ${m.id || '?'}: нужны цель и место.`)
+    if (!text(m.expectedOutcome)) errors.push(`Механика ${m.id || '?'}: нужен ожидаемый результат.`)
+    if (text(m.placement) && !sections.some(s => s.id === m.placement))
+      errors.push(`Механика ${m.id || '?'}: нет секции ${m.placement}.`)
+    else if (text(m.id) && !sections.some(s => s.id === m.placement && s.mechanicRefs?.includes(m.id)))
+      errors.push(`Механика ${m.id}: не привязана к секции ${m.placement}.`)
     for (const field of rule.requires) if (!(Array.isArray(m[field]) ? m[field].length : text(m[field])))
       errors.push(`Механика ${m.id || '?'}: требуется ${field}.`)
     if (['timer', 'scarcity_counter'].includes(m.type) && !sourceIds.has(m.deadlineSource || m.quantitySource))
       errors.push(`Механика ${m.id || '?'}: нужен источник срока/количества.`)
   }
   const mechanicIds = new Set(selected.map(m => m.id))
-  for (const s of sections) for (const id of s.mechanicRefs || []) if (!mechanicIds.has(id)) errors.push(`Секция ${s.id}: нет механики ${id}.`)
+  for (const s of sections) for (const id of s.mechanicRefs || []) {
+    if (!mechanicIds.has(id)) errors.push(`Секция ${s.id}: нет механики ${id}.`)
+    else if (selected.find(m => m.id === id)?.placement !== s.id)
+      errors.push(`Секция ${s.id}: механика ${id} назначена в другом месте.`)
+  }
   if (spec.landingType === 'sales' && !selected.some(m => ['form', 'payment_button', 'cta_button'].includes(m.type)))
     errors.push('Продающей странице нужен настроенный путь покупки или заявки.')
   if (['webinar', 'autowebinar'].includes(spec.landingType)) {
