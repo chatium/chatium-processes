@@ -40,7 +40,7 @@
 | R30 | О | P1 | Апостроф скрывает импорт от проверки зависимостей | scripts/tests/code-review.test.mjs | в работе | 580b6db |
 | R31 | О | P1 | CRLF или отступ скрывают задачу и её критерий | scripts/tests/tasks.test.mjs | в работе | 580b6db |
 | R32 | О | P1 | Одинаковая ошибка возвращает разные коды и непонятный текст | scripts/tests/creative.test.mjs; scripts/tests/strict-cli-arguments.test.mjs — ошибка параметров даёт код 2 до записи; предметные ошибки ещё требуют прохода | в работе | d19a1e9 |
-| R33 | О | P1 | ls-remote ждёт интерактивный пароль | scripts/lib/git-state.mjs | в работе | 580b6db |
+| R33 | О | P1 | ls-remote ждёт интерактивный пароль | scripts/tests/freshness.test.mjs: фиктивный Git зависает при разрешённом prompt; скилл отказывает без ожидания | закрыто | 2ae5be0 |
 | R34 | О | P1 | Ветка или HEAD изменились во время чтения доски, но проверка названа актуальной | scripts/tests/freshness.test.mjs; scripts/lib/git-state.mjs — нужен сквозной прогон | в работе | 5ee604b |
 | R35 | О | P1 | Большой JSON обрывается при завершении команды | scripts/tests/check-arguments-automations.test.mjs: результат более 1 МиБ полностью разбирается после кода 1 | закрыто | 41a01c7 |
 | R36 | О | P1 | check --json раздувается всей доской | scripts/tests/freshness.test.mjs: реальная доска прочитана, но elements и заметка не попали в JSON проверки | закрыто | 3372f39 |
