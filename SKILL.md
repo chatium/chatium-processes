@@ -31,7 +31,7 @@ description: "Бизнес-процессы и автоворонки в Chatium
 | --- | --- |
 | Восстановить этап и команды | [WORKFLOW.md#где-мы-сейчас](WORKFLOW.md#где-мы-сейчас), [WORKFLOW.md#скрипты](WORKFLOW.md#скрипты) |
 | Выяснить сведения о бизнесе | [method/README.md](method/README.md), [method/review.md](method/review.md) |
-| Описать план, события и данные | [formats/plan-md.md](formats/plan-md.md), [formats/process-yaml.md](formats/process-yaml.md), [formats/events-yaml.md](formats/events-yaml.md) |
+| Описать план, события, данные и аналитику | [formats/plan-md.md](formats/plan-md.md), [formats/process-yaml.md](formats/process-yaml.md), [formats/events-yaml.md](formats/events-yaml.md), [blocks/analytics.md](blocks/analytics.md) |
 | Разбить работу и собрать компоненты | [build/tasks-and-creative.md](build/tasks-and-creative.md), [build/procedure.md](build/procedure.md), [blocks/README.md](blocks/README.md) |
 | Проверить архитектуру, код, права и нагрузку | [build/commission.md](build/commission.md), [build/review-safety.md](build/review-safety.md) |
 | Собрать страницы, письма или ИИ-помощника | [build/tasks-and-creative.md](build/tasks-and-creative.md), [blocks/message-series.md](blocks/message-series.md), [blocks/ai-agent.md](blocks/ai-agent.md) |

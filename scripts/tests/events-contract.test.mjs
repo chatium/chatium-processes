@@ -86,3 +86,71 @@ test('metricEventData cannot override CRM-generated customer_contacts', t => {
   assert.equal(data.ok, false)
   assert.match(data.errors.join('\n'), /CRM формирует его из contacts/)
 })
+
+test('analytics funnel rejects unrelated event identities and imaginary events', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: page_viewed
+    type: workspaceEvent
+    name: Просмотр
+    description: Посещение страницы
+    payloadMapping: {}
+  - key: order_paid
+    type: customerEvent
+    name: Оплата
+    description: Оплата заказа
+    category: revenue
+    payloadMapping:
+      orderId: { title: Заказ, fieldName: action_param1, type: string }
+`)
+  f.put('demo/specs/analytics.yaml', `funnels:
+  - id: purchase
+    question: Сколько посетителей оплатили?
+    identity: customer
+    windowDays: 30
+    steps: [page_viewed, order_paid]
+    deduplicateBy: orderId
+`)
+  const bad = named(f.run(), 'analytics.spec')
+  assert.equal(bad.ok, false)
+  assert.match(bad.errors.join('\n'), /page_viewed.*workspaceEvent/)
+  f.put('demo/specs/analytics.yaml', `funnels:
+  - id: purchase
+    question: Сколько заявок оплатили?
+    identity: customer
+    windowDays: 30
+    steps: [lead_created, order_paid]
+    deduplicateBy: orderId
+`)
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /lead_created.*не объявлено/)
+})
+
+test('analytics funnel requires order deduplication and accepts linked customer events', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка
+    description: Клиент оставил заявку
+    payloadMapping:
+      leadId: { title: Заявка, fieldName: action_param1, type: string }
+  - key: order_paid
+    type: customerEvent
+    name: Оплата
+    description: Оплата заказа
+    category: revenue
+    payloadMapping:
+      orderId: { title: Заказ, fieldName: action_param1, type: string }
+`)
+  const analytics = dedup => `funnels:
+  - id: purchase
+    question: Какая доля заявок завершилась оплатой?
+    identity: customer
+    windowDays: 30
+    steps: [lead_created, order_paid]
+${dedup ? '    deduplicateBy: orderId\n' : ''}`
+  f.put('demo/specs/analytics.yaml', analytics(false))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /deduplicateBy/)
+  f.put('demo/specs/analytics.yaml', analytics(true))
+  assert.equal(named(f.run(), 'analytics.spec').ok, true)
+})

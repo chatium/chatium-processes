@@ -47,11 +47,36 @@ acceptance: [Заявка записана, пользователь видит 
 
 Допустимые `landingType`, `styleId` и типы механик смотри в
 `creative/catalog/`. Для `sales` нужен реальный путь к покупке или заявке.
+Для `webinar` заполни `event.date`, `timezone`, `format`, `program`,
+`presenter`, `registrationOutcome` и механику регистрации. Для
+`autowebinar` вместо даты нужен `event.schedule`; запись нельзя выдавать
+за прямой эфир. Для `quiz` нужны механика `quiz` и `quiz.resultRule`,
+`outcomes`, `nextStep`: вопросы должны менять полезный результат.
 Каждая механика требует `id`, `type`, `purpose`, `placement` и поля её типа.
 Для изображения укажи `id`, `sectionId`, `purpose`, `alt`, готовый `asset`
 или `generationBrief`, `aspect`, `mobileCrop`; до сборки нужен готовый asset.
-В редизайне добавь исходные страницы как источники и критерии сохранения
-существенных условий.
+В редизайне сохрани исходную страницу/снимок в доступном файле и добавь его
+в `sources` с `role: original`. Укажи `redesign.sourceRef` на ID этого
+источника, `redesign.preserve` со списком фактов, условий и работающих
+действий, `redesign.changes` с согласованными изменениями и
+`redesign.verification` со способом сравнения результата с исходником.
+Например:
+
+```yaml
+sources:
+  - id: old-page
+    path: demo/materials/old-page.md
+    role: original
+redesign:
+  sourceRef: old-page
+  preserve: [Условие оплаты, Адрес формы заявки]
+  changes: [Упростить первый экран]
+  verification: [Сравнить условия и путь заявки до и после]
+```
+
+В `demo/materials/old-page.md` должны быть сами исходные факты и действия,
+а не только ссылка на URL. Валидатор проверяет наличие и полноту записи;
+сохранение смысла в итоговой странице подтверждает независимое ревью.
 
 ## Серия сообщений
 

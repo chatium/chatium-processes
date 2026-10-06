@@ -76,6 +76,30 @@ function validateLanding(spec, errors, references) {
   for (const s of sections) for (const id of s.mechanicRefs || []) if (!mechanicIds.has(id)) errors.push(`Секция ${s.id}: нет механики ${id}.`)
   if (spec.landingType === 'sales' && !selected.some(m => ['form', 'payment_button', 'cta_button'].includes(m.type)))
     errors.push('Продающей странице нужен настроенный путь покупки или заявки.')
+  if (['webinar', 'autowebinar'].includes(spec.landingType)) {
+    const event = spec.event
+    const fields = spec.landingType === 'webinar'
+      ? ['date', 'timezone', 'format', 'program', 'presenter', 'registrationOutcome']
+      : ['schedule', 'timezone', 'format', 'program', 'presenter', 'registrationOutcome']
+    if (fields.some(field => !text(event?.[field])))
+      errors.push(`${spec.landingType}: нужны дата/часовой пояс, формат, программа, ведущий и результат регистрации (для записи — расписание вместо даты).`)
+    if (!selected.some(m => m.type === 'form' || m.type === 'cta_button'))
+      errors.push(`${spec.landingType}: нужен настроенный путь регистрации.`)
+  }
+  if (spec.landingType === 'quiz') {
+    if (!selected.some(m => m.type === 'quiz')) errors.push('quiz: нужна настроенная механика quiz с обработкой результата.')
+    if (!text(spec.quiz?.resultRule) || !text(spec.quiz?.outcomes) || !text(spec.quiz?.nextStep))
+      errors.push('quiz: нужны правило результата, возможные исходы и следующий шаг.')
+  }
+  if (spec.landingType === 'redesign') {
+    const original = spec.redesign
+    if (!(spec.sources || []).some(source => source.id === original?.sourceRef && source.role === 'original') ||
+        !Array.isArray(original?.preserve) ||
+        !original.preserve.length || !original.preserve.every(text) ||
+        !Array.isArray(original?.changes) || !original.changes.length || !original.changes.every(text) ||
+        !Array.isArray(original?.verification) || !original.verification.length || !original.verification.every(text))
+      errors.push('redesign: нужны исходный материал в sources, сохраняемые условия/действия, согласованные изменения и способ сравнения результата.')
+  }
   const design = spec.design
   if (!design || !text(design.styleId)) errors.push('Нужна дизайн-система.')
   else if (design.styleId !== 'custom' && !styles.styles[design.styleId]) errors.push(`Неизвестный стиль ${design.styleId}.`)
@@ -243,6 +267,9 @@ export function compileCreative(packet) {
       `Приёмка: ${s.acceptance.join('; ')}`, '')
     lines.push('## Конверсионные механики')
     for (const m of spec.mechanics || []) lines.push(`- ${m.id} (${m.type}): ${json(m)}`)
+    if (spec.event) lines.push('', '## Сценарий мероприятия', json(spec.event))
+    if (spec.quiz) lines.push('', '## Результат квиза', json(spec.quiz))
+    if (spec.redesign) lines.push('', '## Исходник и границы редизайна', json(spec.redesign))
     lines.push('', '## Дизайн-система', json(guidance.style), `Адаптация: ${spec.design.adaptation}`, '', '## Изображения')
     for (const image of spec.images || []) lines.push(`- ${image.id}: ${json(image)}`)
     lines.push('', '## A/B', json(spec.abTesting))

@@ -14,6 +14,7 @@
 | Оплата | `payment` | [payment.md](payment.md) | `references/payments.md` |
 | CRM | `crm` | [crm.md](crm.md) | `references/automations/events.md` |
 | Самостоятельный помощник | `agent` | [ai-agent.md](ai-agent.md) | `references/ai/agent-config.md`, `references/ai/routing-and-handoff.md`, `references/ai/autonomy.md`, `references/ai/tools.md` |
+| Аналитика пути клиента | `specs/analytics.yaml` | [analytics.md](analytics.md) | `references/analytics/traffic.md`, `references/analytics/attribution.md` |
 
 Общая разработка — роуты, Vue, Heap, auth, jobs, `chatium exec`, SDK
 модулей — в скилле `chatium-development`. Карточки её не повторяют: они

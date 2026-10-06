@@ -166,6 +166,7 @@ const lettersRoot = norm(map?.letters || `.mailings/storage/processes/${slug}`)
 const eventsRes = loadYamlFile(join(dir, 'specs', 'events.yaml'))
 const events = Array.isArray(eventsRes.data?.events) ? eventsRes.data.events : []
 const eventByKey = new Map(events.filter(e => e && e.key).map(e => [e.key, e]))
+const analyticsRes = loadYamlFile(join(dir, 'specs', 'analytics.yaml'))
 // URL события строится от процесса: workspaceEvent — event://account/<процесс>/<ключ>,
 // customerEvent (captureCustomerEvent из @crm/sdk) — event://crm/customer/event/<процесс>/<ключ>
 const EVENT_URL_PREFIX = {
@@ -504,6 +505,40 @@ check('events.used', 'Каждое событие кто-то пишет и кт
     if (!e?.key || !EVENT_URL_PREFIX[e.type]) continue
     if (!written.has(e.key)) error(`событие ${e.key} объявлено, но его никто не пишет (writeWorkspaceEvent / captureCustomerEvent)`)
     if (!listened.has(eventUrl(e))) warn(`событие ${e.key} никто не слушает — только для аналитики?`)
+  }
+})
+
+check('analytics.spec', 'Связность аналитической воронки', ({ error }) => {
+  if (analyticsRes.missing) return
+  if (analyticsRes.parseError) return error(`analytics.yaml не разбирается: ${analyticsRes.parseError}`)
+  const funnels = analyticsRes.data?.funnels
+  if (!Array.isArray(funnels) || !funnels.length || funnels.length > 50)
+    return error('analytics.yaml: нужен непустой список funnels (не более 50).')
+  const ids = new Set()
+  for (const [index, funnel] of funnels.entries()) {
+    const where = `analytics.funnels[${index}]${funnel?.id ? ` (${funnel.id})` : ''}`
+    if (typeof funnel?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(funnel.id) || ids.has(funnel.id))
+      error(`${where}: нужен уникальный id в snake_case.`)
+    if (funnel?.id) ids.add(funnel.id)
+    if (typeof funnel?.question !== 'string' || !funnel.question.trim()) error(`${where}: нужен бизнес-вопрос question.`)
+    if (funnel?.identity !== 'customer') error(`${where}: поддержана только identity: customer; для другой идентичности нужен явный проверенный механизм связывания.`)
+    if (!Number.isInteger(funnel?.windowDays) || funnel.windowDays < 1 || funnel.windowDays > 3650)
+      error(`${where}: windowDays должен быть целым числом от 1 до 3650.`)
+    const steps = funnel?.steps
+    if (!Array.isArray(steps) || steps.length < 2 || steps.length > 30 || new Set(steps).size !== steps.length)
+      error(`${where}: нужны от 2 до 30 разных шагов steps в порядке пути клиента.`)
+    const revenue = []
+    for (const key of Array.isArray(steps) ? steps : []) {
+      const event = eventByKey.get(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      else {
+        if (event.type !== 'customerEvent') error(`${where}: ${key} имеет type ${event.type}; его нельзя связывать с клиентской конверсией без подтверждённой идентичности.`)
+        if (event.category === 'revenue') revenue.push(event)
+      }
+    }
+    if (revenue.length && (!funnel.deduplicateBy || revenue.some(event =>
+      !Object.hasOwn(event.payloadMapping || {}, funnel.deduplicateBy))))
+      error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого revenue-события.`)
   }
 })
 

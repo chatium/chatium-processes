@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { creativePacket, creativeStatus, writeCreativeBuild } from '../lib/creative.mjs'
+import { compileCreative, creativePacket, creativeStatus, writeCreativeBuild } from '../lib/creative.mjs'
 import { creativeReviewPacket, creativeReviewStatus, recordCreativeReview } from '../lib/creative-review.mjs'
 import { expandedTaskInputs, parseTaskPlan, taskDefinitionDigest, taskInputDigest, taskReadiness } from '../lib/tasks.mjs'
 import { SKILL_DIR } from '../lib/project.mjs'
@@ -94,6 +94,47 @@ test('sales permits author-selected sections, keeps a real conversion path and d
   f.spec.sections[0].mechanicRefs = []
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.ok(creativePacket(f.args).errors.some(e => e.includes('путь покупки или заявки')))
+})
+
+test('webinar and quiz use their own page brief and a working registration path', t => {
+  const f = fixture(t)
+  f.spec.landingType = 'webinar'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /webinar: нужны дата\/часовой пояс, формат, программа/)
+  f.spec.event = { date: '2026-11-04 18:00', timezone: 'Asia/Almaty', format: 'онлайн',
+    program: 'Разбор задач и ответы', presenter: 'Эксперт студии', registrationOutcome: 'Ссылка после заявки' }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  assert.match(compileCreative(creativePacket(f.args)), /Сценарий мероприятия/)
+  f.spec.landingType = 'quiz'
+  delete f.spec.event
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /quiz: нужна настроенная механика quiz/)
+  f.spec.mechanics.push({ id: 'profile', type: 'quiz', purpose: 'Подобрать первый шаг', placement: 'form_section',
+    fields: ['experience'], target: 'demo/quiz-result', success: 'Показать рекомендацию',
+    error: 'Попросить ответить на вопрос', mobile: 'Вопросы по одному' })
+  f.spec.quiz = { resultRule: 'По ответу experience', outcomes: 'Новичку или опытному — разные советы',
+    nextStep: 'Показать материал для выбранной группы' }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
+test('redesign cannot proceed without the original and a preservation/change contract', t => {
+  const f = fixture(t)
+  f.spec.landingType = 'redesign'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /redesign: нужны исходный материал/)
+  f.spec.redesign = { sourceRef: 'offer', preserve: ['Условие выдачи материала'],
+    changes: ['Упростить форму'], verification: ['Сравнить старую и новую форму'] }
+  f.spec.sources[0].role = 'original'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  const body = compileCreative(creativePacket(f.args))
+  assert.match(body, /Исходник и границы редизайна/)
+  assert.match(body, /Условие выдачи материала/)
+  f.spec.redesign.sourceRef = 'missing'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /redesign: нужны исходный материал/)
 })
 
 test('series keeps each email distinct and checks its automation dependency', t => {
