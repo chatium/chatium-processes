@@ -16,9 +16,13 @@ try {
     const packet = creativePacket(args)
     result = { status: packet.errors.length ? 'invalid' : 'valid', errors: packet.errors,
       inputDigest: packet.inputDigest, references: packet.referenceFiles.map(f => f.path) }
-  } else if (command === 'compile') result = { status: 'compiled', ...writeCreativeBuild(args) }
+  } else if (command === 'compile') {
+    const packet = creativePacket(args)
+    result = packet.errors.length ? { status: 'invalid', errors: packet.errors } :
+      { status: 'compiled', ...writeCreativeBuild(args, packet) }
+  }
   else if (command === 'status') result = creativeStatus(args)
   else throw Error(`Неизвестная команда ${command}.`)
   console.log(JSON.stringify(result, null, 2))
   process.exit(['invalid', 'stale', 'missing'].includes(result.status) ? 1 : 0)
-} catch (error) { console.error(error.message); process.exit(1) }
+} catch (error) { console.error(error.message); process.exit(2) }

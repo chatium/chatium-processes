@@ -126,6 +126,25 @@ test('mechanic needs an expected outcome and a real section reference', t => {
   assert.deepEqual(creativePacket(f.args).errors, [])
 })
 
+test('creative CLI distinguishes invalid work from an unusable command', t => {
+  const f = fixture(t)
+  const cli = fileURLToPath(new URL('../creative.mjs', import.meta.url))
+  const run = command => spawnSync(process.execPath,
+    [cli, command, 'demo', 'lead-page', '--root', f.root], { encoding: 'utf8' })
+  f.spec.mechanics[0].expectedOutcome = ''
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  const invalid = run('validate')
+  assert.equal(invalid.status, 1)
+  assert.match(invalid.stdout, /ожидаемый результат/)
+  const invalidCompile = run('compile')
+  assert.equal(invalidCompile.status, 1)
+  assert.match(invalidCompile.stdout, /ожидаемый результат/)
+  assert.equal(invalidCompile.stderr, '')
+  const unknown = run('bad-command')
+  assert.equal(unknown.status, 2)
+  assert.match(unknown.stderr, /Неизвестная команда/)
+})
+
 test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'

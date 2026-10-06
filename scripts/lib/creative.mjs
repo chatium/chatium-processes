@@ -324,8 +324,8 @@ export function creativeStatus(args) {
   } catch (error) { return { status: 'invalid', errors: [error.message] } }
 }
 
-export function writeCreativeBuild(args) {
-  const packet = creativePacket(args), build = compileCreative(packet)
+export function writeCreativeBuild(args, packet = creativePacket(args)) {
+  const build = compileCreative(packet)
   const path = safeTaskPath(args.root, packet.buildPath, { mayBeMissing: true })
   mkdirSync(dirname(path), { recursive: true })
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
