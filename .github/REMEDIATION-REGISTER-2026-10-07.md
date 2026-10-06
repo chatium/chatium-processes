@@ -50,7 +50,7 @@
 | R40 | О | P8 | Запрос «собери автоворонку» не находит скилл | SKILL.md | в работе | 24f7ae1 |
 | R41 | О | P8 | В установленной копии есть внутренняя дорожная карта и пути Start | README.md; creative/catalog/*.json | в работе | cb165f1 |
 | R42 | О | P8 | Публичный выпуск без версии, условий распространения и канала обновления | — | открыто | — |
-| R43 | О | P8 | Число вопросов и текст документации расходятся с рубрикой | method/review.md; scripts/tests/knowledge-review.test.mjs | в работе | f415923 |
+| R43 | О | P8 | Число вопросов и текст документации расходятся с рубрикой | method/review.md; build/review.md; scripts/tests/knowledge-review.test.mjs — числовое утверждение удалено, нужна проверка в DSH | в работе | f415923 |
 | R44 | О | P2 | Процесс без выбора региона получает московский часовой пояс | scripts/tests/check-arguments-automations.test.mjs | в работе | e35a2e2 |
 | R45 | О | P8 | Инструкция Sender ведёт на устаревший интерфейс | blocks/channels.md; chatium-development/references/sender/entities.md | в работе | 6e06e5e |
 | R46 | О | P0 | Агент выполняет поручение неуполномоченного участника доски | SKILL.md; build/board-notes.md | в работе | 24f7ae1 |
