@@ -9,6 +9,7 @@ import { commissionStatus, reviewRequirements, COMMISSION_STAGES } from './lib/c
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
+import { markReviewPacket } from './lib/review-packets.mjs'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
 const [command, slug] = positional
@@ -62,6 +63,7 @@ try {
         referencePrompt(directory, packet) + 'Работай только чтением, не вызывай других агентов. Верни JSON по схеме reviewerInstructions.\n'
       writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
       writeFileSync(promptPath, prompt, { flag: 'wx' })
+      markReviewPacket({ directory, root, slug, role: 'architecture-review', managed: !options.out })
       console.log(JSON.stringify({ packet: packetPath, prompt: promptPath, library: libraryPath, inputDigest: packet.inputDigest,
         files: packet.files.length, questions: packet.questions.length, staticErrors: packet.staticChecks.flatMap(item => item.errors) }, null, 2))
     } else {

@@ -7,6 +7,7 @@ import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { agentReviewStatus, makeAgentReviewPacket, recordAgentReview } from './lib/agent-review.mjs'
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
+import { markReviewPacket } from './lib/review-packets.mjs'
 
 const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
 const [command, slug] = positional
@@ -37,6 +38,7 @@ try {
       'Проверь инструкцию каждой роли, знания, действия, маршруты, передачу и сценарии. Только чтение: не запускай код, модель, сеть, тесты и реальные эффекты; не исправляй файлы и не вызывай субагентов. Верни только JSON по схеме.\n'
     writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
     writeFileSync(promptPath, prompt, { flag: 'wx' })
+    markReviewPacket({ directory: dir, root, slug, role: 'agent-review', managed: !options.out })
     result = { process: slug, inputDigest: packet.inputDigest, packet: packetPath, prompt: promptPath,
       library: libraryPath, referenceDigest: packet.referenceLibrary.digest,
       files: packet.files.length, questions: packet.questions.length,
