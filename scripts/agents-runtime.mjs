@@ -9,7 +9,10 @@ import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'], ['help', 'json', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const slug = positional[0]
 if (options.help || !slug) {
   console.log('agents-runtime.mjs <process> [--root DIR] [--json]')

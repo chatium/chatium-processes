@@ -3,7 +3,10 @@
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['json', 'help'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['json', 'help'], ['json', 'help', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const usage = 'Использование: kb-check.mjs <process> [--root DIR] [--json]'
 if (options.help) { console.log(usage); process.exit(0) }
 try {

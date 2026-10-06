@@ -17,12 +17,17 @@ import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
 import { inspectProcessFormat } from './lib/process-format.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'],
+  ['no-cards', 'help', 'offline', 'knowledge-stage', 'task-stage', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const slug = positional[0]
 if (options.help || !slug) {
   console.log('Использование: context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--task-stage design|build|test|launch] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
+if (positional.length !== 1) { console.error('Нужен один аргумент: слаг процесса.'); process.exit(2) }
 try {
   requireYaml()
   if (options['knowledge-stage'] && !REVIEW_STAGES.includes(options['knowledge-stage']))

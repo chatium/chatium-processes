@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const script = name => fileURLToPath(new URL(`../${name}.mjs`, import.meta.url))
 
-test('mutating commands reject unknown, valued boolean, missing and duplicate options before writing', t => {
+test('process commands reject unknown, valued boolean, missing and duplicate options before doing work', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-strict-args-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const cases = [
@@ -29,6 +29,9 @@ test('mutating commands reject unknown, valued boolean, missing and duplicate op
     ['kb-review', ['record', 'demo', '--root', root, '--json=false'], /--json/],
     ['code-review', ['record', 'demo', '--root', root, '--report', 'one.json', '--report', 'two.json'], /--report/],
     ['agent-review', ['record', 'demo', '--root', root, '--agent', 'one', '--agent', 'two'], /--agent/],
+    ['context', ['demo', '--root', root, '--offline=false'], /--offline/],
+    ['kb-check', ['demo', '--root', root, '--json=false'], /--json/],
+    ['agents-runtime', ['demo', '--root', root, '--json=false'], /--json/],
   ]
   for (const [name, args, message] of cases) {
     const result = spawnSync(process.execPath, [script(name), ...args], { encoding: 'utf8' })
