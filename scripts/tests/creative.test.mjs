@@ -126,6 +126,18 @@ test('mechanic needs an expected outcome and a real section reference', t => {
   assert.deepEqual(creativePacket(f.args).errors, [])
 })
 
+test('oversized first-screen image is rejected before a page brief is accepted', t => {
+  const f = fixture(t)
+  const asset = 'demo/assets/hero.webp'
+  f.put(asset, Buffer.alloc(1_200_000, 1))
+  f.spec.images = [{ id: 'hero-photo', sectionId: 'hero', purpose: 'Показать материал',
+    alt: 'Материал на столе', asset, aspect: '16:9', mobileCrop: 'Предмет в центре' }]
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /первого экрана.*слишком велик/)
+  f.put(asset, Buffer.alloc(300_000, 1))
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
 test('creative CLI distinguishes invalid work from an unusable command', t => {
   const f = fixture(t)
   const cli = fileURLToPath(new URL('../creative.mjs', import.meta.url))

@@ -214,9 +214,12 @@ export function creativePacket({ root, slug, nodeId }) {
     }
     for (const image of spec.images || []) if (text(image.asset)) try {
       const file = safeTaskPath(root, image.asset)
-      if (statSync(file).size > 4 * 1024 * 1024) throw Error('слишком большой asset')
+      const bytes = statSync(file).size
+      if (bytes > 4 * 1024 * 1024) throw Error('слишком большой asset')
+      if (image.sectionId === spec.sections?.[0]?.id && bytes > 1024 * 1024)
+        throw Error('изображение первого экрана слишком велико: подготовьте оптимизированный asset до 1 МиБ')
       const content = readFileSync(file)
-      assetFiles.push({ path: image.asset, sha256: hash(content) })
+      assetFiles.push({ path: image.asset, bytes, sha256: hash(content) })
     } catch (error) { errors.push(`Asset ${image.id}: ${error.message}`) }
   }
   const guidance = spec?.kind === 'landing' ? validateLanding(spec, errors, references) :

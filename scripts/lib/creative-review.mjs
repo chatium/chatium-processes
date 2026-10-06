@@ -219,7 +219,8 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
     visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode),
-    files, adjacentMissing: adjacent?.missing || [], visuals, messageFiles, implementation,
+    files, adjacentMissing: adjacent?.missing || [], assets: creative.assetFiles,
+    visuals, messageFiles, implementation,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
