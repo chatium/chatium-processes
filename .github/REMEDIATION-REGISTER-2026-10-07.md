@@ -43,7 +43,7 @@
 | R33 | О | P1 | ls-remote ждёт интерактивный пароль | scripts/lib/git-state.mjs | в работе | 580b6db |
 | R34 | О | P1 | Ветка или HEAD изменились во время чтения доски, но проверка названа актуальной | scripts/tests/freshness.test.mjs; scripts/lib/git-state.mjs — нужен сквозной прогон | в работе | 5ee604b |
 | R35 | О | P1 | Большой JSON обрывается при завершении команды | scripts/tests/check-arguments-automations.test.mjs: результат более 1 МиБ полностью разбирается после кода 1 | закрыто | 41a01c7 |
-| R36 | О | P1 | check --json раздувается всей доской | scripts/check.mjs | в работе | 24f7ae1 |
+| R36 | О | P1 | check --json раздувается всей доской | scripts/tests/freshness.test.mjs: реальная доска прочитана, но elements и заметка не попали в JSON проверки | закрыто | 3372f39 |
 | R37 | О | P8 | Старые пакеты ревью занимают /data/external | scripts/tests/review-packets.test.mjs | в работе | 7c55c3b |
 | R38 | О | P8 | Документация допускает Node, на котором CLI не работает | package.json; build/environment.md | в работе | cb165f1 |
 | R39 | О | P8 | Основной SKILL.md требует читать подробности всех режимов | SKILL.md; WORKFLOW.md | в работе | 24f7ae1 |
