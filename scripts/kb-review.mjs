@@ -8,7 +8,11 @@ import { canonicalTarget, makeReviewPacket, recordReview, reviewStatus } from '.
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
 import { markReviewPacket } from './lib/review-packets.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
+  ['help', 'json', 'root', 'stage', 'out', 'packet', 'report', 'agent']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug] = positional
 const allowed = new Set(['help', 'json', 'root', 'stage', 'out', 'packet', 'report', 'agent'])
 if (options.help || !command || !slug) {

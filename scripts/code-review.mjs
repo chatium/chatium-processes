@@ -9,7 +9,11 @@ import { makeCodeReviewPacket, recordCodeReview, codeReviewStatus } from './lib/
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
 import { markReviewPacket } from './lib/review-packets.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
+  ['help', 'json', 'root', 'out', 'packet', 'report', 'agent']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug] = positional
 if (options.help || !command || !slug) {
   console.log('code-review.mjs prepare|record|status <process> [--root DIR] [--json]\nprepare: [--out DIR]; record: --packet FILE --report FILE --agent TOOL_REFERENCE')

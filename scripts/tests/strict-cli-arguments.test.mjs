@@ -24,6 +24,11 @@ test('mutating commands reject unknown, valued boolean, missing and duplicate op
     ['board-notes', ['respond', 'demo', '--root', root, '--stauts', 'done'], /--stauts/],
     ['review-packets', ['cleanup', '--root', root, '--apply=false'], /--apply/],
     ['check', ['demo', '--root', root, '--publish-snapshot', '--publish-snapshot'], /--publish-snapshot/],
+    ['owner-decisions', ['record', 'demo', '--root', root, '--kind', 'plan', '--response', 'one.json', '--response', 'two.json'], /--response/],
+    ['reviews', ['record', 'demo', '--root', root, '--role', 'methodology', '--role', 'implementation'], /--role/],
+    ['kb-review', ['record', 'demo', '--root', root, '--json=false'], /--json/],
+    ['code-review', ['record', 'demo', '--root', root, '--report', 'one.json', '--report', 'two.json'], /--report/],
+    ['agent-review', ['record', 'demo', '--root', root, '--agent', 'one', '--agent', 'two'], /--agent/],
   ]
   for (const [name, args, message] of cases) {
     const result = spawnSync(process.execPath, [script(name), ...args], { encoding: 'utf8' })

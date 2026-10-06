@@ -11,7 +11,11 @@ import { findRoot, parseArgs } from './lib/project.mjs'
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
 import { markReviewPacket } from './lib/review-packets.mjs'
 
-const { positional, options } = parseArgs(process.argv.slice(2), ['help', 'json'])
+let parsed
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
+  ['help', 'json', 'stage', 'role', 'node', 'out', 'packet', 'report', 'agent', 'root']) }
+catch (error) { console.error(error.message); process.exit(2) }
+const { positional, options } = parsed
 const [command, slug] = positional
 if (options.help || !command || !slug) {
   console.log('reviews.mjs requirements|prepare|record|status <process> [--stage design|build|test|launch] [--role ROLE] [--node ID] [--out DIR] [--packet FILE --report FILE --agent CALL_ID] [--root DIR] [--json]')
