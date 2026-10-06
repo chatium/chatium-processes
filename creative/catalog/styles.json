@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "source": "Selected style-system fields from Start landingStylePacks.ts; values are reusable defaults, not business facts",
   "styles": {
     "clean_service": {
       "name": "Чистая сервисная страница",

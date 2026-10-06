@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "source": "Start processConfigurators/landings/shared/constants/landingSettings.ts, selection adapted 2026-10-02",
   "types": {
     "sales": {
       "purpose": "Продать предложение через полный путь аргументации от ситуации клиента до решения о покупке.",

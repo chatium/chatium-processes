@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "source": "Start processConfigurators/mailings/shared/emailTypes.ts, adapted 2026-10-02",
   "types": {
     "welcome": "Знакомство и первый полезный шаг без давления на продажу.",
     "lead_magnet": "Выдача обещанного материала, затем развитие темы и логичный следующий шаг.",
