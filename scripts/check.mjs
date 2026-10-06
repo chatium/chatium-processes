@@ -682,7 +682,9 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
           const fnRe = new RegExp(`app\\s*\\.function\\(\\s*['"\`]${String(fnPath).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}['"\`]`)
           if (!fnRe.test(src)) error(`${where}: в ${rel(root, mod)} нет app.function('${fnPath}')`)
           if (step.type === 'action' && !registered.has(String(modulePath).replace(/\.tsx?$/, ''))) {
-            warn(`${where}: действие ${modulePath} не зарегистрировано в хуке '@automations/actions' (actions/register.ts)`)
+            const message = `${where}: действие ${modulePath} не зарегистрировано в хуке '@automations/actions' (actions/register.ts)`
+            if (options['task-stage'] === 'launch') error(message)
+            else warn(message)
           }
         }
       }

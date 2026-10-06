@@ -91,6 +91,21 @@ test('unsupported branches and templated dateExpression fail automations check',
   assert.match(automations.errors.join('\n'), /JS-выражением/)
 })
 
+test('launch blocks an automation whose local action is absent from the registration hook', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\naccountId: 10\nnodes: []\nlinks: []\n')
+  f.put('demo/actions/send.ts', "export const send = app.function('/send', async () => ({success: true}))\n")
+  f.put('demo/automations/send.automationConfig.json', JSON.stringify({ title: 'Send',
+    eventUrls: ['event://external/test'], settings: { continueOnError: true },
+    steps: [{ id: 'send', type: 'action', actionName: 'Send',
+      actionRoute: { routeType: 'function', routeJson: [10, 'demo/actions/send', '/send'] }, params: {} }] }))
+  const automations = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'automations')
+  assert.match(automations().warnings.join('\n'), /не зарегистрировано/)
+  assert.match(automations('--task-stage', 'launch').errors.join('\n'), /не зарегистрировано/)
+  f.put('demo/actions/register.ts', "import { send } from './send'\napp.accountHook('@automations/actions', () => [send])\n")
+  assert.doesNotMatch(automations('--task-stage', 'launch').errors.join('\n'), /не зарегистрировано/)
+})
+
 test('letter variables are not mistaken for workspace variables', t => {
   const f = fixture(t)
   f.put('demo/message.ts', 'letter.variables.map(item => item.name); config.variables?.price?.value;\n')
