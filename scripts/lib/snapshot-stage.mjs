@@ -3,5 +3,5 @@
 export const STAGE_CHECKS = new Set([
   'tasks', 'creative.review', 'knowledge.review', 'implementation.review',
   'reviews', 'owner.plan', 'owner.launch', 'owner.launch.board',
-  'automation.smoke', 'launch.variables', 'typecheck',
+  'automation.smoke', 'launch.variables', 'table.changes', 'typecheck',
 ])

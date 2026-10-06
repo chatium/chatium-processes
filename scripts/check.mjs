@@ -28,6 +28,7 @@ import { validateProcessAgents } from './lib/agents.mjs'
 import { agentReviewStatus } from './lib/agent-review.mjs'
 import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 import { retirementStatus } from './lib/component-retirements.mjs'
+import { tableChangeStatus } from './lib/table-changes.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -355,6 +356,10 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
 
 check('retirements', 'Осознанный вывод компонентов', ({ error }) => {
   for (const issue of retirementStatus({ root, slug, map, automationFiles: automations.map(item => item.file) }).errors) error(issue)
+})
+
+check('table.changes', 'Защита схемы действующих таблиц', ({ error }) => {
+  for (const issue of tableChangeStatus({ root, slug, stage: options['task-stage'] || 'build' }).errors) error(issue)
 })
 
 check('map.sources', 'Узлы карты построены', ({ error, warn }) => {
