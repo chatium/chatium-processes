@@ -8,6 +8,21 @@ import { gitState, assertPublishedState, SnapshotDrift } from '../lib/git-state.
 import { buildSnapshot } from '../lib/snapshot.mjs'
 import { compareSnapshot, verifySnapshot } from '../lib/freshness.mjs'
 
+test('remote Git check refuses interactive credentials instead of hanging', t => {
+  const base = mkdtempSync(join(tmpdir(), 'process-git-prompt-'))
+  t.after(() => rmSync(base, { recursive: true, force: true }))
+  const bin = join(base, 'bin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'git'), '#!/bin/sh\nif [ "$GIT_TERMINAL_PROMPT" != "0" ] || [ "$GCM_INTERACTIVE" != "never" ]; then sleep 20; fi\nexit 13\n', { mode: 0o755 })
+  const moduleUrl = new URL('../lib/git-state.mjs', import.meta.url).href
+  const code = `import { git } from ${JSON.stringify(moduleUrl)}; try { git(${JSON.stringify(base)}, ['ls-remote', 'origin']); process.exitCode = 3 } catch { console.log('noninteractive refusal') }`
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+    encoding: 'utf8', timeout: 3000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+  })
+  assert.equal(result.status, 0, result.stderr || String(result.error))
+  assert.match(result.stdout, /noninteractive refusal/)
+})
+
 function fixture(t) {
   const base = mkdtempSync(join(tmpdir(), 'process-freshness-'))
   t.after(() => rmSync(base, { recursive: true, force: true }))
