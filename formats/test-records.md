@@ -34,7 +34,9 @@ export const TEST_RECORDS: Record<string, string[]> = {
 версии `main`, пока `config.mailings.testOnly: true`. Сверь фактический журнал
 и получателя. В `<process>/tests/automation-smoke.json` запиши проверяемые
 сведения; `check --task-stage launch` сопоставляет хеш конфига и предшествующий
-коммит для каждой автоматизации:
+коммит для каждой автоматизации. Он также читает конфиг и `.workspace.json`
+именно из `testedCommit`: там должны быть тот же конфиг и
+`config.mailings.testOnly: true`.
 
 ```json
 {

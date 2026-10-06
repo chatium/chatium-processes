@@ -14,7 +14,7 @@
 | R04 | О | P4 | Требуется визуальное ревью, а доступное превью не принимается | scripts/tests/creative.test.mjs; build/tasks-and-creative.md | в работе | 51b85b5 |
 | R05 | О | P1 | Проверка этапа test делает снимок старым без изменения кода | scripts/tests/freshness.test.mjs; scripts/tests/snapshot.test.mjs: смена только этапа сохраняет актуальность | закрыто | 992c343 |
 | R06 | О | P5 | condition или шаблонный dateExpression проходят check | scripts/tests/check-arguments-automations.test.mjs: оба варианта отвергаются | закрыто | 5ee604b |
-| R07 | О | P5 | Первый полный прогон автоматизации затрагивает реального клиента | scripts/tests/automation-smoke.test.mjs | в работе | e35a2e2 |
+| R07 | О | P5 | Первый полный прогон автоматизации затрагивает реального клиента | scripts/tests/automation-smoke.test.mjs: хеш конфига и testOnly подтверждены в исполненном Git-коммите; нужен реальный безопасный прогон без других побочных эффектов | в работе | e35a2e2 |
 | R08 | О | P1 | Знания пишутся до создания ветки и каркаса | SKILL.md; build/procedure.md | в работе | 24f7ae1 |
 | R09 | О | P1 | TODO в шаблоне считается завершённым интервью | scripts/tests/scaffold-knowledge.test.mjs: новый каркас остаётся на этапе знаний; scripts/tests/knowledge.test.mjs: kb-check отвергает TODO | закрыто | 4bb1687 |
 | R10 | О | P0 | Реализация начинается без ответа владельца на план | scripts/tests/tasks.test.mjs: start отказывает без ответа и проходит после реального record; scripts/tests/owner-decisions.test.mjs | закрыто | b9a7c2a |
