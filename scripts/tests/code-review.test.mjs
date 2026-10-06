@@ -76,6 +76,22 @@ test('source packet includes subtree, linked KB, central letters and mapped exte
     { id: 'T2', title: 'Проверить повторную заявку', markedDone: false }])
 })
 
+test('implementation reviewer must trace staff notification for actionable leads', t => {
+  const f = fixture(t)
+  const packet = f.packet()
+  const question = packet.questions.find(item => item.id === 'staff.notifications')
+  assert.ok(question)
+  assert.match(question.lookFor, /sendNotification/)
+  assert.match(question.lookFor, /ответственн/)
+  assert.match(question.lookFor, /повторн/)
+  const report = syntheticReport(packet)
+  Object.assign(report.answers.find(answer => answer.id === question.id), {
+    status: 'gap', priority: 'blocking', reason: 'Заявка сохраняется, но ответственный о ней не узнаёт.',
+    nextAction: 'Добавить уведомление ответственного сотрудника после сохранения заявки.', evidence: [],
+  })
+  assert.equal(save(f, packet, report).status, 'needs-work')
+})
+
 test('code conclusion ignores bookkeeping and launch toggle but tracks business changes', t => {
   const f = fixture(t)
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: true },

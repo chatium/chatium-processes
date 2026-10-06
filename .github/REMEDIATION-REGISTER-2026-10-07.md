@@ -27,7 +27,7 @@
 | R17 | О | P0 | Одна цитата на все ответы даёт зелёное ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/creative.test.mjs | в работе | 51b85b5 |
 | R18 | О | P7 | После запуска нет способа остановить или проследить процесс | build/operations.md; build/review-questions.json | в работе | 0fbc612 |
 | R19 | О | P2 | Страна и решение по согласиям не выяснены | method/interview.md; method/review-questions.json | в работе | e35a2e2 |
-| R20 | О | P5 | Заявка создана, сотрудник о ней не узнал | blocks/form-table-event.md | в работе | 6e06e5e |
+| R20 | О | P5 | Заявка создана, сотрудник о ней не узнал | scripts/tests/architecture-review.test.mjs; scripts/tests/code-review.test.mjs: отсутствие уведомления как blocking; blocks/form-table-event.md — нужен реальный тест доставки и сбоя | в работе | 6e06e5e |
 | R21 | О | P5 | Тестовый платёж ушёл через провайдера по умолчанию | blocks/payment.md | в работе | 6e06e5e |
 | R22 | О | P5 | Форма записала undefined вместо реального UTM | blocks/form-table-event.md | в работе | 6e06e5e |
 | R23 | О | P3 | Владелец не может изменить цену обещанным способом | blocks/page.md; blocks/channels.md | в работе | dc3427a |
