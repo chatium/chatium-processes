@@ -56,6 +56,8 @@ test('checker validates plugin route against registry, variables in every varian
   assert.equal(checks.find(c=>c.id==='automations').ok,true)
   assert.equal(checks.find(c=>c.id==='letters').ok,true)
   assert.equal(checks.find(c=>c.id==='letters.transport').ok,true)
+  f.put('registry.json',JSON.stringify({events:[],actions:[{routeJson:action.actionRoute.routeJson,inputSchema:[{name:'messageKey',required:true}]}],conditions:[]}))
+  assert.equal(check(['--registry',registry]).find(c=>c.id==='automations').ok,true)
   f.put('.mailings/storage/processes/demo/series/welcome.message.yaml', letter.replace('short: "{{name}}"\n', ''))
   checks=check(['--registry',registry])
   assert.ok(checks.find(c=>c.id==='letters').errors.some(e=>e.includes('поле short')))

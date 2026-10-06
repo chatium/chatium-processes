@@ -91,7 +91,7 @@ test('unsupported branches and templated dateExpression fail automations check',
   assert.match(automations.errors.join('\n'), /JS-выражением/)
 })
 
-test('launch blocks an automation whose local action is absent from the registration hook', t => {
+test('launch requires published action registry even when the local hook imports it', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\naccountId: 10\nnodes: []\nlinks: []\n')
   f.put('demo/actions/send.ts', "export const send = app.function('/send', async () => ({success: true}))\n")
@@ -103,7 +103,16 @@ test('launch blocks an automation whose local action is absent from the registra
   assert.match(automations().warnings.join('\n'), /не зарегистрировано/)
   assert.match(automations('--task-stage', 'launch').errors.join('\n'), /не зарегистрировано/)
   f.put('demo/actions/register.ts', "import { send } from './send'\napp.accountHook('@automations/actions', () => [send])\n")
-  assert.doesNotMatch(automations('--task-stage', 'launch').errors.join('\n'), /не зарегистрировано/)
+  assert.match(automations('--task-stage', 'launch').errors.join('\n'), /реестр/)
+  f.put('registry.json', JSON.stringify({ events: [], actions: [{
+    routeJson: [10, 'demo/actions/send', '/send'], inputSchema: [],
+  }], conditions: [] }))
+  const registered = automations('--task-stage', 'launch', '--registry', join(f.root, 'registry.json'))
+  assert.doesNotMatch(registered.errors.join('\n'), /не зарегистрировано|реестр/)
+  f.put('demo/actions/register.ts', 'export {}\n')
+  assert.doesNotMatch(automations('--task-stage', 'launch', '--registry', join(f.root, 'registry.json')).errors.join('\n'), /не зарегистрировано|реестр/)
+  f.put('registry.json', JSON.stringify({ events: [], actions: [], conditions: [] }))
+  assert.match(automations('--task-stage', 'launch', '--registry', join(f.root, 'registry.json')).errors.join('\n'), /реестр/)
 })
 
 test('letter variables are not mistaken for workspace variables', t => {

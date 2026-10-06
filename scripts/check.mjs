@@ -595,8 +595,9 @@ let registry = null, registryError = null
 if (options.registry) {
   try {
     registry = JSON.parse(readFileSync(options.registry, 'utf8'))
-    if (registry.accountId !== map?.accountId || !Array.isArray(registry.actions))
-      throw Error('нужны accountId целевого аккаунта и массив actions')
+    if (!Array.isArray(registry.actions) ||
+        (registry.accountId !== undefined && registry.accountId !== map?.accountId))
+      throw Error('нужен массив actions из реестра целевого аккаунта; если указан accountId, он должен совпадать с процессом')
   } catch (e) { registryError = e.message }
 }
 check('automations', 'Автоматизации: конфиг, шаги, ссылки на функции', ({ error, warn }) => {
@@ -681,11 +682,15 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
           const src = readFileSync(mod, 'utf8')
           const fnRe = new RegExp(`app\\s*\\.function\\(\\s*['"\`]${String(fnPath).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}['"\`]`)
           if (!fnRe.test(src)) error(`${where}: в ${rel(root, mod)} нет app.function('${fnPath}')`)
-          if (step.type === 'action' && !registered.has(String(modulePath).replace(/\.tsx?$/, ''))) {
+          const publishedAction = registry?.actions.some(entry => JSON.stringify(entry.routeJson) === JSON.stringify(rj))
+          if (step.type === 'action' && !registered.has(String(modulePath).replace(/\.tsx?$/, '')) &&
+              !(options['task-stage'] === 'launch' && publishedAction)) {
             const message = `${where}: действие ${modulePath} не зарегистрировано в хуке '@automations/actions' (actions/register.ts)`
             if (options['task-stage'] === 'launch') error(message)
             else warn(message)
           }
+          if (step.type === 'action' && options['task-stage'] === 'launch' && !publishedAction)
+            error(`${where}: локальное действие не подтверждено реестром опубликованного аккаунта — передайте --registry FILE`)
         }
       }
     }
