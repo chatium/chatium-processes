@@ -393,3 +393,19 @@ test('failed attempt retries and accepted card can be reopened with history', t 
   assert.equal(f.task().result, null)
   assert.equal(f.run('start', 'W001').json.attemptId, 'R003')
 })
+
+test('three identical failed attempts require a changed input or work plan', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  f.put('failure.json', { reason: 'Та же ошибка формы без исправления' })
+  for (let i = 0; i < 3; i++) {
+    assert.equal(f.run('start', 'W001').status, 0)
+    assert.equal(f.run('fail', 'W001', '--file', join(f.root, 'failure.json')).status, 0)
+  }
+  const repeated = f.run('start', 'W001')
+  assert.equal(repeated.status, 1)
+  assert.match(repeated.stderr, /три одинаковые неудачные попытки/)
+  f.put('.knowledge-base/processes/demo/form.md', 'Email и телефон обязательны. Новое правило.\n')
+  f.approve()
+  assert.equal(f.run('start', 'W001').json.attemptId, 'R004')
+})

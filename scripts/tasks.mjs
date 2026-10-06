@@ -121,10 +121,20 @@ try {
     const outputs = new Set(task.expectedOutputs.map(o => o.path))
     for (const material of task.inputs) if (!outputs.has(material.path)) safeTaskPath(root, material.path)
     const inputDigest = taskInputDigest(root, task)
+    const definitionDigest = taskDefinitionDigest(task, planTask)
+    let repeatedFailures = 0
+    for (let i = task.attempts.length - 1; i >= 0; i--) {
+      const previousAttempt = task.attempts[i]
+      if (previousAttempt.status !== 'failed' || previousAttempt.inputDigest !== inputDigest ||
+          previousAttempt.definitionDigest !== definitionDigest) break
+      repeatedFailures++
+    }
+    if (repeatedFailures >= 3)
+      throw Error('Остановлено: три одинаковые неудачные попытки с теми же входами и планом. Разберите причину, измените входы или карточку и начните снова.')
     const attemptId = `R${String(task.attempts.length + 1).padStart(3, '0')}`
     const attempt = { id: attemptId, executor: task.executor, session: task.session,
       startedAt: now(), finishedAt: null, status: 'running',
-      definitionDigest: taskDefinitionDigest(task, planTask), inputDigest, responseRef: null,
+      definitionDigest, inputDigest, responseRef: null,
       baseInputs: expandedTaskInputs(root, task)
         .filter(input => outputs.has(input.path) && existsSync(join(root, input.path)))
         .map(input => ({ path: input.path, sha256: sha(readFileSync(safeTaskPath(root, input.path))) })),
