@@ -357,13 +357,14 @@ check('retirements', 'Осознанный вывод компонентов', (
   for (const issue of retirementStatus({ root, slug, map, automationFiles: automations.map(item => item.file) }).errors) error(issue)
 })
 
-check('map.sources', 'Узлы карты построены', ({ error }) => {
+check('map.sources', 'Узлы карты построены', ({ error, warn }) => {
   for (const n of nodes) {
     if (!n?.source) continue
     const src = norm(n.source)
     const abs = join(root, src)
     if (!existsSync(abs)) {
-      error(`${n.id}: не построено — нет ${src}`)
+      if (options['task-stage'] === 'design') warn(`${n.id}: исходник ${src} появится на этапе сборки`)
+      else error(`${n.id}: не построено — нет ${src}`)
       continue
     }
     if (n.kind === 'page' && !(isFile(join(abs, 'index.tsx')) || (isFile(abs) && abs.endsWith('.tsx')))) {
@@ -833,7 +834,8 @@ check('creative.review', 'Независимое ревью страниц и с
 try { checks.push(...collectKnowledge({ root, slug }).checks) }
 catch (e) { check('kb-scope', 'Материалы процесса', ({ error }) => error(e.message)) }
 const knowledgeStage = options['knowledge-stage'] ||
-  (isFile(join(dir, 'PLAN.md')) && /^- Запуск: согласован/m.test(readFileSync(join(dir, 'PLAN.md'), 'utf8')) ? 'launch' : 'build')
+  (options['task-stage'] === 'design' ? 'design' :
+    isFile(join(dir, 'PLAN.md')) && /^- Запуск: согласован/m.test(readFileSync(join(dir, 'PLAN.md'), 'utf8')) ? 'launch' : 'build')
 check('knowledge.review', `Независимое ревью знаний (${knowledgeStage})`, ({ error, warn }) => {
   const result = reviewStatus({ root, slug, stage: knowledgeStage })
   if (result.error) error(result.error)
@@ -843,7 +845,7 @@ check('knowledge.review', `Независимое ревью знаний (${kno
     error('Готовность не подтверждена: исправьте структурные ошибки базы знаний.')
 })
 
-check('implementation.review', 'Независимое ревью реализации', ({ error, warn }) => {
+if ((options['task-stage'] || 'build') !== 'design') check('implementation.review', 'Независимое ревью реализации', ({ error, warn }) => {
   const result = codeReviewStatus({ root, slug })
   if (result.error) error(result.error)
   for (const gap of result.blocking || []) error(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)

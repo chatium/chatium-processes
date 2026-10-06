@@ -32,6 +32,16 @@ test('unknown option exits before any snapshot or output-file write', t => {
   assert.throws(() => readFileSync(target))
 })
 
+test('design gate asks for design review without requiring implementation sources', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: home\n    kind: page\n    stage: Lead\n    title: Home\n    purpose: Capture\n    source: demo/home/\nlinks: []\n')
+  const checks = JSON.parse(f.run('--task-stage', 'design').stdout).checks
+  assert.equal(checks.find(check => check.id === 'implementation.review'), undefined)
+  assert.match(checks.find(check => check.id === 'knowledge.review').title, /design/)
+  assert.equal(checks.find(check => check.id === 'map.sources').ok, true)
+  assert.match(checks.find(check => check.id === 'map.sources').warnings.join('\n'), /этапе сборки/)
+})
+
 test('unsupported branches and templated dateExpression fail automations check', t => {
   const f = fixture(t)
   f.put('demo/automations/a.automationConfig.json', JSON.stringify({
