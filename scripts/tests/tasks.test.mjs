@@ -15,6 +15,17 @@ test('CRLF and deeper indentation preserve plan tasks and criteria', () => {
   const plan = '# План\r\n\r\n## Задачи\r\n- [ ] T1 Форма\r\n    - T1.A1 [build] Данные сохранены\r\n'
   assert.deepEqual(parseTaskPlan(plan).map(task => [task.id, task.criteria.map(item => item.id)]), [['T1', ['T1.A1']]])
 })
+
+test('implementation cannot start without a current owner plan answer', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  rmSync(join(f.root, 'demo/decisions/plan.json'))
+  const missing = f.run('start', 'W001')
+  assert.equal(missing.status, 1)
+  assert.match(missing.stderr, /Нет ответа владельца/)
+  f.approve()
+  assert.equal(f.run('start', 'W001').status, 0)
+})
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-tasks-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
