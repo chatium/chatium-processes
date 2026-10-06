@@ -16,7 +16,7 @@
 | R06 | О | P5 | condition или шаблонный dateExpression проходят check | scripts/tests/check-arguments-automations.test.mjs: оба варианта отвергаются | закрыто | 5ee604b |
 | R07 | О | P5 | Первый полный прогон автоматизации затрагивает реального клиента | scripts/tests/automation-smoke.test.mjs | в работе | e35a2e2 |
 | R08 | О | P1 | Знания пишутся до создания ветки и каркаса | SKILL.md; build/procedure.md | в работе | 24f7ae1 |
-| R09 | О | P1 | TODO в шаблоне считается завершённым интервью | scripts/context.mjs; scripts/lib/knowledge.mjs | в работе | 580b6db |
+| R09 | О | P1 | TODO в шаблоне считается завершённым интервью | scripts/tests/scaffold-knowledge.test.mjs: новый каркас остаётся на этапе знаний; scripts/tests/knowledge.test.mjs: kb-check отвергает TODO | закрыто | 4bb1687 |
 | R10 | О | P0 | Реализация начинается без ответа владельца на план | scripts/tests/tasks.test.mjs: start отказывает без ответа и проходит после реального record; scripts/tests/owner-decisions.test.mjs | закрыто | b9a7c2a |
 | R11 | О | P1 | Опечатка --no-snapshto или --publish-snapshot=false вызывает запись снимка | scripts/tests/check-arguments-automations.test.mjs: код 2, файл не создан | закрыто | ee8dec7 |
 | R12 | О | P1 | Процесс без писем не проходит ревью реализации | scripts/tests/code-review.test.mjs: папка писем не требуется без серии, явная ссылка на отсутствующую папку ошибочна | закрыто | 580b6db |
