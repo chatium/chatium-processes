@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildSnapshot } from '../lib/snapshot.mjs'
+import { buildSnapshot, publishSnapshot } from '../lib/snapshot.mjs'
 const root=mkdtempSync(join(tmpdir(),'process-snapshot-'))
 const map={title:'Demo',stages:['Start','Follow up'],nodes:[{id:'page',stage:'Start',kind:'page',title:'Page',purpose:'Start',source:'demo/page/'},{id:'series',stage:'Follow up',kind:'series',title:'Series',purpose:'Follow up',source:'.mailings/storage/processes/demo/series/'}],links:[{from:'page',to:'series',when:'After one day',via:'demo/automations/'}],needsInput:[{title:'Approve texts',nodeId:'series'}]}
 mkdirSync(join(root,'demo/page'),{recursive:true});mkdirSync(join(root,'demo/automations'),{recursive:true});mkdirSync(join(root,'.mailings/storage/processes/demo/series'),{recursive:true})
@@ -14,6 +14,10 @@ test('letters, action branches and needs-input survive in snapshot',()=>{const s
 test('automation file paths survive in snapshot',()=>{assert.deepEqual(build().links[0].automationFiles,['demo/automations/test.automationConfig.json'])})
 test('agent path and explicit runtime ID survive in snapshot',()=>{const agent={id:'helper',stage:'Follow up',kind:'agent',title:'Helper',purpose:'',source:'demo/agents/helper.agent.json',agentId:'agent-42'};const nodes=build({map:{...map,nodes:[...map.nodes,agent]}}).nodes;assert.equal(nodes[2].kind,'external');assert.deepEqual(nodes[2].agent,{path:agent.source,id:'agent-42'});assert.deepEqual(build({map:{...map,nodes:[...map.nodes,{...agent,agentId:undefined}]}}).nodes[2].agent,{path:agent.source})})
 test('snapshot bounds long diagnostics to the Start contract without hiding local check output',()=>{const errors=Array.from({length:102},(_,i)=>`Ошибка ${i}: `+'x'.repeat(2100));const snapshot=build({checks:[{id:'long',title:'Большая проверка',ok:false,errors,warnings:[]}]});assert.equal(snapshot.checks[0].errors.length,100);assert.ok(snapshot.checks[0].errors.every(item=>item.length<=2000));assert.equal(errors.length,102)})
+test('oversized snapshot is rejected locally before Git or SDK publication', async () => {
+  const snapshot = { ...build(), title: 'x'.repeat(250_000) }
+  await assert.rejects(() => publishSnapshot(root, snapshot), /250.?000|250 KB/)
+})
 test('agent runtime ID is accepted only on an agent source',()=>{assert.throws(()=>build({map:{...map,nodes:[{...map.nodes[0],agentId:'agent-42'}]}}),/Invalid agentId/);assert.throws(()=>build({map:{...map,nodes:[{...map.nodes[0],source:'demo/agents/helper.agent.json',agentId:'  '}]}}),/Invalid agentId/)})
 test('multiple automation files keep separate paths',()=>{const second=join(root,'demo/automations/other.automationConfig.json');writeFileSync(second,JSON.stringify({steps:[]}));try{assert.deepEqual(build().links[0].automationFiles,['demo/automations/other.automationConfig.json','demo/automations/test.automationConfig.json'])}finally{rmSync(second)}})
 test('absent source is missing even when it needs approval',()=>{const s=build({map:{...map,nodes:map.nodes.map(n=>({...n,source:'absent/'}))}});assert.equal(s.nodes[1].status,'missing')})

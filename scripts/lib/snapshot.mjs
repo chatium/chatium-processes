@@ -112,9 +112,9 @@ export async function startExec(root, sdkCode) {
   return JSON.parse(r.stdout)
 }
 export async function publishSnapshot(root, snapshot) {
-  assertPublishedState(root, snapshot)
   const payload = JSON.stringify(snapshot)
-  if (payload.length > 250_000) throw Error('Snapshot exceeds 250 KB')
+  if (payload.length > 250_000) throw Error('Снимок превышает предел сервера: 250 000 символов JSON. Сократите карту или диагностику.')
+  assertPublishedState(root, snapshot)
   const saved = await startExec(root,
     `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`)
   if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
