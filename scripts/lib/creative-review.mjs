@@ -11,7 +11,7 @@ import { SKILL_DIR } from './project.mjs'
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 const inside = (base, target) => target === base || target.startsWith(base + sep)
-const questions = (kind, stage, guidance, messages = []) => [
+const questions = (kind, stage, guidance, messages = [], visualMode = 'png') => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
@@ -35,11 +35,15 @@ const questions = (kind, stage, guidance, messages = []) => [
     { id: `message.${message.id}.short`, messageId: message.id,
       question: `Сохраняет ли short сообщения ${message.id} главный смысл и действие без обрыва и лишнего обещания?` },
     { id: `message.${message.id}.render`, messageId: message.id,
-      question: `Просмотрены ли desktop/mobile-рендеры email ${message.id} и соответствует ли вид спецификации?` },
+      question: visualMode === 'owner-preview'
+        ? `Подтвердил ли владелец вид email ${message.id} на desktop/mobile в живом превью текущей версии?`
+        : `Просмотрены ли desktop/mobile-рендеры email ${message.id} и соответствует ли вид спецификации?` },
   ]) : []),
   ...(stage === 'result' ? [
     { id: 'implemented', question: 'Совпадает ли фактическое содержимое и поведение с заданием?' },
-    { id: 'visual', question: 'Проверен ли отрендеренный результат на нужных размерах/в канале?' },
+    { id: 'visual', question: visualMode === 'owner-preview'
+      ? 'Подтвердил ли владелец вид результата на нужных размерах/в канале в живом превью текущей версии?'
+      : 'Проверен ли отрендеренный результат на нужных размерах/в канале?' },
   ] : []),
 ]
 
@@ -83,6 +87,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     ...creative.referenceFiles.map(f => f.path)]
   const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
   let visuals = []
+  let visualMode = 'png'
   let implementation = []
   let messageFiles = []
   if (stage === 'result') {
@@ -125,9 +130,19 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     const visualFile = safeTaskPath(root, visualPath)
     if (lstatSync(visualFile).size > 64 * 1024) throw Error('Слишком большое описание снимков.')
     const visual = JSON.parse(readFileSync(visualFile, 'utf8'))
+    visualMode = visual.mode || 'png'
+    if (!['png', 'owner-preview'].includes(visualMode)) throw Error('Неизвестный режим визуальной проверки.')
     const maxCaptures = creative.node.kind === 'series' ? 120 : 12
     if (!Array.isArray(visual.captures) || !visual.captures.length || visual.captures.length > maxCaptures)
       throw Error(`Нужны от 1 до ${maxCaptures} снимков результата.`)
+    if (visualMode === 'owner-preview') {
+      const owner = visual.ownerReview
+      if (!text(owner?.owner) || !text(owner?.message) || !text(owner?.messageReference) ||
+          !Number.isFinite(Date.parse(owner?.reviewedAt)))
+        throw Error('Для живого превью нужны фактический ответ владельца, ссылка на него, имя и время просмотра.')
+      if (Date.parse(owner.reviewedAt) > Date.now() + 5 * 60_000)
+        throw Error('Время просмотра владельцем находится в будущем.')
+    }
     const git = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 5000 })
     const currentCommit = git.status === 0 ? git.stdout.trim() : null
     const versions = new Set(visual.captures.map(c => c.codeVersion))
@@ -146,6 +161,12 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         run(['status', '--porcelain', '--untracked-files=normal', '--', ...paths]).stdout.trim())
       throw Error('Результат изменился после версии снимков; нужны новые снимки и ревью.')
     visuals = visual.captures.map(capture => {
+      if (visualMode === 'owner-preview') {
+        if (!text(capture.viewport) || !/^https:\/\/[^\s@/]+(?:\/|$)/i.test(capture.url || ''))
+          throw Error('У живого превью нужны viewport и HTTPS-ссылка без credentials.')
+        return { ...capture, kind: 'owner-preview',
+          path: `${visualPath}#${capture.messageId || nodeId}:${capture.viewport}` }
+      }
       if (!text(capture.path) || !text(capture.viewport) || !text(capture.codeVersion)) throw Error('У снимка нужны путь, viewport и версия кода.')
       const path = safeTaskPath(root, capture.path)
       if (lstatSync(path).size > 5 * 1024 * 1024) throw Error(`Слишком большой снимок ${capture.path}.`)
@@ -156,7 +177,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         throw Error(`Снимок ${capture.path} должен быть PNG-изображением.`)
       const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20)
       if (!width || !height || width > 16000 || height > 16000) throw Error(`Неверный размер снимка ${capture.path}.`)
-      return { ...capture, width, height, sha256: sha(bytes) }
+      return { ...capture, kind: 'png', width, height, sha256: sha(bytes) }
     })
     if (creative.node.kind === 'page' && !['desktop', 'mobile'].every(view => visuals.some(v => v.viewport === view)))
       throw Error('Для страницы нужны desktop и mobile снимки.')
@@ -169,7 +190,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || []),
+    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode),
     files, visuals, messageFiles, implementation, reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
@@ -200,10 +221,21 @@ function validateReport(report, packet) {
       if (!answer.evidence.some(item => related.includes(item.path)))
         throw Error(`${answer.id}: нужен пример именно из проверяемого письма или его спецификации.`)
     }
+    if (packet.stage === 'result' && packet.visualMode === 'owner-preview' &&
+        answer.status === 'pass' && (answer.id === 'visual' || answer.id.endsWith('.render')) &&
+        !answer.evidence.some(item => item.path === `${packet.process}/reviews/creative/${packet.nodeId}-visual.json`))
+      throw Error(`${answer.id}: нужен точный фрагмент ответа владельца о живом превью.`)
     if (answer.status === 'blocking') blocking.push(answer)
     if (answer.status === 'advisory') advisory.push(answer)
   }
-  if (packet.stage === 'result' && (!Array.isArray(report.inspectedVisuals) ||
+  const positive = report.answers.filter(answer => answer.status === 'pass')
+  if (positive.length >= 3) {
+    const evidence = positive.map(answer => JSON.stringify(answer.evidence.map(item =>
+      [item.path, item.quote.replace(/\s+/g, ' ').trim()]).sort((a, b) => a[0].localeCompare(b[0]))))
+    if (new Set(evidence).size === 1)
+      throw Error('Одна и та же цитата повторена для разных вопросов творческого ревью.')
+  }
+  if (packet.stage === 'result' && packet.visualMode === 'png' && (!Array.isArray(report.inspectedVisuals) ||
       packet.visuals.some(v => !report.inspectedVisuals.includes(v.path)))) throw Error('Не подтверждён просмотр всех снимков.')
   return { status: blocking.length ? 'needs-work' : 'ready', blocking, advisory }
 }

@@ -206,8 +206,8 @@ test('series result checks every channel version and email render per message', 
   const report = { version: 1, process: 'demo', nodeId: 'followup', stage: 'result',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
     inspectedVisuals: packet.visuals.map(visual => visual.path),
-    answers: packet.questions.map(question => ({ id: question.id, status: 'pass', reason: 'Проверен конкретный файл.',
-      evidence: [{ path: messagePath, quote: 'Польза' }] })) }
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass', reason: 'Проверен конкретный файл.',
+      evidence: [{ path: messagePath, quote: 'Польза'.slice(0, 4 + index % 3) }] })) }
   const unrelated = { ...report, answers: report.answers.map(answer => answer.id === 'message.value.email' ?
     { ...answer, evidence: [{ path: 'demo/creative/followup/spec.yaml', quote: 'Польза' }] } : answer) }
   assert.throws(() => recordCreativeReview({ ...args, stage: 'result', packet, report: unrelated,
@@ -241,9 +241,12 @@ test('independent review is tied to the current brief and sources', t => {
   const quote = 'Материал помогает сделать первый шаг'
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
-    answers: packet.questions.map(q => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
-      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote }] })),
+    answers: packet.questions.map((q, index) => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
+      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: quote.slice(0, 8 + index % 3) }] })),
   }
+  const repeated = structuredClone(report)
+  for (const answer of repeated.answers) answer.evidence = [{ path: '.knowledge-base/processes/demo/offer.md', quote }]
+  assert.throws(() => recordCreativeReview({ ...args, packet, report: repeated, agentReference: 'unit-test-only' }), /Одна и та же цитата/)
   assert.equal(recordCreativeReview({ ...args, packet, report, agentReference: 'unit-test-only' }).status, 'ready')
   assert.equal(JSON.parse(readFileSync(join(f.root, 'demo/reviews/creative/lead-page-spec.json'), 'utf8')).status, 'ready')
   assert.equal(creativeReviewStatus(args).status, 'ready')
@@ -286,6 +289,40 @@ test('result screenshots are tied to a committed, unchanged implementation', t =
   assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
 })
 
+test('owner-confirmed live preview is accepted only for the reviewed code and both viewports', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Получить материал',
+    source: 'demo/page.ts', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
+  f.put('demo/page.ts', 'export const title = "Материал"\n')
+  writeCreativeBuild(f.args)
+  const git = (...args) => spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+  assert.equal(git('init', '-q').status, 0)
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'implementation').status, 0)
+  const codeVersion = git('rev-parse', 'HEAD').stdout.trim()
+  const path = 'demo/reviews/creative/lead-page-visual.json'
+  const visual = { mode: 'owner-preview', ownerReview: { owner: 'Owner',
+    message: 'Посмотрел страницу на телефоне и компьютере, вид подходит.',
+    messageReference: 'conversation:test-123', reviewedAt: new Date().toISOString() },
+  captures: ['desktop', 'mobile'].map(viewport => ({ url: 'https://demo.example/page', viewport, codeVersion })) }
+  f.put(path, visual)
+  const packet = creativeReviewPacket({ ...f.args, stage: 'result' })
+  assert.equal(packet.visualMode, 'owner-preview')
+  assert.equal(packet.visuals.length, 2)
+  assert.match(packet.questions.find(q => q.id === 'visual').question, /владелец/)
+  visual.ownerReview.messageReference = ''
+  f.put(path, visual)
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /ссылка на него/)
+  visual.ownerReview.messageReference = 'conversation:test-123'
+  visual.captures.pop()
+  f.put(path, visual)
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /mobile/)
+  visual.captures.push({ url: 'https://demo.example/page', viewport: 'mobile', codeVersion })
+  f.put(path, visual)
+  f.put('demo/page.ts', 'export const title = "Изменено"\n')
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /Результат изменился/)
+})
+
 test('built-in reference cannot escape its catalog', t => {
   const f = fixture(t)
   f.spec.references = ['creative/catalog/../../../SKILL.md']
@@ -312,8 +349,8 @@ test('a current creative review can substantiate a work-task criterion', t => {
   const packet = creativeReviewPacket(reviewArgs)
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
-    answers: packet.questions.map(q => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
-      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг' }] })),
+    answers: packet.questions.map((q, index) => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
+      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг'.slice(0, 8 + index % 3) }] })),
   }
   f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Проверить страницу\n  - T1.A1 [build] Спецификация проверена.\n')
   f.put('demo/tasks/index.json', { version: 1 })
@@ -391,8 +428,8 @@ test('creative implementation starts after accepted expert and spec tasks with c
   const packet = creativeReviewPacket({ ...f.args, stage: 'spec' })
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec', inputDigest: packet.inputDigest,
     inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
-    answers: packet.questions.map(question => ({ id: question.id, status: 'pass', reason: 'Подтверждено источником.',
-      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг' }] })) }
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass', reason: 'Подтверждено источником.',
+      evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг'.slice(0, 8 + index % 3) }] })) }
   recordCreativeReview({ ...f.args, stage: 'spec', packet, report, agentReference: 'reviewer-1' })
   for (const args of [['init', '-q'], ['config', 'user.email', 'test@example.invalid'],
     ['config', 'user.name', 'Test'], ['add', '.'], ['commit', '-qm', 'Initial']]) {
