@@ -5,7 +5,7 @@ import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 export async function readBoard(root, target) {
   return startExec(root,
-    `import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})`)
+    `import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})`, target.commit)
 }
 
 // Time changes on every check. Object key order is not part of the contract.

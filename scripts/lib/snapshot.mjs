@@ -5,7 +5,7 @@ import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
-import { gitState, assertPublishedState } from './git-state.mjs'
+import { gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 function safePath(root, value) {
@@ -105,10 +105,15 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root) }) {
   return buildSnapshot({ root, slug, map, checks, ...state })
 }
-export async function startExec(root, sdkCode) {
+export async function startExec(root, sdkCode, expectedCommit) {
   // Use the public CLI entrypoint, including the image's supported wrapper.
   const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Start exec failed: ${r.error?.message || r.stderr.trim()}`)
+  if (expectedCommit) {
+    const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
+    if (!executed) throw Error('CLI не сообщил SHA исполненного коммита; актуальность результата не подтверждена.')
+    if (executed !== expectedCommit) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+  }
   return JSON.parse(r.stdout)
 }
 export async function publishSnapshot(root, snapshot) {
@@ -116,7 +121,7 @@ export async function publishSnapshot(root, snapshot) {
   if (payload.length > 250_000) throw Error('Снимок превышает предел сервера: 250 000 символов JSON. Сократите карту или диагностику.')
   assertPublishedState(root, snapshot)
   const saved = await startExec(root,
-    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`)
+    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit)
   if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
   if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('Snapshot write returned an invalid revision')
   return { saved: true, revision: saved.revision }

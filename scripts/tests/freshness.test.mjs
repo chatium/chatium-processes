@@ -149,6 +149,25 @@ test('post-read remote changes fail and transport errors stay unavailable', asyn
   assert.throws(() => compareSnapshot(f.expected, {}), /SDK/)
 })
 
+test('branch or HEAD changed while reading the board cannot be reported current', async t => {
+  const branch = fixture(t)
+  const changedBranch = await verifySnapshot(branch.root, branch.expected, { reader: async () => {
+    branch.run(['checkout', '-b', 'process/other'])
+    return branch.board
+  } })
+  assert.equal(changedBranch.status, 'stale')
+  assert.equal(changedBranch.verified, false)
+
+  const head = fixture(t)
+  const changedHead = await verifySnapshot(head.root, head.expected, { reader: async () => {
+    writeFileSync(join(head.root, 'demo/code.txt'), 'new published version')
+    head.run(['add', '.']); head.run(['commit', '-m', 'Concurrent change'])
+    return head.board
+  } })
+  assert.equal(changedHead.status, 'stale')
+  assert.equal(changedHead.verified, false)
+})
+
 test('public SDK works through a CLI wrapper: readback, offline and typecheck preserve the entrypoint', t => {
   const f = fixture(t)
   const scripts = resolve(import.meta.dirname, '..')
@@ -162,6 +181,7 @@ test('public SDK works through a CLI wrapper: readback, offline and typecheck pr
   // A valid map with an unfinished plan: red checks must not block a truthful snapshot.
   writeFileSync(join(f.root, 'demo/process.yaml'), 'title: Demo\nknowledge: .knowledge-base/processes/demo\nstages: [Start]\nnodes:\n  - id: first\n    stage: Start\n    kind: external\n    title: First\n    purpose: Start\n    source: demo/code.txt\nlinks: []\n')
   f.run(['add', '.']); f.run(['commit', '-m', 'Scaffold']); f.run(['push', 'origin', 'HEAD'])
+  const publishedCommit = f.run(['rev-parse', 'HEAD'])
   const snapshotFile = join(f.base, 'snapshot.json'), boardFile = join(f.base, 'board.json'), callsFile = join(f.base, 'calls.txt')
   r = runNode([join(scripts, 'check.mjs'), 'demo', '--no-snapshot', '--snapshot-file', snapshotFile, '--json'])
   const payload = JSON.parse(readFileSync(snapshotFile, 'utf8'))
@@ -185,6 +205,7 @@ const code = readFileSync(0, 'utf8')
 if (!code.includes("from '@start/sdk'")) process.exit(7)
 const file = process.env.TEST_BOARD_FILE
 const board = JSON.parse(readFileSync(file, 'utf8'))
+process.stderr.write('Executed commit: ' + (process.env.TEST_EXECUTED_SHA || process.env.TEST_PUBLISHED_SHA) + '\\n')
 if (code.includes('writeProcessSnapshot')) {
   appendFileSync(process.env.TEST_CALLS_FILE, 'write\\n')
   const snapshot = JSON.parse(code.slice(code.indexOf('(ctx, ') + 6, code.lastIndexOf(')')))
@@ -197,13 +218,13 @@ if (code.includes('writeProcessSnapshot')) {
 } else process.exit(9)
 `)
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TEST_BOARD_FILE: boardFile,
-    TEST_CALLS_FILE: callsFile, TEST_NODE: process.execPath, TEST_CLI: cli }
+    TEST_CALLS_FILE: callsFile, TEST_NODE: process.execPath, TEST_CLI: cli, TEST_PUBLISHED_SHA: publishedCommit }
   const check = flags => {
     const result = spawnSync(process.execPath, [join(scripts, 'check.mjs'), 'demo', '--json', ...flags], { cwd: f.root, encoding: 'utf8', env })
     return { ...result, report: JSON.parse(result.stdout) }
   }
   let result = check(['--verify-snapshot'])
-  assert.equal(result.report.snapshot.verified, true)
+  assert.equal(result.report.snapshot.verified, true, JSON.stringify(result.report.snapshot))
   assert.equal(result.report.snapshot.elements, undefined)
   assert.doesNotMatch(result.stdout, /Please review/)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\n')
@@ -239,4 +260,13 @@ if (code.includes('writeProcessSnapshot')) {
   assert.match(missing.stdout, /unknown-process/)
   assert.doesNotMatch(missing.stdout, /Please review/)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nwrite\nread\nread\nread\ntypecheck\nread\n')
+  env.TEST_EXECUTED_SHA = '0'.repeat(40)
+  const wrongCommit = check(['--verify-snapshot'])
+  assert.equal(wrongCommit.report.snapshot.verified, false)
+  assert.match(wrongCommit.report.snapshot.error, /исполнен|коммит/i)
+  const wrongPublish = check(['--publish-snapshot'])
+  assert.equal(wrongPublish.report.snapshot.verified, false)
+  assert.equal(wrongPublish.report.snapshot.saved, false)
+  assert.match(wrongPublish.report.snapshot.error, /исполнен|коммит/i)
+  delete env.TEST_EXECUTED_SHA
 })
