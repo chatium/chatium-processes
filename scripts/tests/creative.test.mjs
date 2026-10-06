@@ -71,6 +71,19 @@ test('source must contain the named nonempty section', t => {
   assert.deepEqual(creativePacket(f.args).errors, [])
 })
 
+test('page catalog keeps the V4 scenario coverage with review guidance', () => {
+  const catalog = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/landing-types.json'), 'utf8'))
+  const v4 = ['sales', 'lead_magnet', 'course', 'service', 'quiz', 'content', 'event', 'webinar',
+    'promo', 'ecommerce', 'thankyou', 'business_card', 'portfolio', 'link_in_bio', 'coming_soon',
+    'waitlist', 'comparison', 'case_study', 'vacancy', 'vsl', 'product_launch', 'challenge',
+    'application', 'oto', 'pricing_page', 'redesign', 'longread_sales']
+  for (const key of v4) {
+    const item = catalog.types[key]
+    assert.ok(item, `missing ${key}`)
+    assert.ok(item.purpose && item.guidance && item.reviewQuestions?.length, `incomplete ${key}`)
+  }
+})
+
 test('sales permits author-selected sections, keeps a real conversion path and distinct A/B variants', t => {
   const f = fixture(t)
   f.spec.landingType = 'sales'
