@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { acceptanceErrors, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { SKILL_DIR } from '../lib/project.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
 
@@ -194,10 +195,15 @@ test('main agent can resume after a KB answer and close a task only with evidenc
     inputDigest: f.task().attempts.at(-1).inputDigest,
     testedFiles: [{ path: 'demo/form.vue', sha256: f.sha('demo/form.vue') }],
     checks: [{ id: 'valid-email', status: 'pass' }] })
-  f.put('result.json', { attemptId: 'R002', summary: 'Форма и проверка готовы',
-    outputs: [{ path: 'demo/form.vue' }],
-    criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{ path: 'demo/reviews/tasks/W001/tests.json', locator: 'valid-email', observation: 'Заявка записана' }] }],
-  })
+  const resultGuide = readFileSync(join(SKILL_DIR, 'formats/work-task.md'), 'utf8')
+  const resultExample = /```json\n([\s\S]*?)\n```/.exec(resultGuide.split('## Результат для `tasks.mjs record`\n')[1])?.[1]
+  assert.ok(resultExample, 'справка должна содержать JSON результата задачи')
+  const documentedResult = JSON.parse(resultExample)
+  documentedResult.attemptId = 'R002'
+  documentedResult.outputs[0].path = 'demo/form.vue'
+  documentedResult.criteriaResults[0].evidence[0].path = 'demo/reviews/tasks/W001/tests.json'
+  documentedResult.criteriaResults[0].evidence[0].locator = 'valid-email'
+  f.put('result.json', documentedResult)
   assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).json.status, 'result-ready')
   f.put('demo/process.yaml', { nodes: [{ id: 'form', kind: 'page', source: 'demo/form.vue' }] })
   const oldTask = f.run('accept', 'W001')

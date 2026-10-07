@@ -38,11 +38,33 @@ sections:
       - text: После заявки менеджер предложит время
         sourceRef: offer
     presentation:
-      desktop: Заголовок и видимая форма рядом
-      mobile: Заголовок, короткое пояснение, форма
+      desktop: Заголовок и ссылка к форме ниже
+      mobile: Заголовок, короткое пояснение, кнопка к форме
     mechanicRefs: []
     acceptance: [С первого экрана понятен следующий шаг]
-mechanics: []
+  - id: request
+    type: form_section
+    purpose: Получить контакт для консультации
+    covers: [поля заявки и подтверждение]
+    points:
+      - text: После заявки менеджер предложит время
+        sourceRef: offer
+    presentation:
+      desktop: Короткая форма и пояснение о следующем шаге
+      mobile: Поля друг под другом, видимая кнопка
+    mechanicRefs: [request-form]
+    acceptance: [Ошибку можно исправить, успешная заявка сохранена]
+mechanics:
+  - id: request-form
+    type: form
+    purpose: Передать заявку менеджеру
+    expectedOutcome: Заявка сохранена, посетитель видит подтверждение
+    placement: request
+    fields: [name, email]
+    target: demo/api/request
+    success: Показать подтверждение после сохранения
+    error: Показать ошибку и оставить введённые данные
+    mobile: Поля и кнопка доступны на узком экране
 design:
   styleId: clean_service
   adaptation: Спокойная цветовая схема соответствует материалам бизнеса
@@ -55,6 +77,12 @@ abTesting:
 openQuestions: []
 acceptance: [Заявка записана, пользователь видит подтверждение]
 ```
+
+Для этого примера в `.knowledge-base/processes/demo/offer.md` должен быть
+раздел `# Условия консультации` с подтверждённым описанием предложения.
+`demo/api/request` — запланированный обработчик формы: задание описывает
+ожидаемое поведение, а реализация и тест должны подтвердить сохранение
+заявки, ошибку и уведомление менеджера.
 
 Допустимые `landingType`, `styleId` и типы механик смотри в
 `creative/catalog/`. Большой каталог стилей не нужно читать целиком:
@@ -125,6 +153,8 @@ kind: series
 targetNode: welcome
 seriesType: welcome
 formats: [email]
+channelIdsByFormat:
+  email: [email-1]
 objective: Помочь клиенту после заявки
 audience: Оставившие заявку
 sources:
@@ -143,7 +173,7 @@ emailDesign:
   mobile: Читается на телефоне
 messages:
   - id: first
-    path: .mailings/storage/processes/demo/welcome/01.message.yaml
+    path: .mailings/storage/processes/demo/welcome/01-welcome.message.yaml
     goal: Подтвердить заявку
     mainIdea: Менеджер ответит и предложит время
     subject: Мы получили вашу заявку
@@ -160,6 +190,12 @@ manualInvocation:
 openQuestions: []
 acceptance: [Сообщение отправлено только нужному клиенту]
 ```
+
+`email-1` здесь условный ID. До тестовой отправки замени его ID активного
+email-канала из `getChannels(ctx)` и запиши тот же ID в
+`processDeliveryChannelIds` файла `01-welcome.message.yaml`. Для этого
+примера шаблон должен иметь `title`, `description`, `subject`, `plain` и
+`html`; полный формат — в [справке о письмах](letters.md).
 
 `deliveryMode: manual` нужен для серии, которую вызывает человек или
 бизнес-операция без автоматизации. Без `manualInvocation` такая серия не

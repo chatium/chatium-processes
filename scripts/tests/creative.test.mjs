@@ -11,6 +11,7 @@ import { creativeReviewPacket, creativeReviewStatus, recordCreativeReview } from
 import { expandedTaskInputs, parseTaskPlan, taskDefinitionDigest, taskInputDigest, taskReadiness } from '../lib/tasks.mjs'
 import { SKILL_DIR } from '../lib/project.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { parseYaml } from '../lib/yaml.mjs'
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-creative-'))
@@ -43,6 +44,45 @@ function fixture(t) {
   put('demo/creative/lead-page/spec.yaml', spec)
   return { root, put, spec, args: { root, slug: 'demo', nodeId: 'lead-page' } }
 }
+
+test('documented page and manual-series specifications compile from their examples', t => {
+  const f = fixture(t)
+  const guide = readFileSync(join(SKILL_DIR, 'formats/creative-spec.md'), 'utf8')
+  const example = heading => {
+    const section = guide.split(`## ${heading}\n`)[1]
+    assert.ok(section, heading)
+    const yaml = /```yaml\n([\s\S]*?)\n```/.exec(section)?.[1]
+    assert.ok(yaml, heading)
+    return parseYaml(yaml)
+  }
+  f.put('.knowledge-base/processes/demo/offer.md',
+    '# Условия консультации\nПосле заявки менеджер предложит время консультации.\n')
+  f.put('demo/process.yaml', { title: 'Демонстрация', nodes: [
+    { id: 'signup', kind: 'page', title: 'Заявка', source: 'demo/page/',
+      creativeRef: 'demo/creative/signup/spec.yaml' },
+    { id: 'welcome', kind: 'series', title: 'Подтверждение',
+      source: '.mailings/storage/processes/demo/welcome/',
+      creativeRef: 'demo/creative/welcome/spec.yaml' },
+  ] })
+  const page = example('Страница'), series = example('Серия сообщений')
+  f.put('demo/creative/signup/spec.yaml', page)
+  f.put('demo/creative/welcome/spec.yaml', series)
+  const pagePacket = creativePacket({ root: f.root, slug: 'demo', nodeId: 'signup' })
+  const seriesPacket = creativePacket({ root: f.root, slug: 'demo', nodeId: 'welcome' })
+  assert.deepEqual(pagePacket.errors, [])
+  assert.deepEqual(seriesPacket.errors, [])
+  assert.equal(page.mechanics.find(mechanic => mechanic.type === 'form')?.target, 'demo/api/request')
+  assert.deepEqual(series.channelIdsByFormat, { email: ['email-1'] })
+  assert.match(series.messages[0].path, /01-welcome\.message\.yaml$/)
+  assert.match(compileCreative(pagePacket), /request-form/)
+  assert.match(compileCreative(seriesPacket), /Ручной запуск/)
+  delete page.mechanics[0].target
+  f.put('demo/creative/signup/spec.yaml', page)
+  assert.match(creativePacket({ root: f.root, slug: 'demo', nodeId: 'signup' }).errors.join('\n'), /требуется target/)
+  delete series.manualInvocation.stop
+  f.put('demo/creative/welcome/spec.yaml', series)
+  assert.match(creativePacket({ root: f.root, slug: 'demo', nodeId: 'welcome' }).errors.join('\n'), /manualInvocation.stop/)
+})
 
 test('compiler expands selected landing settings and detects changed inputs or generated text', t => {
   const f = fixture(t)
