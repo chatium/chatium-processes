@@ -27,7 +27,7 @@ Mailings и обрабатывает результат. Это обычный �
 Действие находится в `automations/<automation>/actions/`; общие для нескольких
 автоматизаций действия — в `<process>/actions/`. Зарегистрируй их через
 `app.accountHook('@automations/actions', ...)` по справке
-`chatium-development/references/automations/actions.md`.
+`chatium-development/automations-actions.md`.
 `scaffold` не создаёт отправитель или регистрацию заранее.
 
 В конфиге шага явно укажи `messageKey`: ключ относительно `.mailings/storage/`,
@@ -56,7 +56,7 @@ Mailings и обрабатывает результат. Это обычный �
 Если CRM недоступна, клиент не найден или неоднозначен либо превышен лимит,
 Sender пропускает расширение с предупреждением и отправляет на исходные контакты.
 Проверь поддержку параметра в установленном SDK по
-`chatium-development/references/sender/messaging.md`; не копируй правила в процесс.
+`chatium-development/sender-messaging.md`; не копируй правила в процесс.
 
 ## Когда подходит общий экшен
 
@@ -80,7 +80,7 @@ Mailings. Если нужного метода SDK нет, сообщи о не�
 репозитория: `{accountId, actions: [{routeJson, inputSchema}], conditions: []}`.
 `accountId` — целевой аккаунт, `inputSchema` — массив `{name, required}`
 из схемы `body.params`. Полный контракт —
-`chatium-development/references/automations/registry.md`. Без реестра внешний
+`chatium-development/automations-registry.md`. Без реестра внешний
 маршрут не считается проверенным. После смены версии плагина обнови реестр.
 
 ## Настройки и тестовые отправки

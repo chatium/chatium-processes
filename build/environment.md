@@ -69,7 +69,7 @@ Mailings для шаблонов сообщений, Automations для реак
 молча. Если SDK вернул `checkout_required`, установка не состоялась.
 
 Точный контракт, проверки разрешений, обработка ошибок и правило повторного
-вызова бери из `chatium-development/references/store-plugin-install.md` и
+вызова бери из `chatium-development/store-plugin-install.md` и
 `chatium-development/exec.md`. После установки проверь наличие требуемого SDK
 и его typings в аккаунте. Подключение канала, настройка отправителя и оплата
 провайдера — отдельные действия; установка плагина не означает их готовность.

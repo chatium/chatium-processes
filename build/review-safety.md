@@ -226,12 +226,12 @@ jobs. Например, 500 клиентов с опросом раз в 5 се�
 [Heap](../../chatium-development/heap.md),
 [выборки Heap](../../chatium-development/heap-filter.md),
 [jobs](../../chatium-development/jobs.md),
-[realtime](../../chatium-development/references/realtime.md),
-[эффективность запросов](../../chatium-development/references/performance.md).
+[realtime](../../chatium-development/realtime.md),
+[эффективность запросов](../../chatium-development/performance.md).
 Для выбора событий и аналитики:
-[события процесса](../../chatium-development/references/automations/events.md),
-[трафик и ClickHouse](../../chatium-development/references/analytics/traffic.md),
-[атрибуция](../../chatium-development/references/analytics/attribution.md).
+[события процесса](../../chatium-development/automations-events.md),
+[трафик и ClickHouse](../../chatium-development/analytics-traffic.md),
+[атрибуция](../../chatium-development/analytics-attribution.md).
 Эта памятка намеренно строже общей справки polling для долгих jobs.
 
 ## Отправка сохранённых шаблонов

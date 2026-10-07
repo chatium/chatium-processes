@@ -60,6 +60,36 @@ test('packet contains a navigable manifest without embedding reference texts', t
   assert.equal(packet.inputDigest, f.packet().inputDigest)
 })
 
+test('AI and analytics packets resolve both platform reference layouts', t => {
+  const f = fixture(t)
+  for (const path of ['blocks/ai-agent.md', 'build/agent-instructions.md', 'formats/agents.md',
+    'blocks/analytics.md', 'blocks/form-table-event.md']) f.put(`skills/processes/${path}`, `# ${path}\n`)
+  const pairs = [
+    ['ai-agents.md', 'references/ai/agents.md'],
+    ['ai-agent-config.md', 'references/ai/agent-config.md'],
+    ['ai-routing-and-handoff.md', 'references/ai/routing-and-handoff.md'],
+    ['ai-autonomy.md', 'references/ai/autonomy.md'],
+    ['ai-context-and-knowledge.md', 'references/ai/context-and-knowledge.md'],
+    ['ai-tools.md', 'references/ai/tools.md'],
+    ['analytics-traffic.md', 'references/analytics/traffic.md'],
+    ['analytics-attribution.md', 'references/analytics/attribution.md'],
+  ]
+  for (const [flat, nested] of pairs) f.put(`skills/chatium-development/${nested}`, `# ${nested}\n`)
+  for (const stage of ['agents', 'analytics']) {
+    const required = f.collect({ stage }).manifest.required
+    assert.ok(required.includes(`skills/chatium-development/${stage === 'agents' ? pairs[0][1] : pairs[6][1]}`))
+  }
+  for (const [flat] of pairs) f.put(`skills/chatium-development/${flat}`, `# ${flat}\n`)
+  for (const stage of ['agents', 'analytics']) {
+    const required = f.collect({ stage }).manifest.required
+    const expected = stage === 'agents' ? pairs.slice(0, 6) : pairs.slice(6)
+    for (const [flat, nested] of expected) {
+      assert.ok(required.includes(`skills/chatium-development/${flat}`), flat)
+      assert.ok(!required.includes(`skills/chatium-development/${nested}`), nested)
+    }
+  }
+})
+
 test('only mandatory rules affect the packet digest; all references remain navigable', t => {
   const f = fixture(t)
   f.put('account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): void }\n')

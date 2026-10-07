@@ -77,16 +77,21 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   }
 
   const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md']
+  const developmentReference = (flat, nested) => {
+    const current = `skills/chatium-development/${flat}`
+    const previous = `skills/chatium-development/${nested}`
+    return files.has(current) ? current : files.has(previous) ? previous : current
+  }
   const required = [...entrypoints, ...(stage === 'agents' ? [
     'skills/processes/blocks/ai-agent.md',
     'skills/processes/build/agent-instructions.md',
     'skills/processes/formats/agents.md',
-    'skills/chatium-development/references/ai/agents.md',
-    'skills/chatium-development/references/ai/agent-config.md',
-    'skills/chatium-development/references/ai/routing-and-handoff.md',
-    'skills/chatium-development/references/ai/autonomy.md',
-    'skills/chatium-development/references/ai/context-and-knowledge.md',
-    'skills/chatium-development/references/ai/tools.md',
+    developmentReference('ai-agents.md', 'references/ai/agents.md'),
+    developmentReference('ai-agent-config.md', 'references/ai/agent-config.md'),
+    developmentReference('ai-routing-and-handoff.md', 'references/ai/routing-and-handoff.md'),
+    developmentReference('ai-autonomy.md', 'references/ai/autonomy.md'),
+    developmentReference('ai-context-and-knowledge.md', 'references/ai/context-and-knowledge.md'),
+    developmentReference('ai-tools.md', 'references/ai/tools.md'),
   ] : stage === 'implementation' ? [
     'skills/processes/build/review-safety.md',
     'skills/chatium-development/auth.md',
@@ -98,8 +103,8 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   ] : stage === 'analytics' ? [
     'skills/processes/blocks/analytics.md',
     'skills/processes/blocks/form-table-event.md',
-    'skills/chatium-development/references/analytics/traffic.md',
-    'skills/chatium-development/references/analytics/attribution.md',
+    developmentReference('analytics-traffic.md', 'references/analytics/traffic.md'),
+    developmentReference('analytics-attribution.md', 'references/analytics/attribution.md'),
     'skills/chatium-development/auth.md',
   ] :
     ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]

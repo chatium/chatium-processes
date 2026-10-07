@@ -25,7 +25,7 @@
   процесс, а не названия транспортов вроде `email` или `telegram`.
   Агент получает подключённые каналы через `getChannels(ctx)` из `@sender/sdk`
   и записывает выбранные для процесса ID в это поле (`chatium exec`,
-  `chatium-development/references/sender/entities.md`). Не выбирай все каналы
+  `chatium-development/sender-entities.md`). Не выбирай все каналы
   аккаунта автоматически. Каналы подключает владелец в Sender
   (`/app/sender#/transports/add`). Если они ещё не подключены,
   оставь список пустым и добавь пункт «Нужно от вас», продолжая сборку.

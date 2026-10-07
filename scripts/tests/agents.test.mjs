@@ -118,7 +118,10 @@ test('independent review packet binds role instructions and reference snapshot',
     f.run()
     const first = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(first.questions.some(question => question.id === 'role.helper'))
-    assert.ok(first.referenceLibrary.required.includes('skills/chatium-development/references/ai/routing-and-handoff.md'))
+    assert.ok(first.referenceLibrary.required.some(path => [
+      'skills/chatium-development/ai-routing-and-handoff.md',
+      'skills/chatium-development/references/ai/routing-and-handoff.md',
+    ].includes(path)))
     assert.equal(agentReviewStatus({ root: f.root, slug: 'demo' }).status, 'missing')
     writeFileSync(join(f.root, 'demo/agents/helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['New instructions'], enabledTools: [] }))
     const changed = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
