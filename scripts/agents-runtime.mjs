@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Compares published state without sending messages or changing routing. Agent lookup may lazy-sync; dry-run emits a metric.
+// Compares published state without sending messages or changing routing. Agent lookup requires completed build sync; dry-run emits a metric.
 import { createHash, randomUUID } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
