@@ -486,6 +486,14 @@ check('events.registry', 'Реестр событий specs/events.yaml', ({ err
 check('events.data', 'Контакты и метрика в коде события', ({ error, warn }) => {
   for (const [file, src] of codeSources) {
     const where = rel(root, file)
+    // Explicit undefined UTM properties in a form are not attribution. The
+    // server accepts omitted UTM keys; preserve only values actually read.
+    for (const block of src.matchAll(/\butm\s*:\s*\{([^{}]*)\}/g)) {
+      if (/\b(?:source|medium|campaign|content|term)\s*:\s*undefined\b/.test(block[1]))
+        error(`${where}: UTM не заполняют undefined-заглушками; передай реальные метки из запроса или опусти неизвестные поля`)
+    }
+    if (/\butm(?:Source|Medium|Campaign|Content|Term|_source|_medium|_campaign|_content|_term)\s*:\s*undefined\b/.test(src))
+      error(`${where}: UTM-поле явно задано как undefined; считай фактическое значение или опусти поле`)
     for (const block of src.matchAll(/metricEventData\s*:\s*\{([^}]*)\}/g)) {
       if (/\bcustomer_contacts\s*:/.test(block[1]))
         error(`${where}: customer_contacts нельзя передавать в metricEventData — CRM формирует его из contacts`)

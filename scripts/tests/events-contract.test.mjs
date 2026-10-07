@@ -87,6 +87,22 @@ test('metricEventData cannot override CRM-generated customer_contacts', t => {
   assert.match(data.errors.join('\n'), /CRM формирует его из contacts/)
 })
 
+test('hard-coded undefined UTM placeholders fail while actual submitted attribution passes', t => {
+  const f = fixture(t)
+  f.put('demo/api/lead.ts', `await captureCustomerEvent(ctx, {
+  event: 'lead_created', contacts: [{ type: 'email', value: input.email }],
+  customer: { utm: { source: input.utmSource, medium: undefined, campaign: undefined } },
+})\n`)
+  const bad = named(f.run(), 'events.data')
+  assert.equal(bad.ok, false)
+  assert.match(bad.errors.join('\n'), /undefined-заглушками/)
+  f.put('demo/api/lead.ts', `await captureCustomerEvent(ctx, {
+  event: 'lead_created', contacts: [{ type: 'email', value: input.email }],
+  customer: { ...(input.utmSource ? { utm: { source: input.utmSource } } : {}) },
+})\n`)
+  assert.equal(named(f.run(), 'events.data').ok, true)
+})
+
 test('analytics funnel rejects unrelated event identities and imaginary events', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', `events:
