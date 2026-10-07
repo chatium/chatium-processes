@@ -135,14 +135,14 @@ export function validateProcessAgents({ root, slug, map }) {
     if (route?.fallback && !byKey.has(route.fallback)) errors.push(`${where}: неизвестный fallback ${route.fallback}`)
     if (route?.fallback && route.fallback !== route.firstAgent) warnings.push(`${where}: отдельный запасной агент требует явных правил маршрутизации; простой SDK задаёт только одного адресата по умолчанию`)
     if (!route?.existingConversation) errors.push(`${where}: опиши существующий разговор в existingConversation`)
-    if (route?.testContacts !== undefined && (!Array.isArray(route.testContacts) || !route.testContacts.length || route.testContacts.length > 5 ||
-        route.testContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() ||
-          typeof contact?.value !== 'string' || !contact.value.trim())))
-      errors.push(`${where}: testContacts должен содержать 1–5 тестовых контактов с type и value`)
+    if (route?.testNewContacts !== undefined && (!Array.isArray(route.testNewContacts) || !route.testNewContacts.length || route.testNewContacts.length > 5 ||
+        route.testNewContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+          typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500)))
+      errors.push(`${where}: testNewContacts должен содержать 1–5 тестовых контактов с type и value`)
     if (route?.testExistingContacts !== undefined || route?.expectedExistingAgent !== undefined) {
       if (!Array.isArray(route.testExistingContacts) || !route.testExistingContacts.length || route.testExistingContacts.length > 5 ||
-          route.testExistingContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() ||
-            typeof contact?.value !== 'string' || !contact.value.trim()))
+          route.testExistingContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+            typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500))
         errors.push(`${where}: testExistingContacts должен содержать 1–5 тестовых контактов с существующей CRM-цепочкой`)
       if (!byKey.has(route.expectedExistingAgent)) errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
     }

@@ -19,7 +19,7 @@ function fixture() {
   writeFileSync(join(root, '.knowledge-base/processes/demo/offer.md'), 'Offer')
   writeFileSync(join(dir, 'helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Serve the client'], enabledTools: [] }))
   const map = { accountId: 1, nodes: [{ id: 'helper', kind: 'agent', source: 'demo/agents/helper.agent.json' }] }
-  const spec = { version: 1, opportunities: [{ id: 'help', decision: 'accepted', need: 'Client question', reason: 'Owner approved' }], agents: [{ key: 'helper', config: 'demo/agents/helper.agent.json', node: 'helper', opportunity: 'help', role: 'Consultant', outcome: 'Qualified request', boundary: 'Escalate uncertainty', inputs: [{ kind: 'sender', source: 'test channel' }], knowledge: ['.knowledge-base/processes/demo/offer.md'], tools: [], cases: ['first-contact'] }], routes: [{ channel: 'test channel', firstAgent: 'helper', existingConversation: 'Current chain', testContacts: [{ type: 'email', value: 'test@example.com' }] }], handoffs: [] }
+  const spec = { version: 1, opportunities: [{ id: 'help', decision: 'accepted', need: 'Client question', reason: 'Owner approved' }], agents: [{ key: 'helper', config: 'demo/agents/helper.agent.json', node: 'helper', opportunity: 'help', role: 'Consultant', outcome: 'Qualified request', boundary: 'Escalate uncertainty', inputs: [{ kind: 'sender', source: 'test channel' }], knowledge: ['.knowledge-base/processes/demo/offer.md'], tools: [], cases: ['first-contact'] }], routes: [{ channel: 'test channel', firstAgent: 'helper', existingConversation: 'Current chain', testNewContacts: [{ type: 'email', value: 'test@example.com' }] }], handoffs: [] }
   const cases = { version: 1, cases: [{ id: 'first-contact', agent: 'helper', situation: 'New lead', expected: 'Qualify', evidence: 'CRM test record' }] }
   const run = () => {
     writeFileSync(join(dir, 'spec.yaml'), stringifyYaml(spec))
@@ -61,9 +61,9 @@ test('route conflict and incomplete handoff are explicit failures', () => {
 test('malformed routing test contacts fail local validation', () => {
   const f = fixture()
   try {
-    f.spec.routes[0].testContacts = [{ type: 'email', value: '' }]
-    assert.match(f.run().errors.join('\n'), /testContacts/)
-    f.spec.routes[0].testContacts = [{ type: 'email', value: 'test@example.com' }]
+    f.spec.routes[0].testNewContacts = [{ type: 'email', value: '' }]
+    assert.match(f.run().errors.join('\n'), /testNewContacts/)
+    f.spec.routes[0].testNewContacts = [{ type: 'email', value: 'test@example.com' }]
     f.spec.routes[0].testExistingContacts = [{ type: 'email', value: 'existing@example.com' }]
     assert.match(f.run().errors.join('\n'), /expectedExistingAgent/)
   } finally { f.cleanup() }
@@ -266,6 +266,15 @@ test('published-state check stays partial with extra channel rules and rejects a
     assert.equal(stale.report.status, 'unverified')
     assert.match(stale.report.errors.join('\n'), /опубликован коммит/)
     writeFileSync(chatium, '#!/bin/sh\ncat >/dev/null\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
+    response.routes[0].dryRun = { mode: 'unresolved', reason: 'crm-customer-not-found' }
+    const unresolved = run()
+    assert.equal(unresolved.report.status, 'unverified')
+    assert.match(unresolved.report.errors.join('\n'), /новое обращение выбрало unresolved/)
+    response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }
+    const notNew = run()
+    assert.equal(notNew.report.status, 'unverified')
+    assert.match(notNew.report.errors.join('\n'), /default-agent/)
+    response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1', reason: 'default-agent' }
     response.agents[0].value.branch = 'main'
     const wrong = run()
     assert.equal(wrong.exit, 1)
