@@ -6,6 +6,7 @@ import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 import { loadTasks, parseTaskPlan, taskDefinition } from './tasks.mjs'
+import { parseYaml } from './yaml.mjs'
 
 export function codeReviewPath(root, slug) {
   if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
@@ -32,7 +33,16 @@ export function makeCodeReviewPacket({ root, slug }) {
   if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
     throw Error('Некорректная рубрика ревью реализации.')
-  const questions = [...rubric.questions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
+  let paymentNode = false
+  try { paymentNode = parseYaml(files.find(file => file.path === `${slug}/process.yaml`)?.content || '')?.nodes
+    ?.some(node => node?.kind === 'payment') === true }
+  catch { /* A malformed map is reported by the static checks. */ }
+  const paymentCode = files.some(file => /\.(?:ts|tsx)$/.test(file.path) && /\brunAttemptPayment\s*\(/.test(file.content))
+  const paymentQuestions = paymentNode || paymentCode ? [{ id: 'payments.smoke',
+    question: 'Подготовлена ли тестовая оплата без риска списания через боевого провайдера?',
+    lookFor: 'Для каждого тестового вызова runAttemptPayment проверь, что реальный providerId найден через @pay/sdk для ключа pay:sandbox, совпадает с найденным провайдером и передан явно. Без providerId Pay выбирает провайдера по умолчанию. Песочница может быть скрыта из списка; при её недоступности тест останавливается, а не переключается на боевой провайдер. Отдельно оцени контакты, чеки и побочные эффекты; до фактического smoke нужен безопасный сценарий, после него — ID попытки и результат. Не утверждай, что один только текст теста доказывает проведённую оплату.' }]
+    : []
+  const questions = [...rubric.questions, ...paymentQuestions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
     question: `Сопоставь задачу ${task.id} «${task.title}» с реализацией.`,
     lookFor: 'Конкретные файлы, цепочка вызовов и требование плана. Не считать отметку выполненности доказательством. Для теста/запуска оцени готовность сценариев и механизма до фактического выполнения.' }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются вопросы или ID задач плана.')

@@ -99,6 +99,23 @@ test('one repeated code quote cannot approve every implementation question', t =
   assert.ok(!existsSync(codeReviewPath(f.root, 'demo')))
 })
 
+test('payment implementation receives a dedicated sandbox-provider review question', t => {
+  const f = fixture(t)
+  assert.equal(f.packet().questions.some(question => question.id === 'payments.smoke'), false)
+  f.put(codePath, `${quote}\nconst attempt = await runAttemptPayment(ctx, options)\n`)
+  const packet = f.packet()
+  const question = packet.questions.find(item => item.id === 'payments.smoke')
+  assert.ok(question)
+  assert.match(question.lookFor, /providerId/)
+  assert.match(question.lookFor, /pay:sandbox/)
+  const report = syntheticReport(packet)
+  Object.assign(report.answers.find(answer => answer.id === question.id), {
+    status: 'gap', priority: 'blocking', reason: 'Тестовый вызов может выбрать провайдера по умолчанию.',
+    nextAction: 'Найти ID песочницы и передать providerId явно.', evidence: [],
+  })
+  assert.equal(save(f, packet, report).status, 'needs-work')
+})
+
 test('code conclusion ignores bookkeeping and launch toggle but tracks business changes', t => {
   const f = fixture(t)
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: true },
