@@ -28,7 +28,9 @@ try {
     developmentSkill = join(temporary, 'skills/chatium-development')
   }
   const tests = readdirSync(testsDir).filter(name => name.endsWith('.test.mjs')).sort()
-  const result = spawnSync(process.execPath, ['--test', ...tests.map(name => join(testsDir, name))],
+  // Each file starts multiple CLI subprocesses; bounded file concurrency keeps
+  // their timeouts meaningful on smaller CI machines.
+  const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...tests.map(name => join(testsDir, name))],
     { cwd: repo, env: { ...process.env, PROCESSES_TEST_DEVELOPMENT_SKILL: developmentSkill }, stdio: 'inherit', timeout: 180_000 })
   process.exitCode = result.status ?? 2
 } catch (error) {
