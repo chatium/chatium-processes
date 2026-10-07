@@ -666,8 +666,8 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
     } else if ((c.steps || []).some(step => step?.delay?.type === 'waitForTime')) {
       error(`${name}: для ожидания по местному времени нужен согласованный defaultTimezone`)
     }
-    if (!Array.isArray(c.eventUrls) || c.eventUrls.length === 0) error(`${name}: пустой eventUrls`)
-    for (const url of c.eventUrls || []) {
+    if (!Array.isArray(c.eventUrls)) error(`${name}: eventUrls должен быть массивом`)
+    for (const url of Array.isArray(c.eventUrls) ? c.eventUrls : []) {
       const found = eventFromUrl(url)
       if (!found) warn(`${name}: внешнее событие ${url} не проверяется`)
       else if (found.foreign) error(`${name}: ${url} — событие чужого воркспейса; события процесса — ${EVENT_URL_PREFIX.customerEvent}<ключ> или ${EVENT_URL_PREFIX.workspaceEvent}<ключ>`)
