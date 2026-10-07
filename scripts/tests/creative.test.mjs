@@ -325,6 +325,21 @@ test('manual series has a real invocation contract without a fake automation', t
   assert.deepEqual(creativePacket(args).errors, [])
   const build = writeCreativeBuild(args)
   assert.match(readFileSync(join(f.root, build.path), 'utf8'), /Ручной запуск/)
+  f.put('demo/.workspace.json', { type: 'process', processEngine: 'processes-v2' })
+  f.put(spec.messages[0].path, { title: 'Первый шаг', description: 'После разговора',
+    subject: 'Первый шаг', plain: 'Материал помогает начать.', html: '<p>Материал помогает начать.</p>',
+    short: 'Материал помогает начать.' })
+  const check = () => {
+    const cli = fileURLToPath(new URL('../check.mjs', import.meta.url))
+    const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--no-snapshot', '--json'],
+      { encoding: 'utf8', timeout: 10_000 })
+    assert.ok([0, 1].includes(result.status), result.stderr)
+    return JSON.parse(result.stdout).checks.find(item => item.id === 'letters')
+  }
+  assert.equal(check().ok, true, 'ручной вызов не требует фиктивной автоматизации')
+  delete spec.manualInvocation.stop
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.match(check().errors.join('\n'), /нет ручного контракта запуска/)
 })
 
 test('series result checks every channel version and email render per message', t => {
