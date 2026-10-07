@@ -1,0 +1,17 @@
+{
+  "licenseDecision": {
+    "id": "MIT",
+    "reference": "conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:0",
+    "decidedAt": "2026-10-07T09:18:20Z"
+  },
+  "testPlan": {
+    "account": "funnels-git-1.chatium.ru",
+    "mode": "isolated-new-process",
+    "reference": "conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:1",
+    "decidedAt": "2026-10-07T09:18:20Z"
+  },
+  "distribution": {
+    "decision": "pending"
+  },
+  "runs": {}
+}

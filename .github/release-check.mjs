@@ -12,7 +12,7 @@ export const expectedIds = [
     .flatMap(([prefix, count]) => Array.from({ length: count }, (_, index) => `${prefix}${String(index + 1).padStart(2, '0')}`)),
 ]
 
-export function assessRelease({ rows = [], version, license, evidence = {}, changedFiles = [] }) {
+export function assessRelease({ rows = [], version, licenseId, license, evidence = {}, changedFiles = [] }) {
   const errors = []
   const ids = rows.map(row => row.id), expected = new Set(expectedIds)
   const missing = expectedIds.filter(id => !ids.includes(id))
@@ -27,7 +27,11 @@ export function assessRelease({ rows = [], version, license, evidence = {}, chan
     if (!row.check || row.check === '—' || !/^[0-9a-f]{7,40}$/.test(row.commit || ''))
       errors.push(`${row.id}: нет проверки или коммита исправления.`)
   if (!/^\d+\.\d+\.\d+$/.test(version || '')) errors.push('Перед выпуском укажи версию x.y.z в package.json.')
-  if (!license || license.trim().length < 20) errors.push('Нет выбранных владельцем условий распространения в LICENSE.')
+  if (licenseId !== 'MIT' || !license?.startsWith('MIT License\n') || license.trim().length < 500)
+    errors.push('Нет выбранной владельцем лицензии MIT в package.json и LICENSE.')
+  if (evidence.licenseDecision?.id !== licenseId || !evidence.licenseDecision?.reference ||
+      !Number.isFinite(Date.parse(evidence.licenseDecision?.decidedAt)))
+    errors.push('Нет записи о выборе лицензии владельцем и ссылки на ответ.')
   if (evidence.distribution?.decision !== 'public' || !evidence.distribution?.reference ||
       !Number.isFinite(Date.parse(evidence.distribution?.approvedAt)))
     errors.push('Нет записанного решения владельца о публичном распространении и ссылки на ответ.')
@@ -67,7 +71,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     changedFiles = git(root, ['diff', '--name-only', evidence.testedCommit, 'HEAD']).split('\n')
       .filter(path => path && !path.startsWith('.github/') && !['LICENSE', 'README.md'].includes(path))
   } catch (error) { errors.push(error.message) }
-  errors.push(...assessRelease({ rows, version: pkg.version, license, evidence, changedFiles }))
+  errors.push(...assessRelease({ rows, version: pkg.version, licenseId: pkg.license, license, evidence, changedFiles }))
   if (errors.length) {
     for (const error of errors) console.error(`✘ ${error}`)
     process.exitCode = 1
