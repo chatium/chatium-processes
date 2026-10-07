@@ -11,6 +11,12 @@ import { fileURLToPath } from 'node:url'
 
 const checkCli = fileURLToPath(new URL('../check.mjs', import.meta.url))
 
+test('missing Git checkout explains why snapshot freshness is unavailable', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-no-git-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  assert.throws(() => gitState(root), /Не удалось выполнить git branch; актуальность снимка не подтверждена/)
+})
+
 test('remote Git check refuses interactive credentials instead of hanging', t => {
   const base = mkdtempSync(join(tmpdir(), 'process-git-prompt-'))
   t.after(() => rmSync(base, { recursive: true, force: true }))
@@ -166,7 +172,11 @@ links:
   const expected = JSON.parse(readFileSync(buildFile, 'utf8'))
   assert.doesNotThrow(() => compareSnapshot(expected, { snapshot: { revision: 1, snapshot: stored },
     revision: 1, elements: { blocks: [], connections: [], drawings: [] } }))
-  assert.match(collect('build', join(f.base, 'denied.json'), true).snapshot.error, /Cannot publish an invalid process map/)
+  const refused = spawnSync(process.execPath, [checkCli, 'demo', '--root', f.root, '--json',
+    '--task-stage', 'build', '--snapshot-file', join(f.base, 'denied.json'), '--publish-snapshot'],
+  { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(refused.status, 2, refused.stderr)
+  assert.match(JSON.parse(refused.stdout).snapshot.error, /Нельзя публиковать снимок с некорректной картой процесса/)
 })
 
 test('dirty and untracked files prevent freshness, shared notes still returned', async t => {

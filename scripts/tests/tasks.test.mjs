@@ -28,6 +28,15 @@ test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness
   const extraId = f.run('status', 'W001')
   assert.equal(extraId.status, 2)
   assert.match(extraId.stderr, /не принимает ID/)
+  for (const command of ['create', 'record']) {
+    const missingFile = f.run(command, 'W001')
+    assert.equal(missingFile.status, 2)
+    assert.match(missingFile.stderr, /нужен --file/)
+  }
+  f.put('broken.json', '{broken')
+  const brokenFile = f.run('create', 'W001', '--file', join(f.root, 'broken.json'))
+  assert.equal(brokenFile.status, 2)
+  assert.match(brokenFile.stderr, /корректный JSON/)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
   const unready = f.run('status')
   assert.equal(unready.status, 1)

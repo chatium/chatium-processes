@@ -1167,4 +1167,4 @@ if (!options.json) {
     ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
     : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')
 }
-process.exitCode = passed !== total || snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : 0
+process.exitCode = snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : passed !== total ? 1 : 0

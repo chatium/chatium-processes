@@ -33,6 +33,12 @@ if ((['status', 'create-batch'].includes(command) && id) || (!['status', 'create
   console.error(['status', 'create-batch'].includes(command) ? `${command} не принимает ID задачи.` : 'Нужен ID рабочей задачи W….')
   process.exit(2)
 }
+const fileCommands = new Set(['create', 'create-batch', 'ask', 'resolve', 'record', 'fail', 'reopen', 'cancel'])
+if (fileCommands.has(command)) {
+  let readableFile = false
+  try { readableFile = Boolean(options.file && statSync(options.file).isFile()) } catch {}
+  if (!readableFile) { console.error(`${command}: нужен --file с существующим JSON-файлом.`); process.exit(2) }
+}
 
 const root = findRoot(options.root)
 const now = () => new Date().toISOString()
@@ -40,8 +46,8 @@ const sha = content => createHash('sha256').update(content).digest('hex')
 const digest = value => sha(JSON.stringify(value))
 const show = value => console.log(JSON.stringify(value, null, 2))
 const input = () => {
-  if (!options.file || !existsSync(options.file)) throw Error('Нужен --file с JSON.')
-  return JSON.parse(readFileSync(options.file, 'utf8'))
+  try { return JSON.parse(readFileSync(options.file, 'utf8')) }
+  catch { throw Object.assign(Error(`${command}: файл --file не содержит корректный JSON.`), { cliUsage: true }) }
 }
 function state() {
   const all = loadTasks(root, slug).tasks
@@ -372,5 +378,5 @@ try {
   throw Error(`Неизвестная команда ${command}.`)
 } catch (error) {
   console.error(error.message)
-  process.exit(1)
+  process.exit(error.cliUsage ? 2 : 1)
 }

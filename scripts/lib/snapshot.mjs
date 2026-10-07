@@ -9,10 +9,10 @@ import { gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 function safePath(root, value) {
-  if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Unsafe snapshot source path')
+  if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Некорректный относительный путь источника снимка.')
   const file = resolve(root, value)
-  if (!file.startsWith(resolve(root) + sep)) throw Error('Snapshot source escapes account')
-  if (existsSync(file) && !realpathSync(file).startsWith(realpathSync(root) + sep)) throw Error('Snapshot source symlink escapes account')
+  if (!file.startsWith(resolve(root) + sep)) throw Error('Источник снимка выходит за пределы аккаунта.')
+  if (existsSync(file) && !realpathSync(file).startsWith(realpathSync(root) + sep)) throw Error('Ссылка источника снимка выходит за пределы аккаунта.')
   return file
 }
 function delayText(delay) {
@@ -41,7 +41,7 @@ function stepsForSeries(steps, source) {
 }
 function walkSteps(steps, prefix = '', out = []) {
   for (const step of Array.isArray(steps) ? steps : []) {
-    if (out.length >= 100) throw Error('Too many automation steps for snapshot')
+    if (out.length >= 100) throw Error('Для снимка слишком много шагов автоматизации: максимум 100.')
     if (step.type === 'delay') out.push({ kind: 'delay', title: prefix + 'Ожидание', detail: step.description || delayText(step.delay) })
     else if (step.type === 'condition' || step.type === 'continueCondition') {
       out.push({ kind: 'condition', title: prefix + (step.conditionName || step.title || 'Условие'), detail: step.description || (step.type === 'continueCondition' ? 'Продолжить, только если условие выполнено' : 'Два пути: условие выполнено или нет') })
@@ -63,17 +63,17 @@ function boundedMessages(messages) {
 }
 export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString(), allowInvalidMap = false }) {
   if (!map || !Array.isArray(map.stages) || !Array.isArray(map.nodes) ||
-      (!allowInvalidMap && checks.some(c => c.id === 'map' && !c.ok))) throw Error('Cannot publish an invalid process map')
+      (!allowInvalidMap && checks.some(c => c.id === 'map' && !c.ok))) throw Error('Нельзя публиковать снимок с некорректной картой процесса.')
   if (checks.length > 100) throw Error('Снимок поддерживает не более 100 проверок. Сгруппируйте проверки до публикации.')
   const rawNeeds = map.needsInput ?? []
-  if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('Invalid needsInput')
+  if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('needsInput: нужен список не более 100 вопросов.')
   const needsInput = rawNeeds.map(item => typeof item === 'string' ? { title: item } : { title: item.title, ...(item.nodeId ? { nodeId: item.nodeId } : {}) })
   const stableChecks = checks.filter(check => !STAGE_CHECKS.has(check.id))
   const allErrors = stableChecks.flatMap(c => c.errors)
   const nodes = map.nodes.map(node => {
     const source = safePath(root, node.source), present = isFile(source) || isDir(source)
     const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
-    if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('Invalid agentId')
+    if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
     const localErrors = allErrors.filter(e => e.includes(node.source.replace(/\/$/, '')) || e.includes(`«${node.id}»`))
     const needed = needsInput.filter(i => i.nodeId === node.id)
     const status = !present ? 'missing' : localErrors.length ? 'error' : needed.length ? 'needs-input' : 'ready'
@@ -109,7 +109,7 @@ export function prepareSnapshot({ root, slug, map, checks, state = gitState(root
 export async function startExec(root, sdkCode, expectedCommit) {
   // Use the public CLI entrypoint, including the image's supported wrapper.
   const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
-  if (r.error || r.status !== 0) throw Error(`Start exec failed: ${r.error?.message || r.stderr.trim()}`)
+  if (r.error || r.status !== 0) throw Error(`Не удалось выполнить chatium exec: ${r.error?.message || r.stderr.trim()}`)
   if (expectedCommit) {
     const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
     if (!executed) throw Error('CLI не сообщил SHA исполненного коммита; актуальность результата не подтверждена.')
@@ -123,7 +123,7 @@ export async function publishSnapshot(root, snapshot) {
   assertPublishedState(root, snapshot)
   const saved = await startExec(root,
     `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit)
-  if (!saved?.saved) throw Error(`Snapshot not saved: ${saved?.reason || 'unexpected response'}`)
-  if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('Snapshot write returned an invalid revision')
+  if (!saved?.saved) throw Error(`Снимок не сохранён: ${saved?.reason || 'SDK вернул неожиданный ответ'}`)
+  if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('SDK вернул некорректную ревизию снимка.')
   return { saved: true, revision: saved.revision }
 }
