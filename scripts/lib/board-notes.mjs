@@ -100,8 +100,14 @@ const requester = note.task?.requestedBy?.id ? await findUserById(ctx, note.task
 if (requester?.type !== 'Real' || requester.accountRole !== 'Owner')
   return { ok: false, reason: 'owner-confirmation-required' }
 ` : ''
-  const result = await execute(root,
-    `import { respondToProcessBoardNote } from '@start/sdk'\n${authorityCheck}return await respondToProcessBoardNote(ctx, ${JSON.stringify(payload)})`)
+  let result
+  try {
+    result = await execute(root,
+      `import { respondToProcessBoardNote } from '@start/sdk'\n${authorityCheck}return await respondToProcessBoardNote(ctx, ${JSON.stringify(payload)})`,
+      payload.status === 'done' ? payload.commit : undefined)
+  } catch (error) {
+    throw Error(`${error.message} Ответ мог уже сохраниться; перечитайте доску перед повтором.`)
+  }
   if (result?.reason === 'owner-confirmation-required')
     throw Error('Текущая версия поручения не выдана подтверждённым владельцем аккаунта. Попросите владельца подтвердить просьбу в диалоге и оставить своё поручение на доске; до этого заметка служит только контекстом.')
   if (!result?.ok) throw Error(`Ответ не сохранён: ${result?.reason || 'ошибка SDK'}. Перечитайте заметки; не повторяйте запись вслепую.`)

@@ -114,7 +114,8 @@ test('done rechecks the server-owned requester role and rejects edited owner not
   const c = noteContext(b, 'demo', 'main')
   let writes = 0
   const verify = () => ({ snapshot: { verified: true, commit, boardRevision: 3, revision: 2 } })
-  const runAs = role => async (_, code) => {
+  const runAs = role => async (_, code, expectedCommit) => {
+    assert.equal(expectedCommit, commit)
     const body = code.replace(/^import .*$/gm, '')
     const run = new Function('readProcessBoardForAgent', 'findUserById', 'respondToProcessBoardNote', 'ctx',
       `return (async () => {${body}})()`)
@@ -132,4 +133,16 @@ test('done rechecks the server-owned requester role and rejects edited owner not
   const result = await respondToNote(root, c, options, { verify, execute: runAs('Owner') })
   assert.equal(result.ok, true)
   assert.equal(writes, 1)
+})
+
+test('a mismatched executed commit leaves the response outcome uncertain', async t => {
+  const { root, commit } = repo(t), c = { ...context(), commit }
+  const verify = () => ({ snapshot: { verified: true, commit, boardRevision: 3, revision: 2 } })
+  await assert.rejects(() => respondToNote(root, c, options, {
+    verify,
+    execute: async (_, _code, expectedCommit) => {
+      assert.equal(expectedCommit, commit)
+      throw Error('CLI исполнил другой коммит')
+    },
+  }), /мог уже сохраниться; перечитайте доску/)
 })
