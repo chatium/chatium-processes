@@ -61,8 +61,9 @@ function boundedMessages(messages) {
   return values.slice(0, 99).map(value => String(value || 'Пустое сообщение').slice(0, 2000))
     .concat(values.length > 99 ? [`И ещё ${values.length - 99} замечаний; полный вывод — в check.`] : [])
 }
-export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString() }) {
-  if (!map || !Array.isArray(map.stages) || !Array.isArray(map.nodes) || checks.some(c => c.id === 'map' && !c.ok)) throw Error('Cannot publish an invalid process map')
+export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString(), allowInvalidMap = false }) {
+  if (!map || !Array.isArray(map.stages) || !Array.isArray(map.nodes) ||
+      (!allowInvalidMap && checks.some(c => c.id === 'map' && !c.ok))) throw Error('Cannot publish an invalid process map')
   if (checks.length > 100) throw Error('Снимок поддерживает не более 100 проверок. Сгруппируйте проверки до публикации.')
   const rawNeeds = map.needsInput ?? []
   if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('Invalid needsInput')
@@ -102,8 +103,8 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
   return { version: 1, processPath: slug, title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
     checks: checks.map(item => ({ ...item, errors: boundedMessages(item.errors), warnings: boundedMessages(item.warnings) })) }
 }
-export function prepareSnapshot({ root, slug, map, checks, state = gitState(root) }) {
-  return buildSnapshot({ root, slug, map, checks, ...state })
+export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {
+  return buildSnapshot({ root, slug, map, checks, ...state, allowInvalidMap })
 }
 export async function startExec(root, sdkCode, expectedCommit) {
   // Use the public CLI entrypoint, including the image's supported wrapper.

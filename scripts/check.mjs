@@ -1102,7 +1102,8 @@ if (options.typecheck) {
 let snapshotResult = { saved: false, skipped: Boolean(options['no-snapshot']) }
 try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
-    const snapshot = prepareSnapshot({ root, slug, map, checks, ...(sourceState ? { state: sourceState } : {}) })
+    const snapshot = prepareSnapshot({ root, slug, map, checks,
+      allowInvalidMap: !options['publish-snapshot'], ...(sourceState ? { state: sourceState } : {}) })
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
     if (!options['publish-snapshot']) {
       snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot) }

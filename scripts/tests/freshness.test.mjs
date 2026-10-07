@@ -7,6 +7,9 @@ import { join, resolve } from 'node:path'
 import { gitState, assertPublishedState, SnapshotDrift } from '../lib/git-state.mjs'
 import { buildSnapshot } from '../lib/snapshot.mjs'
 import { compareSnapshot, verifySnapshot } from '../lib/freshness.mjs'
+import { fileURLToPath } from 'node:url'
+
+const checkCli = fileURLToPath(new URL('../check.mjs', import.meta.url))
 
 test('remote Git check refuses interactive credentials instead of hanging', t => {
   const base = mkdtempSync(join(tmpdir(), 'process-git-prompt-'))
@@ -124,6 +127,46 @@ test('design and build diagnostics do not make the same published map stale', t 
     { id: 'events.used', title: 'Events', ok: false, errors: ['writer is missing'], warnings: [] },
   )
   assert.doesNotThrow(() => compareSnapshot(expected, board))
+})
+
+test('a published design map stays readable when build detects its future automation is absent', t => {
+  const f = fixture(t)
+  writeFileSync(join(f.root, 'demo/.workspace.json'), '{"type":"process","processEngine":"processes-v2"}\n')
+  writeFileSync(join(f.root, 'demo/process.yaml'), `title: Demo
+knowledge: .knowledge-base/processes/demo
+stages: [Start]
+nodes:
+  - id: first
+    stage: Start
+    kind: external
+    title: First
+    purpose: Start
+    source: demo/code.txt
+links:
+  - from: first
+    to: first
+    when: Then
+    via: demo/automations/future/
+`)
+  f.run(['add', '.']); f.run(['commit', '-m', 'Plan']); f.run(['push', 'origin', 'HEAD'])
+  const collect = (stage, snapshotFile, publish = false) => {
+    const result = spawnSync(process.execPath, [checkCli, 'demo', '--root', f.root, '--json',
+      '--task-stage', stage, '--snapshot-file', snapshotFile, publish ? '--publish-snapshot' : '--no-snapshot'],
+    { encoding: 'utf8', timeout: 15_000 })
+    assert.ok(result.stdout, result.stderr)
+    return JSON.parse(result.stdout)
+  }
+  const designFile = join(f.base, 'design.json'), buildFile = join(f.base, 'build.json')
+  const design = collect('design', designFile)
+  assert.equal(design.checks.find(check => check.id === 'map').ok, true,
+    JSON.stringify(design.checks.find(check => check.id === 'map')))
+  const build = collect('build', buildFile)
+  assert.equal(build.checks.find(check => check.id === 'map').ok, false)
+  const stored = JSON.parse(readFileSync(designFile, 'utf8'))
+  const expected = JSON.parse(readFileSync(buildFile, 'utf8'))
+  assert.doesNotThrow(() => compareSnapshot(expected, { snapshot: { revision: 1, snapshot: stored },
+    revision: 1, elements: { blocks: [], connections: [], drawings: [] } }))
+  assert.match(collect('build', join(f.base, 'denied.json'), true).snapshot.error, /Cannot publish an invalid process map/)
 })
 
 test('dirty and untracked files prevent freshness, shared notes still returned', async t => {
