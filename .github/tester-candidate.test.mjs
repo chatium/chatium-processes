@@ -2,9 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { assessTesterCandidate, parseRegister } from '../../.github/tester-candidate.mjs'
+import { assessTesterCandidate, parseRegister } from './tester-candidate.mjs'
 
-const root = fileURLToPath(new URL('../../', import.meta.url))
+const root = fileURLToPath(new URL('../', import.meta.url))
 const rows = parseRegister(readFileSync(`${root}/.github/REMEDIATION-REGISTER-2026-10-07.md`, 'utf8'))
 const deferrals = JSON.parse(readFileSync(`${root}/.github/TESTER-DEFERRALS.json`, 'utf8'))
 
