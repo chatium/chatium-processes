@@ -161,6 +161,8 @@ test('each material risk decision has its own non-skippable question and source'
     reason: 'Не определён контроль риска.', nextAction: 'Уточнить контроль с владельцем.',
   })
   assert.equal(validateReview(unresolved, packet).status, 'needs-work')
+  unresolved.answers.find(a => a.id === 'risk.RD2').priority = 'advisory'
+  assert.throws(() => validateReview(unresolved, packet), /блокирует этап/)
   const before = packet.inputDigest
   f.put('demo/decisions/risk/RD2.json', readFileSync(join(f.root, 'demo/decisions/risk/RD2.json'), 'utf8')
     .replace('Контроль RD2', 'Новый контроль RD2'))

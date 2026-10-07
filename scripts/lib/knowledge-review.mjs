@@ -134,6 +134,8 @@ export function validateReview(report, packet) {
       throw Error(`Для ${answer.id} нужно доказательство из указанного первичного источника, а не только общее описание.`)
     if (answer.status === 'gap') {
       if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
+      if (answer.id.startsWith('risk.') && answer.priority !== 'blocking')
+        throw Error(`${answer.id}: незакрытый пробел в существенном решении блокирует этап.`)
       checkedString(answer.nextAction, `${answer.id}.nextAction`)
     } else if (answer.priority !== undefined || answer.nextAction !== undefined) throw Error(`priority/nextAction допустимы только для gap (${answer.id}).`)
     return { id: answer.id, status: answer.status, reason: answer.reason, evidence,
