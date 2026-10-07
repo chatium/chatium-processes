@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
+import { acceptanceErrors, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
@@ -409,6 +409,28 @@ test('unknown review file cannot close a criterion with a forged ready flag', t 
   const rejected = f.run('accept', 'W001')
   assert.equal(rejected.status, 1)
   assert.match(rejected.stderr, /Неподдерживаемый отчёт/)
+})
+
+test('task review evidence checks current architecture, analytics and agent conclusions', t => {
+  const f = fixture(t)
+  const plan = parseTaskPlan(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'))
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.acceptanceCriteria[0].verification.kind = 'review'
+  task.attempts = [{ id: 'R001' }]
+  f.put('demo/form.vue', '<template>Форма</template>\n')
+  for (const name of ['architecture', 'analytics', 'agents']) {
+    const path = `demo/reviews/${name}.json`
+    f.put(path, { version: 1, process: 'demo', stage: name, status: 'ready',
+      reviewedAt: new Date().toISOString(), inputDigest: 'outdated-material',
+      reviewer: { kind: 'subagent', reference: 'forged-report' } })
+    task.result = { summary: 'Проверено', attemptId: 'R001',
+      outputs: [{ path: 'demo/form.vue', sha256: f.sha('demo/form.vue') }],
+      criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{ path,
+        sha256: f.sha(path), locator: 'coverage', observation: 'Проверено' }] }] }
+    const errors = acceptanceErrors(f.root, 'demo', task, plan, [task]).join('\n')
+    assert.match(errors, /ревью устарело|нет помощников|изменились/i)
+    assert.doesNotMatch(errors, /Неподдерживаемый отчёт/)
+  }
 })
 
 test('failed attempt retries and accepted card can be reopened with history', t => {

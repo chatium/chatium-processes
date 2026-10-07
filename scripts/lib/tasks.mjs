@@ -4,6 +4,9 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { canonicalTarget, reviewStatus } from './knowledge-review.mjs'
 import { codeReviewStatus } from './code-review.mjs'
 import { creativeReviewStatus } from './creative-review.mjs'
+import { architectureReviewStatus } from './architecture-review.mjs'
+import { analyticsReviewStatus } from './analytics-review.mjs'
+import { agentReviewStatus } from './agent-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 
@@ -162,6 +165,9 @@ function fileHash(root, path) {
 
 function currentReviewStatus(root, slug, path) {
   if (path === `${slug}/reviews/implementation.json`) return codeReviewStatus({ root, slug })
+  if (path === `${slug}/reviews/architecture.json`) return architectureReviewStatus({ root, slug })
+  if (path === `${slug}/reviews/analytics.json`) return analyticsReviewStatus({ root, slug })
+  if (path === `${slug}/reviews/agents.json`) return agentReviewStatus({ root, slug })
   const knowledge = new RegExp(`^${slug}/reviews/knowledge-(design|build|launch)\\.json$`).exec(path)
   if (knowledge) return reviewStatus({ root, slug, stage: knowledge[1] })
   const creative = new RegExp(`^${slug}/reviews/creative/([^/]+)-(spec|result)\\.json$`).exec(path)
