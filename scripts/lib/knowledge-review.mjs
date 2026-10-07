@@ -89,6 +89,11 @@ export function validateReview(report, packet) {
       if (!normalized(files.get(item.path)).includes(normalized(item.quote))) throw Error(`Цитата ${answer.id} не найдена в ${item.path}.`)
       return { path: item.path, quote: item.quote }
     })
+    const requiredPaths = questionById.get(answer.id)?.requiredEvidencePaths
+    if (answer.status === 'covered' && Array.isArray(requiredPaths) && requiredPaths.length &&
+        !evidence.some(item => requiredPaths.some(part => part.endsWith('/') ?
+          item.path.startsWith(part) || item.path.includes(part) : item.path.endsWith(part))))
+      throw Error(`Для ${answer.id} нужно доказательство из исполняемого исходника, а не только описание.`)
     if (answer.status === 'gap') {
       if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
       checkedString(answer.nextAction, `${answer.id}.nextAction`)

@@ -60,6 +60,21 @@ test('one mechanically repeated citation cannot make every different answer gree
   assert.throws(() => validateReview(report, packet), /механически повторена/)
 })
 
+test('route protection cannot be marked covered with only a claim in the plan', () => {
+  const packet = { process: 'demo', stage: 'implementation', inputDigest: 'current',
+    files: [{ path: 'demo/PLAN.md', content: 'Маршрут закрыт для сотрудников.' },
+      { path: 'demo/pages/private/index.tsx', content: 'export const route = staffOnly' }],
+    questions: [{ id: 'security.routes', requiredEvidencePaths: ['.ts', '.tsx', '.js', '.jsx', '.vue'] }],
+    referenceLibrary: { files: [], required: [] }, staticChecks: [] }
+  const report = { version: 1, process: 'demo', stage: 'implementation', inputDigest: 'current',
+    inspectedFiles: packet.files.map(file => file.path), inspectedReferences: [],
+    answers: [{ id: 'security.routes', status: 'covered', reason: 'Защита есть.',
+      evidence: [{ path: 'demo/PLAN.md', quote: 'Маршрут закрыт для сотрудников.' }] }] }
+  assert.throws(() => validateReview(report, packet), /исполняемого исходника/)
+  report.answers[0].evidence.push({ path: 'demo/pages/private/index.tsx', quote: 'export const route = staffOnly' })
+  assert.equal(validateReview(report, packet).status, 'ready')
+})
+
 test('stage question sets grow from design to build to launch, with unique IDs', t => {
   const f = fixture(t)
   const design = f.packet('design'), build = f.packet('build'), launch = f.packet('launch')

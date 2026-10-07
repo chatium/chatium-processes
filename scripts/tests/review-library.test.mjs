@@ -293,7 +293,9 @@ test('both saved review roles become stale when a referenced platform declaratio
   const report = packet => ({ version: 1, process: slug, stage: packet.stage, inputDigest: packet.inputDigest,
     inspectedFiles: packet.files.map(file => file.path), inspectedReferences: [...packet.referenceLibrary.required, 'typings/.typings/platform.d.ts'],
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
-      reason: 'Synthetic unit answer testing snapshot freshness only.', evidence: [{ path: kbPath, quote: quote.slice(index % 3) }] })) })
+      reason: 'Synthetic unit answer testing snapshot freshness only.',
+      evidence: question.id === 'security.routes' ? [{ path: 'demo/index.ts', quote: 'export const answer = 42' }] :
+        [{ path: kbPath, quote: quote.slice(index % 3) }] })) })
   const records = []
   for (const stage of ['implementation', 'design']) {
     const packet = stage === 'implementation' ? makeCodeReviewPacket({ root, slug }) : makeReviewPacket({ root, slug, stage })
