@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -125,6 +125,13 @@ test('hard-coded undefined UTM placeholders fail while actual submitted attribut
   customer: { ...(input.utmSource ? { utm: { source: input.utmSource } } : {}) },
 })\n`)
   assert.equal(named(f.run(), 'events.data').ok, true)
+})
+
+test('event guide example never reintroduces undefined UTM placeholders', () => {
+  const guide = readFileSync(fileURLToPath(new URL('../../formats/events-yaml.md', import.meta.url)), 'utf8')
+  assert.doesNotMatch(guide, /utm\s*:\s*\{[^}]*\bundefined\b/)
+  assert.match(guide, /input\.utmSource/)
+  assert.match(guide, /Object\.keys\(utm\)\.length/)
 })
 
 test('analytics funnel rejects unrelated event identities and imaginary events', t => {

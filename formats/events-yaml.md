@@ -88,13 +88,22 @@ events:
 ```ts
 import { captureCustomerEvent } from '@crm/sdk'
 
+// input.utm* — фактические метки, прочитанные на странице из URL,
+// переданные формой и проверенные обработчиком.
+const utm = {
+  ...(input.utmSource ? { source: input.utmSource } : {}),
+  ...(input.utmMedium ? { medium: input.utmMedium } : {}),
+  ...(input.utmCampaign ? { campaign: input.utmCampaign } : {}),
+  ...(input.utmContent ? { content: input.utmContent } : {}),
+  ...(input.utmTerm ? { term: input.utmTerm } : {}),
+}
 const captured = await captureCustomerEvent(ctx, {
   event: '<key>',
   name: '<Что произошло>',
   contacts: [{ type: 'email', value: row.email }],
   customer: {
     displayName: row.name,
-    utm: { source: utmSource, medium: undefined, campaign: undefined, content: undefined, term: undefined },
+    ...(Object.keys(utm).length ? { utm } : {}),
   },
   linkRecords: [row],
   metricEventData: {
