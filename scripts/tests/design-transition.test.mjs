@@ -57,7 +57,7 @@ test('implementation starts only after approved plan and accepted design conclus
   const ownerPacket = prepareOwnerDecision({ root, slug: 'demo', kind: 'plan', boardRevision: null })
   recordOwnerDecision({ root, slug: 'demo', kind: 'plan', packet: ownerPacket,
     response: { decision: 'approve', message: 'Согласен строить описанную форму.',
-      messageReference: 'unit-test/plan-approval', owner: 'fixture-owner', answeredAt: '2026-10-07T10:00:00Z' } })
+      messageReference: 'unit-test/plan-approval', owner: 'fixture-owner', answeredAt: new Date().toISOString() } })
   const reportFor = packet => ({ version: 1, process: packet.process, stage: packet.stage,
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
     inspectedReferences: [...packet.referenceLibrary.required],

@@ -71,6 +71,7 @@ export function validateReview(report, packet) {
       packet.referenceLibrary.required.some(p => !report.inspectedReferences.includes(p)))
     throw Error('inspectedReferences должен перечислять прочитанные справки без повторов, включая обязательные разделы.')
   const ids = new Set(packet.questions.map(q => q.id))
+  const questionById = new Map(packet.questions.map(question => [question.id, question]))
   if (!Array.isArray(report.answers) || report.answers.length !== ids.size) throw Error('Нужен ответ на каждый вопрос рубрики.')
   const answers = report.answers.map(answer => {
     if (!answer || !ids.delete(answer.id)) throw Error('Неизвестный или повторный ID вопроса.')
@@ -80,6 +81,9 @@ export function validateReview(report, packet) {
     if (answer.status !== 'gap' && !answer.evidence.length) throw Error(`Нужна цитата для ${answer.id}.`)
     const evidence = answer.evidence.map(item => {
       if (!item || !files.has(item.path)) throw Error(`Источник ${answer.id} отсутствует в пакете.`)
+      const allowed = questionById.get(answer.id)?.evidencePaths
+      if (Array.isArray(allowed) && allowed.length && !allowed.some(part => item.path.includes(part)))
+        throw Error(`Источник ${answer.id} не относится к допустимой области доказательств.`)
       checkedString(item.quote, `${answer.id}.quote`, 2000)
       if (!normalized(files.get(item.path)).includes(normalized(item.quote))) throw Error(`Цитата ${answer.id} не найдена в ${item.path}.`)
       return { path: item.path, quote: item.quote }

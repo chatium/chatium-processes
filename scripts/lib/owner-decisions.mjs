@@ -5,6 +5,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget } from './knowledge-review.mjs'
 import { isProcessSlug, rel } from './project.mjs'
+import { readProcessBoard } from './board.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -73,7 +74,9 @@ export function approvalScope({ root, slug, kind }) {
     for (const path of approvalFiles(root, rootPath)) {
       const relative = rel(root, path)
       if (/\/(?:tasks|reviews|decisions)\//.test(relative) || relative.endsWith('/PLAN.md')) continue
-      if (!/\.(?:json|ya?ml|md|tpl)$/.test(relative)) continue
+      // A launch decision covers executable behavior too: prices, recipients and
+      // delivery rules often live in route handlers rather than config files.
+      if (!/\.(?:json|ya?ml|md|tpl|[cm]?js|jsx|[cm]?ts|tsx|vue)$/.test(relative)) continue
       files.set(relative, normalized(relative, readFileSync(path, 'utf8')))
     }
     for (const path of approvalFiles(root, join(root, '.mailings/storage/processes', slug))) {
@@ -98,12 +101,15 @@ export function recordOwnerDecision({ root, slug, kind, packet, response }) {
   const current = approvalScope({ root, slug, kind })
   if (packet?.version !== 1 || packet.kind !== kind || packet.process !== slug ||
       packet.digest !== current.digest || !/^[0-9a-f]{40}$/.test(packet.shownCommit) ||
+      !Number.isFinite(Date.parse(packet.preparedAt)) ||
       !(packet.boardRevision === null || Number.isInteger(packet.boardRevision)))
     throw Error('Показанный владельцу объём устарел или пакет некорректен.')
   if (!response || !['approve', 'decline'].includes(response.decision) || !text(response.message) ||
       !text(response.messageReference) || !text(response.owner) ||
       !Number.isFinite(Date.parse(response.answeredAt)))
     throw Error('Нужны решение, текст реального ответа, ссылка на сообщение, владелец и время ответа.')
+  if (Date.parse(response.answeredAt) < Date.parse(packet.preparedAt))
+    throw Error('Ответ владельца датирован раньше показа согласуемого объёма.')
   const path = ownerDecisionPath(root, slug, kind)
   const saved = { version: 1, kind, process: slug, decision: response.decision,
     message: response.message, messageReference: response.messageReference,
@@ -133,9 +139,21 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision }) 
     return { status: 'stale', path, changedFiles,
       error: `После согласования изменилось содержание: ${changedFiles.join(', ') || 'неизвестное отличие'}. Покажите его владельцу.` }
   }
-  if (currentBoardRevision !== undefined && saved.boardRevision !== null && currentBoardRevision !== saved.boardRevision)
-    return { status: 'stale', path, error: `Доска изменилась: показана ревизия ${saved.boardRevision}, сейчас ${currentBoardRevision}.` }
+  if (currentBoardRevision !== undefined && currentBoardRevision !== saved.boardRevision)
+    return { status: 'stale', path, error: `Доска изменилась: показана ревизия ${saved.boardRevision ?? 'отсутствует'}, сейчас ${currentBoardRevision ?? 'отсутствует'}.` }
   return { status: 'ready', path, shownCommit: saved.shownCommit, currentCommit: commit(root),
     boardRevision: saved.boardRevision, answeredAt: saved.answeredAt,
     messageReference: saved.messageReference }
+}
+
+export async function ownerDecisionForCurrentBoard({ root, slug, kind, readBoard = readProcessBoard }) {
+  const decision = ownerDecisionStatus({ root, slug, kind })
+  if (decision.status !== 'ready' || decision.boardRevision === null) return decision
+  try {
+    const board = await readBoard(root, slug)
+    return ownerDecisionStatus({ root, slug, kind, currentBoardRevision: board.boardRevision })
+  } catch (error) {
+    return { status: 'unavailable', path: decision.path,
+      error: `Не удалось сверить доску с согласованием владельца: ${error.message}` }
+  }
 }

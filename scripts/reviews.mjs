@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { architectureReviewStatus, makeArchitectureReviewPacket, recordArchitectureReview } from './lib/architecture-review.mjs'
+import { makeAnalyticsReviewPacket, recordAnalyticsReview } from './lib/analytics-review.mjs'
 import { commissionStatus, reviewRequirements, COMMISSION_STAGES } from './lib/commission.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
@@ -38,7 +39,7 @@ try {
   } else if (command === 'prepare' || command === 'record') {
     const role = options.role
     if (!role) throw Error('Укажите --role из reviews requirements.')
-    if (role !== 'architecture') {
+    if (!['architecture', 'analytics'].includes(role)) {
       const roleScripts = { methodology: 'kb-review.mjs', implementation: 'code-review.mjs', creative: 'creative-review.mjs', agents: 'agent-review.mjs' }
       const script = roleScripts[role]
       if (!script || !existsSync(join(import.meta.dirname, script))) throw Error(`Роль ${role} ещё не подключена.`)
@@ -55,24 +56,25 @@ try {
       if (child.stderr) process.stderr.write(child.stderr)
       process.exitCode = child.status ?? 2
     } else if (command === 'prepare') {
-      const packet = makeArchitectureReviewPacket({ root, slug })
-      const directory = options.out ? resolve(options.out) : mkdtempSync(join(existsSync('/data/external') ? '/data/external' : tmpdir(), `architecture-review-${slug}-`))
+      const packet = role === 'analytics' ? makeAnalyticsReviewPacket({ root, slug }) : makeArchitectureReviewPacket({ root, slug })
+      const directory = options.out ? resolve(options.out) : mkdtempSync(join(existsSync('/data/external') ? '/data/external' : tmpdir(), `${role}-review-${slug}-`))
       const canonical = canonicalTarget(directory), account = realpathSync(root)
       if (canonical === account || canonical.startsWith(account + sep)) throw Error('Пакет reviewer должен находиться вне аккаунта.')
       mkdirSync(directory, { recursive: true })
       const packetPath = join(directory, 'packet.json'), promptPath = join(directory, 'prompt.md')
       if (existsSync(packetPath) || existsSync(promptPath)) throw Error('Пакет уже существует.')
       const libraryPath = writeReferenceSnapshot(directory, packet)
-      const prompt = `Проведи независимое ревью архитектуры процесса ${slug} до реализации.\nПрочитай пакет ${packetPath}, reviewerInstructions и все questions.\n` +
+      const prompt = `Проведи независимое ревью ${role === 'analytics' ? 'аналитики' : 'архитектуры'} процесса ${slug}${role === 'architecture' ? ' до реализации' : ''}.\nПрочитай пакет ${packetPath}, reviewerInstructions и все questions.\n` +
         referencePrompt(directory, packet) + 'Работай только чтением, не вызывай других агентов. Верни JSON по схеме reviewerInstructions.\n'
       writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
       writeFileSync(promptPath, prompt, { flag: 'wx' })
-      markReviewPacket({ directory, root, slug, role: 'architecture-review', managed: !options.out })
+      markReviewPacket({ directory, root, slug, role: `${role}-review`, managed: !options.out })
       console.log(JSON.stringify({ packet: packetPath, prompt: promptPath, library: libraryPath, inputDigest: packet.inputDigest,
         files: packet.files.length, questions: packet.questions.length, staticErrors: packet.staticChecks.flatMap(item => item.errors) }, null, 2))
     } else {
       if (!options.packet || !options.report || !options.agent) throw Error('Нужны --packet, --report и --agent.')
-      const result = recordArchitectureReview({ root, slug, packet: JSON.parse(readFileSync(options.packet, 'utf8')),
+      const record = role === 'analytics' ? recordAnalyticsReview : recordArchitectureReview
+      const result = record({ root, slug, packet: JSON.parse(readFileSync(options.packet, 'utf8')),
         report: JSON.parse(readFileSync(options.report, 'utf8')), agentReference: options.agent,
         packetDirectory: dirname(resolve(options.packet)) })
       console.log(JSON.stringify(result, null, 2))

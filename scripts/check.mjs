@@ -1019,6 +1019,20 @@ if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согла�
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
   if (decision.status !== 'ready') error(decision.error || decision.status)
 })
+if ((options['task-stage'] || 'build') !== 'design') check('owner.plan.board', 'Согласование текущей доски перед сборкой', ({ error }) => {
+  const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
+  if (decision.status !== 'ready') return error(decision.error || decision.status)
+  if (decision.boardRevision === null) {
+    if (snapshotResult.verified) {
+      const current = ownerDecisionStatus({ root, slug, kind: 'plan', currentBoardRevision: snapshotResult.boardRevision })
+      if (current.status !== 'ready') error(current.error || current.status)
+    }
+    return
+  }
+  if (!snapshotResult.verified) return error('Нельзя сверить ревизию доски с согласованием плана без актуальной доски.')
+  const current = ownerDecisionStatus({ root, slug, kind: 'plan', currentBoardRevision: snapshotResult.boardRevision })
+  if (current.status !== 'ready') error(current.error || current.status)
+})
 
 // ---------- вывод ----------
 

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { fileURLToPath } from 'node:url'
 
 const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
@@ -26,15 +26,18 @@ function fixture(t) {
 }
 
 const response = { decision: 'approve', message: 'Да, строим по показанному плану.',
-  messageReference: 'conversation/message-123', owner: 'business-owner', answeredAt: '2026-10-06T10:00:00.000Z' }
+  messageReference: 'conversation/message-123', owner: 'business-owner' }
+const answer = (overrides = {}) => ({ ...response, answeredAt: new Date().toISOString(), ...overrides })
 
 test('owner answer is required and binds business scope, not a bookkeeping commit', t => {
   const f = fixture(t)
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'missing')
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 3 })
   assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet,
-    response: { ...response, messageReference: '' } }), /реального ответа/)
-  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response })
+    response: answer({ messageReference: '' }) }), /реального ответа/)
+  assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet,
+    response: answer({ answeredAt: '2020-01-01T00:00:00Z' }) }), /раньше показа/)
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'ready')
   f.put('demo/PLAN.md', '# План\n\n- [x] T1 Форма записи\n- Строим: согласовано\n')
   f.git(['add', '.']); f.git(['commit', '-qm', 'Bookkeeping'])
@@ -50,13 +53,32 @@ test('owner answer is required and binds business scope, not a bookkeeping commi
 test('launch decision detects changed delivery and board revision', t => {
   const f = fixture(t)
   f.put('.mailings/storage/processes/demo/welcome/01.message.yaml', 'subject: Подтверждение\n')
+  f.put('demo/pages/checkout.ts', 'export const price = 3900\n')
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: 5 })
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
-    response: { ...response, message: 'Да, запускаем.', messageReference: 'conversation/message-456' } })
+    response: answer({ message: 'Да, запускаем.', messageReference: 'conversation/message-456' }) })
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch', currentBoardRevision: 5 }).status, 'ready')
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch', currentBoardRevision: 6 }).status, 'stale')
+  f.put('demo/pages/checkout.ts', 'export const price = 4900\n')
+  const changedPrice = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch', currentBoardRevision: 5 })
+  assert.equal(changedPrice.status, 'stale')
+  assert.ok(changedPrice.changedFiles.includes('demo/pages/checkout.ts'))
   f.put('.mailings/storage/processes/demo/welcome/01.message.yaml', 'subject: Другое обещание\n')
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
+})
+
+test('build transition reads the current board revision before trusting plan approval', async t => {
+  const f = fixture(t)
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 4 })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
+  assert.equal((await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
+    readBoard: async () => ({ boardRevision: 4 }) })).status, 'ready')
+  const stale = await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
+    readBoard: async () => ({ boardRevision: 5 }) })
+  assert.equal(stale.status, 'stale')
+  assert.match(stale.error, /ревизия 4.*5/)
+  assert.equal((await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
+    readBoard: async () => { throw Error('SDK unavailable') } })).status, 'unavailable')
 })
 
 test('the approved launch survives only the testOnly deployment switch', t => {
@@ -67,7 +89,7 @@ test('the approved launch survives only the testOnly deployment switch', t => {
   f.put('demo/.workspace.json', workspace(true))
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: 1 })
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
-    response: { ...response, message: 'Да, запускаем после безопасного прогона.' } })
+    response: answer({ message: 'Да, запускаем после безопасного прогона.' }) })
   f.put('demo/.workspace.json', workspace(false))
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'ready')
   f.put('demo/.workspace.json', workspace(false).replace('mail', 'sms'))
@@ -89,7 +111,7 @@ test('context does not present stale owner approval from an old PLAN.md line', t
   assert.match(context(), /Этап: 2\. План — ждёт согласования/)
   assert.match(context(), /Следующий шаг: Получи новое решение владельца/)
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
-  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
   assert.match(context(), /решение «строим так\?» ready/)
   assert.match(context(), /Этап: 2\. План — ждёт независимой проверки архитектуры/)
   assert.match(context(), /Следующий шаг: Получи независимое заключение по архитектуре/)

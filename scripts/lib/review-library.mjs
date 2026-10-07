@@ -95,6 +95,12 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     'skills/processes/formats/plan-md.md',
     'skills/processes/formats/process-yaml.md',
     'skills/chatium-development/auth.md',
+  ] : stage === 'analytics' ? [
+    'skills/processes/blocks/analytics.md',
+    'skills/processes/blocks/form-table-event.md',
+    'skills/chatium-development/references/analytics/traffic.md',
+    'skills/chatium-development/references/analytics/attribution.md',
+    'skills/chatium-development/auth.md',
   ] :
     ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)

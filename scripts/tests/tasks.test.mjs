@@ -89,7 +89,7 @@ function fixture(t) {
     const packet = prepareOwnerDecision({ root, slug: 'demo', kind: 'plan', boardRevision: null })
     recordOwnerDecision({ root, slug: 'demo', kind: 'plan', packet,
       response: { decision: 'approve', message: 'Тестовое согласование плана.',
-        messageReference: 'unit-test/message-1', owner: 'fixture-owner', answeredAt: '2026-10-06T10:00:00Z' } })
+        messageReference: 'unit-test/message-1', owner: 'fixture-owner', answeredAt: new Date().toISOString() } })
   }
   approve()
   const run = (command, ...args) => {

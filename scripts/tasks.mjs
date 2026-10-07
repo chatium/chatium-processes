@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
-import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
@@ -130,7 +130,7 @@ try {
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
     if (task.mode === 'implement') {
-      const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
+      const decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
       if (decision.status !== 'ready') throw Error(`Начать реализацию нельзя: ${decision.error || decision.status}`)
       // Marked v2 processes must pass independent design review before code work.
       if (existsSync(join(root, slug, '.workspace.json'))) {

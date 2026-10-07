@@ -626,7 +626,7 @@ test('creative implementation starts after accepted expert and spec tasks with c
   const decisionPacket = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet: decisionPacket,
     response: { decision: 'approve', message: 'Да, строим.', messageReference: 'unit-test/message-1',
-      owner: 'fixture-owner', answeredAt: '2026-10-06T10:00:00Z' } })
+      owner: 'fixture-owner', answeredAt: new Date().toISOString() } })
   const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
   const started = spawnSync(process.execPath, [cli, 'start', 'demo', 'W001', '--root', f.root], { encoding: 'utf8' })
   assert.equal(started.status, 0, started.stderr)
