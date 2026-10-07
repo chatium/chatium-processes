@@ -10,7 +10,8 @@ test('release gate needs closed findings, owner terms and unchanged cross-harnes
     const { assessRelease, expectedIds } = await import(gate)
     const rows = expectedIds.map(id => ({ id, status: ['E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
       check: 'scripts/tests/example.test.mjs', commit: 'a'.repeat(40) }))
-    const evidence = { testedCommit: 'b'.repeat(40), licenseDecision: { id: 'MIT',
+    const evidence = { testedCommit: 'b'.repeat(40), platform: { mailingsProcessDelivery: {
+      commit: 'c'.repeat(40), verifiedAt: '2026-10-07T00:00:00Z' } }, licenseDecision: { id: 'MIT',
       reference: 'owner/message/mit', decidedAt: '2026-10-07T00:00:00Z' }, distribution: { decision: 'public',
       reference: 'owner/message/42', approvedAt: '2026-10-07T00:00:00Z' },
     runs: Object.fromEntries(['dsh', 'claude-code', 'codex'].map(harness =>
@@ -23,6 +24,7 @@ test('release gate needs closed findings, owner terms and unchanged cross-harnes
     assert.match(assessRelease({ ...input, rows: [...rows, rows[0]] }).join('\n'), /повторные R01/)
     assert.match(assessRelease({ ...input, license: '' }).join('\n'), /LICENSE/)
     assert.match(assessRelease({ ...input, evidence: { ...evidence, licenseDecision: null } }).join('\n'), /выборе лицензии/)
+    assert.match(assessRelease({ ...input, evidence: { ...evidence, platform: null } }).join('\n'), /Mailings/)
     assert.match(assessRelease({ ...input, changedFiles: ['SKILL.md'] }).join('\n'), /SKILL.md/)
     assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs, dsh: { status: 'missing' } } } }).join('\n'), /dsh/)
   })

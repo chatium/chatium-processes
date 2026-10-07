@@ -34,6 +34,8 @@ import { validateComponentContracts } from './lib/component-contracts.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
 import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
+import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
+import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -291,7 +293,9 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   if (ws.type !== 'process') error(`type = ${JSON.stringify(ws.type)}, нужен "process"`)
   const channels = ws.config?.senderChannels
   if (!Array.isArray(channels) || !channels.length || channels.some(id => typeof id !== 'string' || !id.trim())) {
-    warn('config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Настройка каналов не блокирует сборку, доступность каналов проверяется отдельно.')
+    const message = 'config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Доступность каналов проверяется отдельно.'
+    if (options['task-stage'] === 'launch' && nodes.some(node => node.kind === 'series')) error(message)
+    else warn(`${message} Настройка каналов не блокирует сборку.`)
   }
   const vars = ws.config?.variables
   if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
@@ -790,11 +794,14 @@ check('automations.refs', 'Параметры шагов ведут на сущ�
   }
 })
 
+const letterDeliveryExpectations = []
 check('letters', 'Письма шагов отправки и их переменные', ({ error, warn }) => {
   const sent = new Set()
   const manuallyInvoked = new Set()
   const formatsByLetter = new Map()
   const requirementsByLetter = new Map()
+  const channelsByLetter = new Map()
+  const channelFormatsByLetter = new Map()
   let configuredChannels = []
   try {
     const config = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
@@ -805,11 +812,22 @@ check('letters', 'Письма шагов отправки и их переме�
     try { spec = loadYamlFile(safeTaskPath(root, node.creativeRef)) }
     catch { continue } // Creative checks report an unsafe or missing spec.
     const formats = Array.isArray(spec.data?.formats) ? spec.data.formats : ['email']
+    const plan = validateChannelPlan(formats, spec.data?.channelIdsByFormat, configuredChannels)
+    for (const issue of plan.errors) error(`${node.creativeRef}: ${issue}`)
+    if (!spec.data?.channelIdsByFormat && configuredChannels.length) {
+      const message = `${node.creativeRef}: укажите channelIdsByFormat, чтобы ограничить доставку каждого сообщения заявленными форматами.`
+      if (options['task-stage'] === 'launch') error(message)
+      else warn(message)
+    }
     for (const message of spec.data?.messages || []) if (typeof message.path === 'string') {
       const selected = formatsByLetter.get(message.path) || new Set()
       for (const format of formats) selected.add(format)
       formatsByLetter.set(message.path, selected)
       if (Array.isArray(message.requiredMedia)) requirementsByLetter.set(message.path, message.requiredMedia)
+      if (plan.channelIds.length) {
+        channelsByLetter.set(message.path, plan.channelIds)
+        channelFormatsByLetter.set(message.path, plan.formatById)
+      }
     }
     const manual = spec.data?.deliveryMode === 'manual' &&
       ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
@@ -865,6 +883,22 @@ check('letters', 'Письма шагов отправки и их переме�
     const letter = res.data || {}
     const basePath = p.replace(/\.v\d+\.message\.yaml$/, '.message.yaml')
     const formats = formatsByLetter.get(basePath) || new Set(['email'])
+    const deliveryChannels = channelsByLetter.get(basePath)
+    if (deliveryChannels?.length) {
+      const mediaByChannel = {}
+      for (const requirement of requirementsByLetter.get(basePath) || [])
+        for (const id of requirement?.channelIds || [])
+          (mediaByChannel[id] ||= []).push(requirement.key)
+      letterDeliveryExpectations.push({ path: p, channelIds: deliveryChannels,
+        formatById: channelFormatsByLetter.get(basePath), mediaByChannel })
+    }
+    if (deliveryChannels) for (const issue of validateMessageDelivery(letter, deliveryChannels))
+      error(`${p}: ${issue}`)
+    else if (configuredChannels.length && !letter.processDeliveryChannelIds) {
+      const message = `${p}: processDeliveryChannelIds не задан; без него Mailings отправит шаблон во все config.senderChannels.`
+      if (options['task-stage'] === 'launch') error(message)
+      else warn(message)
+    }
     const required = [...LETTER_BASE_REQUIRED,
       ...(formats.has('email') ? ['subject', 'html', 'plain'] : []),
       ...(formats.has('messenger') && !formats.has('email') ? ['plain'] : []),
@@ -873,7 +907,8 @@ check('letters', 'Письма шагов отправки и их переме�
       if (typeof letter[field] !== 'string' || !letter[field].trim()) error(`${p}: пустое или нет поле ${field}`)
     }
     for (const issue of validateMessageMedia(letter, {
-      requirements: requirementsByLetter.get(basePath) || [], configuredChannels,
+      requirements: requirementsByLetter.get(basePath) || [],
+      configuredChannels: deliveryChannels || configuredChannels,
     })) error(`${p}: ${issue}`)
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
       warn(`${p}: короткая версия выглядит обрезанной (многоточие в конце); проверьте законченность мысли и ссылку`)
@@ -890,6 +925,11 @@ check('letters', 'Письма шагов отправки и их переме�
     }
     if (!sent.has(p) && !manuallyInvoked.has(p)) error(`${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`)
   }
+})
+
+if (options['task-stage'] === 'launch') check('letters.delivery', 'Тестовая доставка каждого сообщения и канала', ({ error }) => {
+  const result = messageDeliverySmokeStatus({ root, slug, expectations: letterDeliveryExpectations })
+  for (const issue of result.errors) error(issue)
 })
 
 check('letters.transport', 'Отправка через SDK Mailings', ({ error, warn }) => {

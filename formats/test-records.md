@@ -59,3 +59,45 @@ export const TEST_RECORDS: Record<string, string[]> = {
 доказательство. При изменении конфига результат устаревает. Проверка
 действий с реальными побочными эффектами требует отдельной изоляции: один
 лишь `testOnly` Mailings не защищает, например, платёж или запись в CRM.
+
+## Тестовая доставка сообщений
+
+Перед запуском отправь каждое сообщение и каждый вариант через
+`sendMessageFromTemplate` на разрешённые тестовые контакты. Если SDK выбирает
+вариант случайно, используй отдельный временный ключ для испытания каждого
+варианта либо добейся подтверждённого выбора нужного `variantUsed.filePath`;
+не приписывай результат одному варианту по ключу серии. Из `getChannels(ctx)`
+запиши действительные `id`, `type`, `active`. Для каждого заявленного ID
+проверь `channelResults[].success: true`. Если сообщение обещает файл или
+изображение, открой его в каждом указанном канале и запиши ключ в
+`openedMediaByChannel`.
+
+`<process>/tests/message-delivery.json`:
+
+```json
+{
+  "version": 1,
+  "channelCatalog": [
+    {"id": "email-1", "type": "email", "active": true}
+  ],
+  "runs": [{
+    "path": ".mailings/storage/processes/demo/welcome/01.message.yaml",
+    "messageSha256": "<sha256 содержимого файла>",
+    "branch": "main",
+    "testedCommit": "<40-символьный SHA исполненной версии main>",
+    "testedAt": "2026-10-07T10:00:00.000Z",
+    "testOnly": true,
+    "testContacts": [{"type": "email", "value": "test@example.com"}],
+    "executionId": "<ID вызова или исполнения>",
+    "variantUsed": {"filePath": ".mailings/storage/processes/demo/welcome/01.message.yaml"},
+    "channelResults": [{"channelId": "email-1", "success": true}],
+    "openedMediaByChannel": {}
+  }]
+}
+```
+
+`check --task-stage launch` сверяет версии файлов и `testOnly` в исполненном
+коммите, активный тип каждого канала, результаты всех заявленных каналов и
+обещанные медиа. Эта запись остаётся свидетельством на доверии: без
+платформенного подтверждения агент может её подделать. Ревьюер проверяет
+исходный журнал доставки и предпросмотр.

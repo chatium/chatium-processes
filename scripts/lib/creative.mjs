@@ -5,6 +5,7 @@ import { parseYaml } from './yaml.mjs'
 import { safeTaskPath } from './tasks.mjs'
 import { SKILL_DIR } from './project.mjs'
 import { validateMediaRequirements } from './message-media.mjs'
+import { validateChannelPlan } from './message-delivery.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -166,6 +167,8 @@ function validateSeries(spec, errors, references) {
   if (!Array.isArray(formats) || !formats.length || !unique(formats) ||
       formats.some(format => !['email', 'messenger', 'sms'].includes(format)))
     errors.push('formats серии: укажите непустой список без повторов из email, messenger, sms.')
+  for (const issue of validateChannelPlan(formats, spec.channelIdsByFormat).errors)
+    errors.push(issue)
   const uses = format => Array.isArray(formats) && formats.includes(format)
   for (const field of ['addressing', 'character', 'emotionality', 'example']) if (!text(spec.voice?.[field])) errors.push(`Голос серии: нужно ${field}.`)
   if (uses('email')) for (const field of ['layout', 'components', 'colors', 'mobile'])

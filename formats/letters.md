@@ -38,6 +38,7 @@ html: |
     <p><a href="{{action_url}}">[Текст кнопки]</a></p>
   </div>
 short: "[Короткая самостоятельная версия того же сообщения: смысл и действие]"
+processDeliveryChannelIds: [email-1]
 variables:
   - name: name
     description: Имя получателя
@@ -61,6 +62,7 @@ variables:
 | `short` | Для SMS: короткая самостоятельная версия |
 | `order` | Номер в серии, целое больше нуля |
 | `variables` | Все и только используемые переменные |
+| `processDeliveryChannelIds` | Для новых процессных шаблонов: ID каналов из `spec.channelIdsByFormat`; Mailings ограничивает ими реальную отправку. Во всех вариантах одного сообщения список одинаковый |
 | `buttons`, `inlineButtons`, `media`, `attachments` | По необходимости: новый `sendMessageFromTemplate` передаёт весь шаблон Sender. Для медиа укажи ключ, тип, URL, MIME и, если нужно, `only_channel_ids`; доставку проверь по каждому выбранному каналу |
 
 Не создавай поля `id`, `key`, `path`, `email`, `telegram`, `delay`,
@@ -88,6 +90,9 @@ variables:
   реально настроенные для доставки. Для email нужны `subject`, `html` и
   `plain`; для мессенджера — `plain`; для SMS — `short`. Mailings допускает
   пустые неиспользуемые поля. Наличие `short` само по себе не подключает SMS.
+- `formats` не управляет Sender напрямую. Для этого нужен
+  `processDeliveryChannelIds` в каждом `.message.yaml`, включая `.vN`;
+  `check` сверяет его с ID выбранных каналов в задании.
 - Напиши `short` как самостоятельную законченную мысль. Не обрезай `plain`
   по числу символов: можно потерять действие, адрес или смысл. `check`
   предупреждает о многоточии в конце; содержательную полноту проверяет

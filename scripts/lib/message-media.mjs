@@ -39,8 +39,11 @@ export function validateMessageMedia(letter, { requirements = [], configuredChan
       }
       if (seen.has(item.key)) errors.push(`${field}: повторяется key ${item.key}.`)
       seen.add(item.key)
-      if (item.only_channel_ids !== undefined && !list(item.only_channel_ids))
-        errors.push(`${field} ${item.key}: only_channel_ids должен быть непустым списком уникальных ID.`)
+      // Sender treats [] as unrestricted, just like an omitted selector.
+      if (item.only_channel_ids !== undefined &&
+          (!Array.isArray(item.only_channel_ids) ||
+            (item.only_channel_ids.length > 0 && !list(item.only_channel_ids))))
+        errors.push(`${field} ${item.key}: only_channel_ids должен быть списком уникальных ID.`)
       if (list(item.only_channel_ids) && configuredChannels.length)
         for (const id of item.only_channel_ids) if (!configuredChannels.includes(id))
           errors.push(`${field} ${item.key}: канал ${id} отсутствует в config.senderChannels.`)

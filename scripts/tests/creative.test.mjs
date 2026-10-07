@@ -550,6 +550,9 @@ test('messenger-only series requires plain but no email images or subject', t =>
   message.media[0].only_channel_ids = ['telegram-1']
   f.put(messagePath, message)
   assert.ok(creativeReviewPacket({ ...args, stage: 'result' }).messageFiles.some(file => file.path === messagePath))
+  message.media[0].only_channel_ids = []
+  f.put(messagePath, message)
+  assert.ok(creativeReviewPacket({ ...args, stage: 'result' }).messageFiles.some(file => file.path === messagePath))
   message.media[0].url = '{{photo_url}}'
   f.put(messagePath, message)
   assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /HTTPS URL/)
@@ -583,7 +586,13 @@ test('independent review is tied to the current brief and sources', t => {
   f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [x] T1 Собрать страницу\n')
   assert.equal(creativeReviewPacket(args).inputDigest, packet.inputDigest)
   f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T2 Проверить письмо\n')
-  assert.equal(creativeReviewPacket(args).inputDigest, packet.inputDigest)
+  assert.notEqual(creativeReviewPacket(args).inputDigest, packet.inputDigest)
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T1 Собрать страницу\n  - T1.A1 [build] Цена 3 900 ₽.\n')
+  const taskCriterion = creativeReviewPacket(args).inputDigest
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [x] T1 Собрать страницу\n  - T1.A1 [build] Цена 3 900 ₽.\n  - Рабочие задачи: [W001](tasks/W001.json)\n')
+  assert.equal(creativeReviewPacket(args).inputDigest, taskCriterion)
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [x] T1 Собрать страницу\n  - T1.A1 [build] Цена 4 900 ₽.\n  - Рабочие задачи: [W001](tasks/W001.json)\n')
+  assert.notEqual(creativeReviewPacket(args).inputDigest, taskCriterion)
   f.put('demo/PLAN.md', '# Демо\nЦена 3900 ₽\n\n## Задачи\n- [x] T1 Собрать страницу\n')
   assert.notEqual(creativeReviewPacket(args).inputDigest, packet.inputDigest)
   f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T1 Собрать страницу\n')
@@ -696,7 +705,7 @@ test('a current creative review can substantiate a work-task criterion', t => {
   writeCreativeBuild(f.args)
   const reviewArgs = { ...f.args, stage: 'spec' }
   f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Проверить страницу\n  - T1.A1 [build] Спецификация проверена.\n')
-  const packet = creativeReviewPacket(reviewArgs)
+  let packet = creativeReviewPacket(reviewArgs)
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
     answers: packet.questions.map((q, index) => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
@@ -719,6 +728,9 @@ test('a current creative review can substantiate a work-task criterion', t => {
   const run = (command, ...args) => spawnSync(process.execPath,
     [cli, command, 'demo', 'W001', ...args, '--root', f.root], { encoding: 'utf8' })
   assert.equal(run('create', '--file', join(f.root, 'task.json')).status, 0)
+  packet = creativeReviewPacket(reviewArgs)
+  report.inputDigest = packet.inputDigest
+  report.inspectedFiles = packet.files.map(file => file.path)
   recordCreativeReview({ ...reviewArgs, packet, report, agentReference: 'unit-test-only' })
   assert.equal(run('start').status, 0)
   assert.equal(run('step', '--step', 'P1', '--status', 'done').status, 0)

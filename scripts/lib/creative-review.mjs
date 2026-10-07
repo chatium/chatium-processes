@@ -9,6 +9,7 @@ import { parseYaml } from './yaml.mjs'
 import { SKILL_DIR } from './project.mjs'
 import { reviewCreativePlan } from './review-normalization.mjs'
 import { validateMessageMedia } from './message-media.mjs'
+import { validateChannelPlan, validateMessageDelivery } from './message-delivery.mjs'
 
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -137,6 +138,10 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
       if (Array.isArray(workspace.config?.senderChannels)) configuredChannels = workspace.config.senderChannels
     }
   }
+  const deliveryPlan = creative.spec.kind === 'series'
+    ? validateChannelPlan(formats, creative.spec.channelIdsByFormat, configuredChannels)
+    : { channelIds: [], errors: [] }
+  if (deliveryPlan.errors.length) throw Error(deliveryPlan.errors.join('; '))
   const adjacent = creative.spec.kind === 'series' ? adjacentCreativeFiles(root, slug, nodeId) : null
   if (adjacent) files.push(...adjacent.files)
   let visuals = []
@@ -156,8 +161,13 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         if (!variants.some(file => file.path === message.path)) throw Error(`Нет итогового письма ${message.path}`)
         for (const file of variants) {
           const letter = parseYaml(file.content)
+          if (deliveryPlan.channelIds.length) {
+            const deliveryIssues = validateMessageDelivery(letter, deliveryPlan.channelIds)
+            if (deliveryIssues.length) throw Error(`${file.path}: ${deliveryIssues.join('; ')}`)
+          }
           const mediaIssues = validateMessageMedia(letter, {
-            requirements: message.requiredMedia || [], configuredChannels,
+            requirements: message.requiredMedia || [],
+            configuredChannels: deliveryPlan.channelIds.length ? deliveryPlan.channelIds : configuredChannels,
           })
           if (mediaIssues.length) throw Error(`${file.path}: ${mediaIssues.join('; ')}`)
           const required = ['title', 'description',

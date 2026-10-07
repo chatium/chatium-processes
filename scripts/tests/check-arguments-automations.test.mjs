@@ -201,3 +201,47 @@ test('letter check requires content for selected transports only', t => {
   spec(['messenger'], [null])
   assert.match(errors(), /requiredMedia: неверное требование/)
 })
+
+test('channel plan constrains every message variant to its selected Sender IDs', t => {
+  const f = fixture(t)
+  const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
+  const variant = '.mailings/storage/processes/demo/followup/01.v2.message.yaml'
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { senderChannels: ['email-1', 'telegram-1'] } }))
+  const spec = { formats: ['messenger'], channelIdsByFormat: { messenger: ['telegram-1'] }, deliveryMode: 'manual',
+    manualInvocation: { caller: 'Менеджер', trigger: 'Заявка', recipient: 'Контакт', stop: 'Отказ' },
+    messages: [{ path }] }
+  f.put('demo/creative/followup/spec.yaml', JSON.stringify(spec))
+  const message = { title: 'Первый шаг', description: 'Материал', plain: 'Откройте материал.' }
+  const errors = () => JSON.parse(f.run('--task-stage', 'launch').stdout).checks.find(check => check.id === 'letters').errors.join('\n')
+  f.put(path, JSON.stringify(message))
+  f.put(variant, JSON.stringify(message))
+  assert.match(errors(), /processDeliveryChannelIds/)
+  message.processDeliveryChannelIds = ['email-1']
+  f.put(path, JSON.stringify(message))
+  f.put(variant, JSON.stringify(message))
+  assert.match(errors(), /не совпадает с channelIdsByFormat/)
+  message.processDeliveryChannelIds = ['telegram-1']
+  f.put(path, JSON.stringify(message))
+  assert.match(errors(), /01\.v2\.message\.yaml: processDeliveryChannelIds/)
+  f.put(variant, JSON.stringify(message))
+  assert.doesNotMatch(errors(), /processDeliveryChannelIds|channelIdsByFormat/)
+  const delivery = JSON.parse(f.run('--task-stage', 'launch').stdout).checks.find(check => check.id === 'letters.delivery')
+  assert.equal(delivery.ok, false)
+  assert.match(delivery.errors.join('\n'), /Нет результатов тестовой доставки/)
+  spec.channelIdsByFormat.messenger = ['unknown-channel']
+  f.put('demo/creative/followup/spec.yaml', JSON.stringify(spec))
+  assert.match(errors(), /unknown-channel отсутствует в config.senderChannels/)
+})
+
+test('launch blocks a message series without configured Sender channels', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\nlinks: []\n')
+  const build = JSON.parse(f.run('--task-stage', 'build').stdout).checks.find(check => check.id === 'workspace')
+  assert.equal(build.ok, true)
+  assert.match(build.warnings.join('\n'), /senderChannels/)
+  const launch = JSON.parse(f.run('--task-stage', 'launch').stdout).checks.find(check => check.id === 'workspace')
+  assert.equal(launch.ok, false)
+  assert.match(launch.errors.join('\n'), /senderChannels/)
+})
