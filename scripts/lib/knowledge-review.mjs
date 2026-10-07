@@ -31,7 +31,8 @@ function collectRiskDecisions(root, slug) {
     if (decision?.version !== 1 || decision.id !== id ||
         ['recommendation', 'choice', 'consequence', 'scope', 'control'].some(key =>
           !text(decision[key]) || decision[key].length > 3000) ||
-        !text(decision.owner?.message) || !text(decision.owner?.messageReference) ||
+        !text(decision.owner?.message) ||
+        (decision.owner?.messageReference !== undefined && !text(decision.owner.messageReference)) ||
         !Number.isFinite(Date.parse(decision.owner?.answeredAt)))
       throw Error(`${name}: нужен точный ответ владельца, альтернатива, последствие, граница и контроль по формату решений о рисках.`)
     return { id, path: `${slug}/decisions/risk/${name}`, content }

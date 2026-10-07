@@ -145,6 +145,10 @@ test('each material risk decision has its own non-skippable question and source'
   assert.deepEqual(packet.questions.filter(q => q.id.startsWith('risk.')).map(q => q.id),
     ['risk.RD1', 'risk.RD2'])
   assert.equal(validateReview(syntheticReport(packet), packet).status, 'ready')
+  const firstRecord = JSON.parse(readFileSync(join(f.root, 'demo/decisions/risk/RD1.json'), 'utf8'))
+  delete firstRecord.owner.messageReference
+  f.put('demo/decisions/risk/RD1.json', JSON.stringify(firstRecord, null, 2))
+  assert.equal(f.packet('design').questions.filter(q => q.id.startsWith('risk.')).length, 2)
   const missing = syntheticReport(packet)
   missing.answers = missing.answers.filter(a => a.id !== 'risk.RD2')
   assert.throws(() => validateReview(missing, packet), /каждый вопрос/)
