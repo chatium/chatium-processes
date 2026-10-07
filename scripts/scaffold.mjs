@@ -4,7 +4,7 @@
 //   node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" [--topics audience,journey] [--account-id 123] [--root DIR] [--dry-run]
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { findRoot, isProcessSlug, parseArgs, SKILL_DIR } from './lib/project.mjs'
 import { parseYaml, requireYaml, stringifyYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
@@ -64,6 +64,27 @@ if (!dryRun && !existsSync(wsFile) && existsSync(join(root, '.git'))) {
   if (['main', 'master'].includes(branch) && !options['allow-main']) {
     console.error('Новый процесс нельзя создавать прямо в main/master. Сначала создай ветку process/<process>. --allow-main допустим только при явном разрешении владельца для тестового аккаунта.')
     process.exit(2)
+  }
+  if (!(['main', 'master'].includes(branch) && options['allow-main'])) {
+    const runGit = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 15_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } })
+    const remote = runGit(['ls-remote', '--heads', 'origin', 'refs/heads/main'])
+    const currentMain = /^([0-9a-f]{40})\s+refs\/heads\/main$/m.exec(remote.stdout || '')?.[1]
+    if (remote.status !== 0 || !currentMain) {
+      console.error('Нельзя подтвердить текущий origin/main. Проверь доступ к Git и повтори создание процесса; файлы не записаны.')
+      process.exit(2)
+    }
+    const ancestor = runGit(['merge-base', '--is-ancestor', currentMain, 'HEAD'])
+    if (ancestor.status !== 0) {
+      console.error(`Ветка ${branch} не содержит опубликованный origin/main ${currentMain.slice(0, 7)}. Сначала git fetch origin main и создай ветку от origin/main либо влей его обычным merge; файлы не записаны.`)
+      process.exit(2)
+    }
+    const skillDiff = runGit(['diff', '--quiet', currentMain, 'HEAD', '--', '.agents/skills/processes'])
+    const skillDirty = runGit(['status', '--porcelain', '--', '.agents/skills/processes'])
+    if (skillDiff.status !== 0 || skillDirty.status !== 0 || skillDirty.stdout.trim()) {
+      console.error('Скилл processes в рабочей ветке отличается от опубликованного origin/main. Обнови ветку и верни актуальную отслеживаемую копию скилла до создания процесса; файлы не записаны.')
+      process.exit(2)
+    }
   }
 }
 try {

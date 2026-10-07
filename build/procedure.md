@@ -26,7 +26,8 @@ node .agents/skills/processes/scripts/context.mjs <process>
 ## 1. Каркас
 
 ```sh
-git switch -c process/<process>          # или git switch process/<process>
+git fetch origin main
+git switch -c process/<process> origin/main
 node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" --account-id <id>
 ```
 
@@ -34,7 +35,8 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 `--account-id` — `chatium exec` со строкой `return ctx.account.id` (нужен
 хотя бы один коммит со сборкой).
 При создании нового процесса в Git-аккаунте `scaffold` отвергает `main` и
-`master` до записи файлов. Флаг `--allow-main` существует только для
+`master`, ветку без текущего опубликованного `origin/main` и ветку со старой
+копией скилла до записи файлов. Флаг `--allow-main` существует только для
 тестового аккаунта, где владелец явно разрешил работу прямо в основной
 ветке; обычный процесс его не использует. `--dry-run` доступен для просмотра
 каркаса без записи.

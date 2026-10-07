@@ -41,6 +41,7 @@ function fixture(t) {
   mkdirSync(join(root, 'demo'))
   writeFileSync(join(root, 'demo/code.txt'), 'initial')
   run(['add', '.']); run(['commit', '-m', 'Initial']); run(['push', '-u', 'origin', 'HEAD'])
+  run(['push', 'origin', 'HEAD:main']) // The new-process scaffold requires the published base.
   const checks = [{ id: 'map', title: 'Map', ok: true, errors: [], warnings: [] }]
   const expected = buildSnapshot({ root, slug: 'demo', checks, ...gitState(root),
     map: { title: 'Demo', stages: ['Start'], nodes: [{ id: 'first', stage: 'Start', kind: 'external', title: 'First', purpose: 'Start', source: 'demo/code.txt' }] } })
