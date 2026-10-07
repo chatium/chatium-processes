@@ -16,6 +16,23 @@ test('CRLF and deeper indentation preserve plan tasks and criteria', () => {
   assert.deepEqual(parseTaskPlan(plan).map(task => [task.id, task.criteria.map(item => item.id)]), [['T1', ['T1.A1']]])
 })
 
+test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness', t => {
+  const f = fixture(t)
+  const unknown = f.run('startt', 'W001')
+  assert.equal(unknown.status, 2)
+  assert.match(unknown.stderr, /Неизвестная команда startt/)
+  const missingId = f.run('start')
+  assert.equal(missingId.status, 2)
+  assert.match(missingId.stderr, /Нужен ID/)
+  const extraId = f.run('status', 'W001')
+  assert.equal(extraId.status, 2)
+  assert.match(extraId.stderr, /не принимает ID/)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const unready = f.run('status')
+  assert.equal(unready.status, 1)
+  assert.ok(JSON.parse(unready.stdout).errors.some(error => /задача не завершена/.test(error)))
+})
+
 test('implementation cannot start without a current owner plan answer', t => {
   const f = fixture(t)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)

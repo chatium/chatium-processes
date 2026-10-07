@@ -24,6 +24,13 @@ if (options.help || !command || !slug) {
   process.exit(options.help ? 0 : 2)
 }
 if (positional.length > 3) { console.error('Лишний аргумент после ID задачи.'); process.exit(2) }
+const commands = new Set(['create', 'context', 'start', 'verify-base', 'prepare', 'step', 'bind',
+  'ask', 'resolve', 'record', 'accept', 'fail', 'reopen', 'cancel', 'status'])
+if (!commands.has(command)) { console.error(`Неизвестная команда ${command}. Запустите --help.`); process.exit(2) }
+if ((command === 'status' && id) || (command !== 'status' && command !== 'create' && !id)) {
+  console.error(command === 'status' ? 'status не принимает ID задачи.' : 'Нужен ID рабочей задачи W….')
+  process.exit(2)
+}
 
 const root = findRoot(options.root)
 const now = () => new Date().toISOString()
@@ -102,7 +109,11 @@ async function creativePrerequisites(task, all, plan) {
 }
 
 try {
-  if (command === 'status') { show(taskReadiness({ root, slug, stage: options.stage || 'build' })); process.exit(0) }
+  if (command === 'status') {
+    const report = taskReadiness({ root, slug, stage: options.stage || 'build' })
+    show(report)
+    process.exit(report.errors.length ? 1 : 0)
+  }
   if (command === 'create') {
     const task = input()
     if (id && id !== task.id) throw Error('ID в команде и файле различаются.')
