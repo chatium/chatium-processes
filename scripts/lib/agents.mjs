@@ -135,6 +135,16 @@ export function validateProcessAgents({ root, slug, map }) {
     if (route?.fallback && !byKey.has(route.fallback)) errors.push(`${where}: неизвестный fallback ${route.fallback}`)
     if (route?.fallback && route.fallback !== route.firstAgent) warnings.push(`${where}: отдельный запасной агент требует явных правил маршрутизации; простой SDK задаёт только одного адресата по умолчанию`)
     if (!route?.existingConversation) errors.push(`${where}: опиши существующий разговор в existingConversation`)
+    for (const field of ['testNewContacts', 'testExistingContacts']) {
+      if (route?.[field] === undefined) continue
+      const contacts = route[field]
+      if (!Array.isArray(contacts) || !contacts.length || contacts.length > 50 || contacts.some(contact =>
+        !contact || typeof contact.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+        typeof contact.value !== 'string' || !contact.value.trim() || contact.value.length > 500)) {
+        errors.push(`${where}.${field}: нужны 1–50 тестовых контактов с непустыми type и value`)
+      }
+    }
+    if (route?.expectedExistingAgent && !byKey.has(route.expectedExistingAgent)) errors.push(`${where}: неизвестный expectedExistingAgent ${route.expectedExistingAgent}`)
   }
   for (const [i, handoff] of (Array.isArray(spec.handoffs) ? spec.handoffs : []).entries()) {
     const where = `handoffs[${i}]`
