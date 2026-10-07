@@ -5,6 +5,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { fileURLToPath } from 'node:url'
+
+const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-owner-decision-'))
@@ -69,4 +72,27 @@ test('the approved launch survives only the testOnly deployment switch', t => {
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'ready')
   f.put('demo/.workspace.json', workspace(false).replace('mail', 'sms'))
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
+})
+
+test('context does not present stale owner approval from an old PLAN.md line', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}\n')
+  f.put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: page\n    kind: page\n')
+  f.put('demo/PLAN.md', '# План\n## Задачи\n- [ ] T1 Форма записи\n- План: согласован\n- Запуск: согласован\n')
+  const context = () => {
+    const result = spawnSync(process.execPath,
+      [contextCli, 'demo', '--root', f.root, '--offline', '--no-cards'], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(result.status, 0, result.stderr)
+    return result.stdout
+  }
+  assert.match(context(), /решение «строим так\?» missing/)
+  assert.match(context(), /Этап: 2\. План — ждёт согласования/)
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response })
+  assert.match(context(), /решение «строим так\?» ready/)
+  assert.match(context(), /Этап: 2\. План — ждёт независимой проверки архитектуры/)
+  f.put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Demo\n---\nДругое обещание клиенту.\n')
+  const stale = context()
+  assert.match(stale, /решение «строим так\?» stale/)
+  assert.match(stale, /Этап: 2\. План — ждёт согласования/)
 })

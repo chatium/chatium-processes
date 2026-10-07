@@ -16,6 +16,8 @@ import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
 import { inspectProcessFormat } from './lib/process-format.mjs'
+import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { commissionStatus } from './lib/commission.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'],
@@ -112,8 +114,19 @@ const tasks = plan
     }))
   : []
 const realTasks = tasks.filter(t => t.title !== '…')
-const planApproved = !!plan && /^- План: согласован/m.test(plan)
-const launchApproved = !!plan && /^- Запуск: согласован/m.test(plan)
+const decision = kind => {
+  try { return ownerDecisionStatus({ root, slug, kind,
+    ...(sharedBoard?.boardRevision === undefined ? {} : { currentBoardRevision: sharedBoard.boardRevision }) }) }
+  catch (error) { return { status: 'invalid', error: error.message } }
+}
+const planDecision = decision('plan')
+const launchDecision = decision('launch')
+const designReview = (() => {
+  try { return commissionStatus({ root, slug, stage: 'design' }) }
+  catch (error) { return { status: 'needs-work', error: error.message } }
+})()
+const planApproved = planDecision.status === 'ready'
+const launchApproved = launchDecision.status === 'ready'
 
 const lettersDir = join(root, map?.letters || `.mailings/storage/processes/${slug}/`)
 const letters = walk(lettersDir).filter(f => f.endsWith('.message.yaml'))
@@ -124,6 +137,7 @@ if (kbFilled.length === 0) stage = '1. Знания — раздел проце�
 else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
   stage = '2. План — нет задач в PLAN.md или узлов в process.yaml'
 else if (!planApproved) stage = '2. План — ждёт согласования 1 «строим так?»'
+else if (designReview.status !== 'ready') stage = '2. План — ждёт независимой проверки архитектуры'
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
 else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
@@ -134,7 +148,10 @@ say(`Этап: ${stage}`)
 say('')
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
-say(`  PLAN.md      ${plan ? `есть; план ${planApproved ? 'согласован' : 'не согласован'}, запуск ${launchApproved ? 'согласован' : 'не согласован'}` : 'нет'}`)
+say(`  PLAN.md      ${plan ? 'есть' : 'нет'}`)
+say(`  решение «строим так?» ${planDecision.status}${planDecision.error ? ` — ${planDecision.error}` : ''}`)
+say(`  проверка архитектуры ${designReview.status}${designReview.error ? ` — ${designReview.error}` : ''}`)
+say(`  решение «запускаем?» ${launchDecision.status}${launchDecision.error ? ` — ${launchDecision.error}` : ''}`)
 say(`  карта        ${map ? `узлов ${(map.nodes || []).length}, стрелок ${(map.links || []).length}` : mapError}`)
 say(`  письма       ${rel(root, lettersDir)} — ${letters.length}`)
 say(`  автоматизации ${automations.length}`)
