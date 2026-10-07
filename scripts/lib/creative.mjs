@@ -139,6 +139,9 @@ function validateLanding(spec, errors, references) {
       errors.push(`Изображение ${image.id || '?'}: нужны роль, секция, файл/бриф, пропорции, mobile crop и alt.`)
     if (!sections.some(s => s.id === image.sectionId)) errors.push(`Изображение ${image.id}: нет секции ${image.sectionId}.`)
     if (!text(image.asset)) errors.push(`Изображение ${image.id}: перед реализацией нужен готовый asset.`)
+    if (!['owner', 'generated', 'licensed'].includes(image.provenance?.kind) ||
+        !text(image.provenance?.reference) || !text(image.provenance?.usageRights))
+      errors.push(`Изображение ${image.id}: укажи происхождение (owner/generated/licensed), источник и основание использования.`)
   }
   const ab = spec.abTesting
   if (!ab || !['none', 'design', 'text', 'design_and_text'].includes(ab.mode)) errors.push('Нужен корректный режим abTesting.')

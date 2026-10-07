@@ -148,9 +148,15 @@ test('oversized first-screen image is rejected before a page brief is accepted',
   f.spec.images = [{ id: 'hero-photo', sectionId: 'hero', purpose: 'Показать материал',
     alt: 'Материал на столе', asset, aspect: '16:9', mobileCrop: 'Предмет в центре' }]
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /происхождение/)
+  f.spec.images[0].provenance = { kind: 'owner', reference: 'board/image-42',
+    usageRights: 'Владелец передал изображение для страницы материала' }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.match(creativePacket(f.args).errors.join('\n'), /первого экрана.*слишком велик/)
   f.put(asset, Buffer.alloc(300_000, 1))
   assert.deepEqual(creativePacket(f.args).errors, [])
+  writeCreativeBuild(f.args)
+  assert.ok(creativeReviewPacket({ ...f.args, stage: 'spec' }).questions.some(q => q.id === 'image-sources'))
 })
 
 test('creative CLI distinguishes invalid work from an unusable command', t => {

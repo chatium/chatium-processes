@@ -36,7 +36,7 @@ function adjacentCreativeFiles(root, slug, nodeId) {
   }
   return { files, missing }
 }
-const questions = (kind, stage, guidance, messages = [], visualMode = 'png') => [
+const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = []) => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
@@ -44,6 +44,7 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png') => 
   ...(kind === 'landing' ? [
     { id: 'structure', question: 'Раскрыты ли нужные смысловые функции, механики и возражения?' },
     { id: 'design', question: 'Конкретны ли композиция, дизайн-система, изображения и мобильная версия?' },
+    ...(images.length ? [{ id: 'image-sources', question: 'Просмотрены ли используемые изображения, подходят ли они задаче и подтверждено ли право их использования по указанному источнику?' }] : []),
   ] : [
     { id: 'series', question: 'Развивается ли мысль между письмами, различаются ли их роли и согласован ли голос?' },
     { id: 'delivery', question: 'Согласованы ли письма со страницей перехода, каналом и автоматизацией?' },
@@ -218,7 +219,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode),
+    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || []),
     files, adjacentMissing: adjacent?.missing || [], assets: creative.assetFiles,
     visuals, messageFiles, implementation,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
