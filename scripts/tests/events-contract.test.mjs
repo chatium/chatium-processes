@@ -28,7 +28,7 @@ function fixture(t) {
 
 const named = (checks, id) => checks.find(check => check.id === id)
 
-test('event registry blocks reserved contact slot, numeric IDs and misplaced UTM, and warns on contact mapping', t => {
+test('event registry blocks reserved contact slot, numeric IDs, misplaced UTM and contact mapping', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', `events:
   - key: lead_created
@@ -43,13 +43,13 @@ test('event registry blocks reserved contact slot, numeric IDs and misplaced UTM
 `)
   const registry = named(f.run(), 'events.registry')
   assert.equal(registry.ok, false)
-  assert.match(registry.warnings.join('\n'), /дублирование контакта в payloadMapping/)
+  assert.match(registry.errors.join('\n'), /контакт не хранят в payloadMapping/)
   assert.match(registry.errors.join('\n'), /ID должен быть строкой/)
   assert.match(registry.errors.join('\n'), /customer_contacts формируется/)
   assert.match(registry.errors.join('\n'), /utm_source/)
 })
 
-test('valid business mapping passes event contract; obvious metric contact duplication warns', t => {
+test('contact copied to a metric is rejected while contacts-only event passes', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', `events:
   - key: lead_created
@@ -69,8 +69,32 @@ test('valid business mapping passes event contract; obvious metric contact dupli
 `)
   const checks = f.run()
   assert.equal(named(checks, 'events.registry').ok, true)
-  assert.equal(named(checks, 'events.data').ok, true)
-  assert.match(named(checks, 'events.data').warnings.join('\n'), /дублирование контакта/)
+  assert.equal(named(checks, 'events.data').ok, false)
+  assert.match(named(checks, 'events.data').errors.join('\n'), /контакт не хранят в action_param2/)
+  f.put('demo/api/lead.ts', `const result = await captureCustomerEvent(ctx, {
+  event: 'lead_created',
+  contacts: [{ type: 'email', value: row.email }],
+  metricEventData: { action_param1: row.id },
+})
+`)
+  assert.equal(named(f.run(), 'events.data').ok, true)
+})
+
+test('declared event without a writer fails; real writer satisfies the contract', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка
+    description: Клиент оставил заявку
+    payloadMapping: {}
+`)
+  assert.match(named(f.run(), 'events.used').errors.join('\n'), /никто не пишет/)
+  f.put('demo/api/lead.ts', `await captureCustomerEvent(ctx, {
+  event: 'lead_created', contacts: [{ type: 'email', value: input.email }],
+})
+`)
+  assert.equal(named(f.run(), 'events.used').ok, true)
 })
 
 test('metricEventData cannot override CRM-generated customer_contacts', t => {

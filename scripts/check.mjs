@@ -492,7 +492,7 @@ check('events.registry', 'Реестр событий specs/events.yaml', ({ err
       if (m?.fieldName && !EVENT_FIELD_NAMES.includes(m.fieldName)) error(`${where}.${k}: fieldName «${m.fieldName}» — не слот метрики`)
       if (m?.type && !PAYLOAD_TYPES.includes(m.type)) error(`${where}.${k}: type «${m.type}», допустимы ${PAYLOAD_TYPES.join(', ')}`)
       if (m?.fieldName === 'customer_contacts') error(`${where}.${k}: customer_contacts формируется из контактов и не входит в payloadMapping`)
-      if (CONTACT_MAPPING_KEY.test(k)) warn(`${where}.${k}: возможное дублирование контакта в payloadMapping; используй contacts/customer_contacts, если поле нужно только для адресата`)
+      if (CONTACT_MAPPING_KEY.test(k)) error(`${where}.${k}: контакт не хранят в payloadMapping; передай его в contacts, CRM сформирует customer_contacts`)
       if (/\bcustomer_contacts\b/.test(m?.fieldExpr || ''))
         error(`${where}.${k}: не извлекай контакты через fieldExpr — используй контекст контактов`)
       if (/(?:^id$|Id$|_id$)/.test(k) && m?.fieldName && !/^action_param[123]$/.test(m.fieldName))
@@ -528,7 +528,7 @@ check('events.data', 'Контакты и метрика в коде событ�
         error(`${where}: customer_contacts нельзя передавать в metricEventData — CRM формирует его из contacts`)
       for (const field of block[1].matchAll(/\baction_param\w*\s*:\s*([^,\n}]+)/g)) {
         if (/\b(?:email|phone|mobile|telegram|whatsapp)\b/i.test(field[1]))
-          warn(`${where}: возможное дублирование контакта в ${field[0].split(':')[0].trim()}; проверь источник и необходимость поля`)
+          error(`${where}: контакт не хранят в ${field[0].split(':')[0].trim()}; передай его в contacts, а не в metricEventData`)
       }
     }
   }
