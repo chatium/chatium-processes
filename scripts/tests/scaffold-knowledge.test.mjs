@@ -58,6 +58,19 @@ test('a newly scaffolded TODO article keeps context at the interview stage', t =
   assert.doesNotMatch(context.stdout, /Этап: 2\. План/)
 })
 
+test('new process cannot be scaffolded on main without the owner-authorized lab override', t => {
+  const f = fixture(t)
+  const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: f.root, encoding: 'utf8' })
+  assert.equal(init.status, 0, init.stderr)
+  const denied = f.run()
+  assert.equal(denied.status, 2)
+  assert.match(denied.stderr, /Новый процесс нельзя создавать прямо в main/)
+  assert.equal(existsSync(join(f.root, 'demo/.workspace.json')), false)
+  assert.equal(f.run('--dry-run').status, 0)
+  assert.equal(f.run('--allow-main').status, 0)
+  assert.equal(existsSync(join(f.root, 'demo/.workspace.json')), true)
+})
+
 test('selected topics are created in requested order with no duplicate entries', t => {
   const f = fixture(t)
   const run = f.run('--topics', 'journey,audience, journey,offer,operations')

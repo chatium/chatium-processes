@@ -4,19 +4,20 @@
 //   node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" [--topics audience,journey] [--account-id 123] [--root DIR] [--dry-run]
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { findRoot, isProcessSlug, parseArgs, SKILL_DIR } from './lib/project.mjs'
 import { parseYaml, requireYaml, stringifyYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 
 let parsed
-try { parsed = parseArgs(process.argv.slice(2), ['dry-run', 'help'], ['dry-run', 'help', 'root', 'title', 'topics', 'account-id']) }
+try { parsed = parseArgs(process.argv.slice(2), ['dry-run', 'help', 'allow-main'], ['dry-run', 'help', 'allow-main', 'root', 'title', 'topics', 'account-id']) }
 catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const slug = positional[0]
 
 if (options.help || !slug) {
   console.log(
-    'Использование: scaffold.mjs <process> --title "Название" [--topics audience,offer,journey,pages,series,operations] [--account-id 123] [--root DIR] [--dry-run]',
+    'Использование: scaffold.mjs <process> --title "Название" [--topics audience,offer,journey,pages,series,operations] [--account-id 123] [--root DIR] [--dry-run] [--allow-main]',
   )
   process.exit(options.help ? 0 : 2)
 }
@@ -52,6 +53,19 @@ try {
 }
 
 const root = findRoot(options.root)
+const dryRun = !!options['dry-run']
+const wsFile = join(root, slug, '.workspace.json')
+if (!dryRun && !existsSync(wsFile) && existsSync(join(root, '.git'))) {
+  let branch
+  try { branch = execFileSync('git', ['-C', root, 'branch', '--show-current'],
+    { encoding: 'utf8', timeout: 5000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }).trim() }
+  catch (error) { console.error(`Нельзя определить ветку аккаунта: ${error.message}`); process.exit(2) }
+  if (!branch) { console.error('Нельзя создавать процесс при отсоединённом HEAD: сначала выбери рабочую ветку.'); process.exit(2) }
+  if (['main', 'master'].includes(branch) && !options['allow-main']) {
+    console.error('Новый процесс нельзя создавать прямо в main/master. Сначала создай ветку process/<process>. --allow-main допустим только при явном разрешении владельца для тестового аккаунта.')
+    process.exit(2)
+  }
+}
 try {
   assertSkillProcess(root, slug, { creating: true })
 } catch (error) {
@@ -59,7 +73,6 @@ try {
   process.exit(2)
 }
 const title = options.title || slug
-const dryRun = !!options['dry-run']
 const created = []
 const skipped = []
 const updated = []
@@ -132,7 +145,6 @@ function ensureOrder(targetRel, tplRel, entries) {
 }
 
 // Воркспейс процесса
-const wsFile = join(root, slug, '.workspace.json')
 if (existsSync(wsFile)) {
   try {
     const ws = JSON.parse(readFileSync(wsFile, 'utf8'))
