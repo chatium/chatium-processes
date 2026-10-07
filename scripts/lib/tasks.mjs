@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { canonicalTarget, reviewStatus } from './knowledge-review.mjs'
 import { codeReviewStatus } from './code-review.mjs'
@@ -454,8 +454,7 @@ export function writeTask(root, slug, task, expectedRevision = null) {
   return file
 }
 
-export function appendPlanTaskLink(root, slug, task) {
-  const path = safeTaskPath(root, `${slug}/PLAN.md`), source = readFileSync(path, 'utf8')
+function linkedPlanTask(source, task) {
   const lines = source.split('\n')
   const index = lines.findIndex(line => /^- \[(?: |x|X)\] (T\d+)\s/.exec(line)?.[1] === task.planTask)
   if (index < 0) throw Error(`${task.planTask} отсутствует в PLAN.md`)
@@ -465,5 +464,59 @@ export function appendPlanTaskLink(root, slug, task) {
   const link = lines.findIndex((line, i) => i > index && i < end && /^  - Рабочие задачи:/.test(line))
   if (link >= 0) { if (!lines[link].includes(ref)) lines[link] += `, ${ref}` }
   else lines.splice(end, 0, `  - Рабочие задачи: ${ref}`)
-  writeFileSync(path, lines.join('\n'))
+  return lines.join('\n')
+}
+
+export function appendPlanTaskLink(root, slug, task) {
+  const path = safeTaskPath(root, `${slug}/PLAN.md`), source = readFileSync(path, 'utf8')
+  writeFileSync(path, linkedPlanTask(source, task))
+}
+
+export function createTasksBatch(root, slug, tasks) {
+  if (!Array.isArray(tasks) || !tasks.length || tasks.length > 200)
+    throw Error('Пакет должен содержать от 1 до 200 карточек.')
+  const planFile = safeTaskPath(root, `${slug}/PLAN.md`)
+  const original = readFileSync(planFile, 'utf8')
+  const plan = parseTaskPlan(original)
+  const current = loadTasks(root, slug)
+  if (!current.enabled || current.tasks.length + tasks.length > 200)
+    throw Error('Нужен tasks/index.json и не более 200 карточек всего.')
+  const ids = tasks.map(task => task?.id)
+  if (!uniq(ids)) throw Error('В пакете повторяется ID карточки.')
+  let updated = original
+  const files = tasks.map(task => {
+    if (task?.status !== 'queued' || task?.revision !== 0 || task?.acceptance !== null || task?.result !== null)
+      throw Error(`${task?.id || '?'}: новая карточка должна быть queued, revision: 0, без результата и приёмки.`)
+    const file = taskFile(root, slug, task.id)
+    if (existsSync(file)) throw Error(`${task.id} уже существует.`)
+    const issues = taskErrors(task, plan)
+    if (issues.length) throw Error(issues.join('; '))
+    updated = linkedPlanTask(updated, task)
+    return { id: task.id, file, content: JSON.stringify(task, null, 2) + '\n' }
+  })
+  const staged = [], created = []
+  try {
+    for (const [index, item] of files.entries()) {
+      mkdirSync(dirname(item.file), { recursive: true })
+      const temporary = `${item.file}.${process.pid}.${Date.now()}.${index}.tmp`
+      writeFileSync(temporary, item.content, { flag: 'wx' })
+      staged.push(temporary)
+    }
+    const planTemporary = `${planFile}.${process.pid}.${Date.now()}.tmp`
+    writeFileSync(planTemporary, updated, { flag: 'wx' })
+    staged.push(planTemporary)
+    if (readFileSync(planFile, 'utf8') !== original || files.some(item => existsSync(item.file)))
+      throw Error('План или карточки изменились во время подготовки пакета; повторите создание.')
+    for (let index = 0; index < files.length; index++) {
+      linkSync(staged[index], files[index].file)
+      created.push(files[index].file)
+    }
+    renameSync(planTemporary, planFile)
+    return files.map(item => ({ id: item.id, path: item.file }))
+  } catch (error) {
+    for (const path of created) if (existsSync(path)) unlinkSync(path)
+    throw error
+  } finally {
+    for (const path of staged) if (existsSync(path)) unlinkSync(path)
+  }
 }

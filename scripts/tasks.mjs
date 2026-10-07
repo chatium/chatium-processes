@@ -11,7 +11,7 @@ import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
 import { parseYaml } from './lib/yaml.mjs'
-import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
+import { acceptanceErrors, appendPlanTaskLink, createTasksBatch, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
 
@@ -22,15 +22,15 @@ catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const [command, slug, id] = positional
 if (options.help || !command || !slug) {
-  console.log('Использование: tasks.mjs <create|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
+  console.log('Использование: tasks.mjs <create|create-batch|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 if (positional.length > 3) { console.error('Лишний аргумент после ID задачи.'); process.exit(2) }
-const commands = new Set(['create', 'context', 'start', 'verify-base', 'prepare', 'step', 'bind',
+const commands = new Set(['create', 'create-batch', 'context', 'start', 'verify-base', 'prepare', 'step', 'bind',
   'ask', 'resolve', 'record', 'accept', 'fail', 'reopen', 'cancel', 'status'])
 if (!commands.has(command)) { console.error(`Неизвестная команда ${command}. Запустите --help.`); process.exit(2) }
-if ((command === 'status' && id) || (command !== 'status' && command !== 'create' && !id)) {
-  console.error(command === 'status' ? 'status не принимает ID задачи.' : 'Нужен ID рабочей задачи W….')
+if ((['status', 'create-batch'].includes(command) && id) || (!['status', 'create', 'create-batch'].includes(command) && !id)) {
+  console.error(['status', 'create-batch'].includes(command) ? `${command} не принимает ID задачи.` : 'Нужен ID рабочей задачи W….')
   process.exit(2)
 }
 
@@ -124,6 +124,11 @@ try {
     const path = writeTask(root, slug, task)
     appendPlanTaskLink(root, slug, task)
     show({ created: task.id, path, next: `tasks.mjs context ${slug} ${task.id}` })
+    process.exit(0)
+  }
+  if (command === 'create-batch') {
+    const created = createTasksBatch(root, slug, input())
+    show({ created, next: `tasks.mjs status ${slug}` })
     process.exit(0)
   }
   if (!id) throw Error('Нужен ID рабочей задачи W….')

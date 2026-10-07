@@ -74,6 +74,7 @@
 
 ```sh
 node .agents/skills/processes/scripts/tasks.mjs create <process> W001 --file /path/task.json
+node .agents/skills/processes/scripts/tasks.mjs create-batch <process> --file /path/tasks.json
 node .agents/skills/processes/scripts/tasks.mjs status <process> --stage build
 node .agents/skills/processes/scripts/tasks.mjs context <process> W001
 ```
@@ -84,6 +85,11 @@ node .agents/skills/processes/scripts/tasks.mjs context <process> W001
 
 `create` добавляет ссылку в `PLAN.md`. Создавай карточки до большой сборки,
 чтобы `check` видел покрытие всех требований, а `context` — следующий шаг.
+Если карточек много, передай **массив** карточек тому же формата одной команде
+`create-batch`. Она сначала проверяет весь массив и план, затем записывает
+отдельные карточки и ссылки. Неверная карточка не оставляет предыдущие
+карточки этого пакета частично созданными. Промежуточный JSON держи вне
+репозитория; после команды исходником служат созданные карточки.
 Перед работой открой выбранную карточку и её материалы. Задачи с
 неразрешёнными зависимостями ждут, но остаются видны.
 

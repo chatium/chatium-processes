@@ -33,6 +33,29 @@ test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness
   assert.ok(JSON.parse(unready.stdout).errors.some(error => /задача не завершена/.test(error)))
 })
 
+test('batch creation validates every card before changing task files or plan', t => {
+  const f = fixture(t)
+  const first = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  const second = structuredClone(first)
+  second.id = 'W002'
+  second.expectedOutputs = [{ path: 'demo/confirmation.vue', purpose: 'Подтверждение' }]
+  const before = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  f.put('batch.json', [first, { ...second, planTask: 'T999' }])
+  const bad = f.run('create-batch', '--file', join(f.root, 'batch.json'))
+  assert.equal(bad.status, 1)
+  assert.match(bad.stderr, /нет T-задачи/)
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  assert.equal(f.run('context', 'W001').status, 1)
+  f.put('batch.json', [first, second])
+  const good = f.run('create-batch', '--file', join(f.root, 'batch.json'))
+  assert.equal(good.status, 0, good.stderr)
+  assert.deepEqual(good.json.created.map(item => item.id), ['W001', 'W002'])
+  const plan = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  assert.match(plan, /\[W001\]\(tasks\/W001\.json\), \[W002\]\(tasks\/W002\.json\)/)
+  assert.equal(f.run('create-batch', 'W003', '--file', join(f.root, 'batch.json')).status, 2)
+  assert.equal(f.run('create-batch', '--file', join(f.root, 'batch.json')).status, 1)
+})
+
 test('implementation cannot start without a current owner plan answer', t => {
   const f = fixture(t)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
