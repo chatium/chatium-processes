@@ -32,6 +32,7 @@ test('process commands reject unknown, valued boolean, missing and duplicate opt
     ['context', ['demo', '--root', root, '--offline=false'], /--offline/],
     ['kb-check', ['demo', '--root', root, '--json=false'], /--json/],
     ['agents-runtime', ['demo', '--root', root, '--json=false'], /--json/],
+    ['agents-runtime', ['demo', '--root', root, '--record=false'], /--record/],
   ]
   for (const [name, args, message] of cases) {
     const result = spawnSync(process.execPath, [script(name), ...args], { encoding: 'utf8' })
