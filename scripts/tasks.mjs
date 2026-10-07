@@ -9,6 +9,8 @@ import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
+import { inputBlockers } from './lib/input-blockers.mjs'
+import { parseYaml } from './lib/yaml.mjs'
 import { acceptanceErrors, appendPlanTaskLink, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
@@ -130,6 +132,13 @@ try {
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
     if (task.mode === 'implement') {
+      const mapPath = join(root, slug, 'process.yaml')
+      if (existsSync(mapPath)) {
+        const pending = inputBlockers(parseYaml(readFileSync(mapPath, 'utf8')), task.stage)
+        if (pending.errors.length || pending.pending.length)
+          throw Error(`Начать реализацию нельзя: ${[...pending.errors,
+            ...pending.pending.map(item => `${item.kind === 'question' ? 'нужно решение владельца' : 'не закрыта зависимость'}: ${item.title}`)].join('; ')}`)
+      }
       const decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
       if (decision.status !== 'ready') throw Error(`Начать реализацию нельзя: ${decision.error || decision.status}`)
       // Marked v2 processes must pass independent design review before code work.

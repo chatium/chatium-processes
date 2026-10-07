@@ -31,6 +31,7 @@ import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 import { retirementStatus } from './lib/component-retirements.mjs'
 import { tableChangeStatus } from './lib/table-changes.mjs'
 import { validateComponentContracts } from './lib/component-contracts.mjs'
+import { inputBlockers } from './lib/input-blockers.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -361,6 +362,14 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
       }
     }
   }
+})
+
+check('owner.questions', 'Открытые вопросы владельцу', ({ error }) => {
+  const stage = options['task-stage'] || 'build'
+  const result = inputBlockers(map, stage)
+  for (const issue of result.errors) error(issue)
+  for (const item of result.pending)
+    error(`${item.kind === 'question' ? 'Открытый бизнес-вопрос' : 'Незакрытая зависимость'} блокирует ${stage}: ${item.title}. Зафиксируйте решение или готовность, обновите знания и карту.`)
 })
 
 check('retirements', 'Осознанный вывод компонентов', ({ error }) => {

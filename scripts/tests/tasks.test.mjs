@@ -54,6 +54,20 @@ test('v2 implementation cannot start before independent design conclusions', t =
   assert.equal(result.status, 1)
   assert.match(result.stderr, /ревью.*design|архитектур/i)
 })
+
+test('implementation waits for a deferred business answer at its dependent stage', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Demo', nodes: [], needsInput: [{ title: 'Нужна ли ручная проверка заявки?',
+    kind: 'question', blocks: ['build'] }] })
+  f.approve()
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const blocked = f.run('start', 'W001')
+  assert.equal(blocked.status, 1)
+  assert.match(blocked.stderr, /нужно решение владельца: Нужна ли ручная проверка заявки/)
+  f.put('demo/process.yaml', { title: 'Demo', nodes: [] })
+  f.approve()
+  assert.equal(f.run('start', 'W001').status, 0)
+})
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-tasks-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
