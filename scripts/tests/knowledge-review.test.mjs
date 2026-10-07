@@ -102,6 +102,20 @@ test('stage question sets grow from design to build to launch, with unique IDs',
   assert.throws(() => f.packet('unknown'), /этап/)
 })
 
+test('a business-specific gap blocks design despite covered generic topics', t => {
+  const packet = fixture(t).packet('design')
+  const report = syntheticReport(packet)
+  const answer = report.answers.find(item => item.id === 'business.specific')
+  answer.status = 'gap'
+  answer.reason = 'Не определено, как сезонность меняет сроки записи.'
+  answer.evidence = []
+  answer.priority = 'blocking'
+  answer.nextAction = 'Уточнить у владельца сроки записи в высокий сезон.'
+  const result = validateReview(report, packet)
+  assert.equal(result.status, 'needs-work')
+  assert.deepEqual(result.blocking.map(item => item.id), ['business.specific'])
+})
+
 test('every rubric question needs one answer and every packet file must be listed once', t => {
   const packet = fixture(t).packet()
   const missing = syntheticReport(packet); missing.answers.pop()
