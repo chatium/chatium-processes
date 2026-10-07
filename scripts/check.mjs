@@ -366,8 +366,11 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (l?.via !== undefined) {
       const via = norm(l.via)
       const a = automations.find(x => rel(root, dirname(x.file)) === via || rel(root, x.file) === via)
-      if (!a) error(`${where}: в ${via} нет *.automationConfig.json`)
-      else if (l.signal && a.config) {
+      if (!a) {
+        const message = `${where}: в ${via} нет *.automationConfig.json`
+        if (options['task-stage'] === 'design') warn(`${message}; исходник появится на этапе сборки`)
+        else error(message)
+      } else if (l.signal && a.config) {
         const ev = eventByKey.get(String(l.signal).replace(/^event:/, ''))
         if (ev && !(a.config.eventUrls || []).includes(eventUrl(ev))) {
           error(`${where}: автоматизация ${via} не слушает ${eventUrl(ev)}`)

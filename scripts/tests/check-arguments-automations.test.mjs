@@ -73,6 +73,21 @@ test('design gate asks for design review without requiring implementation source
   assert.match(checks.find(check => check.id === 'map.sources').warnings.join('\n'), /этапе сборки/)
 })
 
+test('planned automation edge stays on the map during design and requires code during build', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\naccountId: 123\nstages: [Lead, Followup]\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: form\n    kind: page\n    stage: Lead\n    title: Form\n    purpose: Capture\n    source: demo/form/\n  - id: message\n    kind: series\n    stage: Followup\n    title: Message\n    purpose: Reply\n    source: .mailings/storage/processes/demo/message/\nlinks:\n  - from: form\n    to: message\n    when: after form\n    via: demo/automations/reply/\n')
+  const map = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'map')
+  const design = map('--task-stage', 'design')
+  assert.equal(design.ok, true)
+  assert.match(design.warnings.join('\n'), /demo\/automations\/reply.*этапе сборки/)
+  const build = map('--task-stage', 'build')
+  assert.equal(build.ok, false)
+  assert.match(build.errors.join('\n'), /demo\/automations\/reply.*automationConfig/)
+  f.put('demo/automations/reply/reply.automationConfig.json', '{"title":"Reply","steps":[]}')
+  const implemented = map('--task-stage', 'build')
+  assert.equal(implemented.ok, true, implemented.errors.join('\n'))
+})
+
 test('unsupported branches and templated dateExpression fail automations check', t => {
   const f = fixture(t)
   f.put('demo/automations/a.automationConfig.json', JSON.stringify({
