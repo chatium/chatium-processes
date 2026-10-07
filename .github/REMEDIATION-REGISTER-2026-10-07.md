@@ -29,7 +29,7 @@
 | R19 | О | P2 | Страна и решение по согласиям не выяснены | method/interview.md; method/review-questions.json | в работе | e35a2e2 |
 | R20 | О | P5 | Заявка создана, сотрудник о ней не узнал | scripts/tests/architecture-review.test.mjs; scripts/tests/code-review.test.mjs: отсутствие уведомления как blocking; blocks/form-table-event.md — нужен реальный тест доставки и сбоя | в работе | 6e06e5e |
 | R21 | О | P5 | Тестовый платёж ушёл через провайдера по умолчанию | scripts/tests/code-review.test.mjs: процесс с runAttemptPayment получает отдельный вопрос о явном providerId pay:sandbox; отрицательный ответ блокирует ревью. Нужен реальный smoke с найденным ID песочницы | в работе | b7917bd |
-| R22 | О | P5 | Форма записала undefined вместо реального UTM | blocks/form-table-event.md | в работе | 6e06e5e |
+| R22 | О | P5 | Форма записала undefined вместо реального UTM | scripts/tests/events-contract.test.mjs: undefined-заглушки в клиентских исходниках делают check красным, фактическое поле проходит; chatium-development/references/forms.md исправлен на чтение UTM из URL и частичный объект CRM; нужен реальный submit с UTM | в работе | 6e06e5e, b1df75f |
 | R23 | О | P3 | Владелец не может изменить цену обещанным способом | blocks/page.md; blocks/channels.md | в работе | dc3427a |
 | R24 | В | P6 | Процесс с клиентским агентом не проходит профильное ревью | scripts/tests/agents.test.mjs; scripts/lib/agent-review.mjs | в работе | 2094ef0 |
 | R25 | О | P3 | Реализация начинается при противоречивой архитектуре | scripts/tests/design-transition.test.mjs: красное архитектурное заключение о пропущенном пути блокирует start, зелёное разрешает; нужна независимая проверка содержательного обнаружения противоречий | в работе | 769f986 |
