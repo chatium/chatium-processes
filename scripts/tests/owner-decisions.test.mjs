@@ -62,6 +62,20 @@ test('decision CLI will not solicit plan approval before independent design conc
   assert.match(result.stderr, /architecture/)
 })
 
+test('decision CLI reports missing command inputs before inspecting a process', t => {
+  const f = fixture(t)
+  for (const [command, expected] of [
+    ['prepare', /--board-revision/],
+    ['record', /--packet и --response/],
+  ]) {
+    const result = spawnSync(process.execPath,
+      [decisionCli, command, 'demo', '--kind', 'plan', '--root', f.root], { encoding: 'utf8' })
+    assert.equal(result.status, 2)
+    assert.match(result.stderr, expected)
+    assert.doesNotMatch(result.stderr, /заключения методологии/)
+  }
+})
+
 test('launch decision detects changed delivery and board revision', t => {
   const f = fixture(t)
   f.put('.mailings/storage/processes/demo/welcome/01.message.yaml', 'subject: Подтверждение\n')

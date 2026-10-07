@@ -24,6 +24,11 @@ try {
   }
   const root = findRoot(options.root), kind = options.kind
   if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
+  if (!['prepare', 'record', 'status'].includes(command)) throw Error('Команда: prepare, record или status.')
+  if (command === 'prepare' && options['board-revision'] === undefined)
+    throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
+  if (command === 'record' && (!options.packet || !options.response))
+    throw Error('Нужны --packet и --response с реальным ответом владельца.')
   if (kind === 'plan' && ['prepare', 'record'].includes(command)) {
     const design = commissionStatus({ root, slug, stage: 'design' })
     if (design.status !== 'ready') throw Error(`Сначала нужны принятые заключения методологии и архитектуры: ${design.requirements
@@ -31,17 +36,14 @@ try {
   }
   let result
   if (command === 'prepare') {
-    if (options['board-revision'] === undefined) throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
     const boardRevision = options['board-revision'] === 'none' ? null : Number(options['board-revision'])
     result = prepareOwnerDecision({ root, slug, kind, boardRevision })
     if (options.out) writeFileSync(options.out, JSON.stringify(result, null, 2) + '\n', { flag: 'wx' })
   } else if (command === 'record') {
-    if (!options.packet || !options.response) throw Error('Нужны --packet и --response с реальным ответом владельца.')
     result = recordOwnerDecision({ root, slug, kind,
       packet: JSON.parse(readFileSync(options.packet, 'utf8')),
       response: JSON.parse(readFileSync(options.response, 'utf8')) })
   } else if (command === 'status') result = ownerDecisionStatus({ root, slug, kind })
-  else throw Error('Команда: prepare, record или status.')
   console.log(JSON.stringify(result, null, 2))
   process.exitCode = ['missing', 'stale', 'declined', 'invalid'].includes(result.status) ? 1 : 0
 } catch (error) {

@@ -8,6 +8,18 @@ import { fileURLToPath } from 'node:url'
 
 const script = name => fileURLToPath(new URL(`../${name}.mjs`, import.meta.url))
 
+test('documented commands reserve 0 for help and 2 for invalid invocation', () => {
+  for (const name of ['scaffold', 'kb-check', 'kb-review', 'code-review', 'reviews',
+    'owner-decisions', 'agent-review', 'agents-runtime', 'board', 'board-notes',
+    'tasks', 'creative', 'creative-review', 'context', 'check', 'catalog', 'review-packets']) {
+    const help = spawnSync(process.execPath, [script(name), '--help'], { encoding: 'utf8' })
+    assert.equal(help.status, 0, `${name} --help: ${help.stderr}`)
+    const invalid = spawnSync(process.execPath, [script(name), 'definitely-unknown', 'demo'],
+      { encoding: 'utf8' })
+    assert.equal(invalid.status, 2, `${name}: ${invalid.stderr || invalid.stdout}`)
+  }
+})
+
 test('process commands reject unknown, valued boolean, missing and duplicate options before doing work', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-strict-args-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
