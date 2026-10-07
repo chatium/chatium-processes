@@ -6,10 +6,10 @@
 
 **Когда брать.** Реакция на событие процесса, цепочка касаний по времени.
 
-Контракт действий и условий — `chatium-development`,
-`references/automations/actions.md` и `conditions.md`; реестр событий и
-действий аккаунта — `registry.md`. Формат конфига — ниже: он сверен с
-рантаймом автоматизаций.
+Контракт действий и условий — [automations-actions.md](../../chatium-development/automations-actions.md)
+и [automations-conditions.md](../../chatium-development/automations-conditions.md);
+реестр событий и действий аккаунта — [automations-registry.md](../../chatium-development/automations-registry.md).
+Формат конфига — ниже: он сверен с рантаймом автоматизаций.
 
 ## Где лежит
 

@@ -5,8 +5,9 @@
 нужен рантайму: поля `event.*` автоматизация берёт из `payloadMapping`
 объявления события.
 
-Контракт SDK и актуальные URL сверяй с `chatium-development`,
-`references/automations/events.md`; здесь — правила проектирования событий
+Контракт SDK и актуальные URL сверяй с
+[automations-events.md](../../chatium-development/automations-events.md);
+здесь — правила проектирования событий
 процесса.
 
 ## Спроектируй события до сборки

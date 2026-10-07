@@ -6,7 +6,8 @@
 ## Интеграция
 
 - Платежи, чеки, колбэки оплаты — `chatium-development`,
-  `references/payments.md`; возвраты — `references/payment-refunds.md`.
+  [payments.md](../../chatium-development/payments.md); возвраты —
+  [payment-refunds.md](../../chatium-development/payment-refunds.md).
 - Платёжные провайдеры аккаунта — `@pay/sdk` (`getAllPaymentProviders`).
   Подключает их владелец — пункт «нужно от вас».
 - Для smoke — провайдер `pay:sandbox`: настоящих денег не списывает. Перед
