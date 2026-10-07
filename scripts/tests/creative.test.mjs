@@ -562,6 +562,14 @@ test('independent review is tied to the current brief and sources', t => {
   writeCreativeBuild(f.args)
   const args = { ...f.args, stage: 'spec' }
   const packet = creativeReviewPacket(args)
+  assert.ok(packet.files.some(file => file.path === 'demo/PLAN.md'))
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [x] T1 Собрать страницу\n')
+  assert.equal(creativeReviewPacket(args).inputDigest, packet.inputDigest)
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T2 Проверить письмо\n')
+  assert.equal(creativeReviewPacket(args).inputDigest, packet.inputDigest)
+  f.put('demo/PLAN.md', '# Демо\nЦена 3900 ₽\n\n## Задачи\n- [x] T1 Собрать страницу\n')
+  assert.notEqual(creativeReviewPacket(args).inputDigest, packet.inputDigest)
+  f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T1 Собрать страницу\n')
   const quote = 'Материал помогает сделать первый шаг'
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
@@ -670,13 +678,13 @@ test('a current creative review can substantiate a work-task criterion', t => {
   const f = fixture(t)
   writeCreativeBuild(f.args)
   const reviewArgs = { ...f.args, stage: 'spec' }
+  f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Проверить страницу\n  - T1.A1 [build] Спецификация проверена.\n')
   const packet = creativeReviewPacket(reviewArgs)
   const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
     inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), inspectedVisuals: [],
     answers: packet.questions.map((q, index) => ({ id: q.id, status: 'pass', reason: 'Unit-only structural report.',
       evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: 'Материал помогает сделать первый шаг'.slice(0, 8 + index % 3) }] })),
   }
-  f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Проверить страницу\n  - T1.A1 [build] Спецификация проверена.\n')
   f.put('demo/tasks/index.json', { version: 1 })
   f.put('demo/page.ts', 'export const title = "Материал"\n')
   const task = { version: 1, id: 'W001', planTask: 'T1', title: 'Проверить страницу', targetNode: 'lead-page',

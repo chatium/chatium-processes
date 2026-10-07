@@ -6,6 +6,17 @@ export function reviewPlan(content) {
     .replace(/^\s*- Рабочие задачи:[^\n]*(?=\n|$)/gm, '')
 }
 
+// Creative review needs the business promise and conditions, not the work-card
+// register, whose routine edits must not expire a page or message judgement.
+export function reviewCreativePlan(content) {
+  let inTasks = false
+  return reviewPlan(content).split('\n').filter(line => {
+    if (/^## Задачи(?:\s|$)/u.test(line)) { inTasks = true; return false }
+    if (inTasks && /^##\s+/u.test(line)) inTasks = false
+    return !inTasks
+  }).join('\n')
+}
+
 export function reviewWorkspace(content) {
   let value
   try { value = JSON.parse(content) } catch { return content }

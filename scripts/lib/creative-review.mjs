@@ -7,6 +7,7 @@ import { collectImplementation } from './implementation.mjs'
 import { safeTaskPath } from './tasks.mjs'
 import { parseYaml } from './yaml.mjs'
 import { SKILL_DIR } from './project.mjs'
+import { reviewCreativePlan } from './review-normalization.mjs'
 
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -117,6 +118,12 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     ...creative.copyFiles.map(f => f.path),
     ...creative.referenceFiles.map(f => f.path)]
   const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
+  const planPath = `${slug}/PLAN.md`
+  const planFile = safeTaskPath(root, planPath, { mayBeMissing: true })
+  if (existsSync(planFile)) {
+    if (lstatSync(planFile).size > 256 * 1024) throw Error('Слишком большой план для творческого ревью.')
+    files.push({ path: planPath, content: reviewCreativePlan(readFileSync(planFile, 'utf8')) })
+  }
   if (creative.spec.kind === 'series') {
     const workspacePath = `${slug}/.workspace.json`
     const workspaceFile = safeTaskPath(root, workspacePath, { mayBeMissing: true })
