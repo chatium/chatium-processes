@@ -92,6 +92,13 @@ test('implementation reviewer must trace staff notification for actionable leads
   assert.equal(save(f, packet, report).status, 'needs-work')
 })
 
+test('one repeated code quote cannot approve every implementation question', t => {
+  const f = fixture(t), packet = f.packet(), report = syntheticReport(packet)
+  for (const answer of report.answers) answer.evidence = [{ path: codePath, quote }]
+  assert.throws(() => save(f, packet, report), /Одна и та же цитата/)
+  assert.ok(!existsSync(codeReviewPath(f.root, 'demo')))
+})
+
 test('code conclusion ignores bookkeeping and launch toggle but tracks business changes', t => {
   const f = fixture(t)
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', config: { mailings: { testOnly: true },
