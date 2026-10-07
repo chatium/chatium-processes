@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const entry = readFileSync(fileURLToPath(new URL('../../SKILL.md', import.meta.url)), 'utf8')
+const environment = readFileSync(fileURLToPath(new URL('../../build/environment.md', import.meta.url)), 'utf8')
+const packageInfo = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'))
 
 test('installed skill entry remains short and discoverable for business requests', () => {
   const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(entry)?.[1]
@@ -15,4 +17,13 @@ test('installed skill entry remains short and discoverable for business requests
   assert.ok(body.trim().split(/\s+/).length <= 800, 'SKILL.md must remain a short task router')
   assert.match(body, /открывай нужный раздел по текущему этапу/)
   assert.doesNotMatch(entry, /\/Users\/|\.local-context\/|start\.chatium\.ru/i)
+})
+
+test('documented and tested Node versions match the Chatium CLI minimum', () => {
+  const required = Number(/^>=(\d+)(?:\.\d+)*$/.exec(packageInfo.engines.node)?.[1])
+  const documented = Number(/Нужны Node\.js (\d+) или новее/.exec(environment)?.[1])
+  const running = Number(process.versions.node.split('.')[0])
+  assert.ok(Number.isInteger(required) && required >= 22, 'Chatium CLI requires Node 22 or newer')
+  assert.equal(documented, required, 'installation guide must not allow an older runtime')
+  assert.ok(running >= required, `tests must run on Node ${required} or newer`)
 })
