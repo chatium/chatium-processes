@@ -31,6 +31,45 @@ test('architecture reviewer receives actual component specifications and notices
   assert.notEqual(after.inputDigest, before.inputDigest)
 })
 
+test('covered data answer requires citations from plan, table, event and analytics', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-architecture-join-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const put = (path, content) => {
+    const file = join(root, path)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content)
+  }
+  put('.knowledge-base/.knowledge.yml', 'order: [processes]\n')
+  put('.knowledge-base/processes/.knowledge.yml', 'order: [demo]\n')
+  put('.knowledge-base/processes/demo/.knowledge.yml', 'title: Demo\norder: [overview.md]\n')
+  put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nПросмотр связываем с заявкой.\n')
+  put('demo/PLAN.md', '# План\n\nСохраняем visitorUid вместе с заявкой и связываем просмотр с заявкой.\n')
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  put('demo/specs/data.yaml', 'tables:\n  - id: requests\n    fields: [name]\n')
+  put('demo/specs/events.yaml', 'events:\n  - key: request_created\n    visitorUid: uid\n')
+  put('demo/specs/analytics.yaml', 'report: link by visitorUid\n')
+  const packet = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  const report = { version: 1, process: 'demo', stage: 'architecture', inputDigest: packet.inputDigest,
+    inspectedFiles: packet.files.map(file => file.path),
+    inspectedReferences: [...packet.referenceLibrary.required],
+    answers: packet.questions.map(question => ({ id: question.id, status: 'gap', priority: 'advisory',
+      reason: 'Проверяется отдельно.', evidence: [], nextAction: 'Проверить источник.' })) }
+  const dataAnswer = report.answers.find(answer => answer.id === 'data')
+  Object.assign(dataAnswer, { status: 'covered', reason: 'Ключ якобы связан.',
+    evidence: [{ path: 'demo/PLAN.md', quote: 'Сохраняем visitorUid вместе с заявкой' }] })
+  delete dataAnswer.priority
+  delete dataAnswer.nextAction
+  assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
+  dataAnswer.evidence.push(
+    { path: 'demo/specs/data.yaml', quote: 'fields: [name]' },
+    { path: 'demo/specs/events.yaml', quote: 'visitorUid: uid' },
+    { path: 'demo/specs/analytics.yaml', quote: 'link by visitorUid' },
+  )
+  assert.equal(validateReview(report, packet).status, 'ready')
+  dataAnswer.status = 'not-applicable'
+  assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)
+})
+
 test('architecture review tracks each owner risk decision but ignores plan bookkeeping', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-architecture-risk-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))

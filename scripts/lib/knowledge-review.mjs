@@ -143,7 +143,7 @@ export function validateReview(report, packet) {
       !Array.isArray(group.paths) || !group.paths.length || !evidence.some(item =>
         group.paths.includes(item.path) && (!group.marker ||
           new RegExp(`(^|[^A-Za-z0-9])${group.marker}($|[^A-Za-z0-9])`, 'u').test(item.quote)))))
-      throw Error(`Для ${answer.id} нужны отдельные доказательства из записи решения и связанных материалов с его ID.`)
+      throw Error(`Для ${answer.id} нужны отдельные доказательства из каждого указанного источника; для решений — из записи решения и связанных материалов с его ID.`)
     if (answer.status === 'gap') {
       if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
       if (answer.id.startsWith('risk.') && answer.priority !== 'blocking')
