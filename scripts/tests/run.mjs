@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const testsDir = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(testsDir, '../..')
-const referenceCommit = 'aae5e1f2acc6568998462418735b97bececacf69'
+const referenceCommit = '15347d87bc5fe50b7b147a1de5d0095c4931fed3'
 const referenceRepository = 'https://github.com/chatium/chatium-agent-skills.git'
 let temporary
 
