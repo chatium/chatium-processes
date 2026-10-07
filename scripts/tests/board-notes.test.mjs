@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { noteContext, readNotes, responsePayload, respondToNote } from '../lib/board-notes.mjs'
+import { noteContext, readBoardWithAuthority, readNotes, responsePayload, respondToNote } from '../lib/board-notes.mjs'
 
 const snapshot = { processPath: 'demo', branch: 'main', commit: 'a'.repeat(40) }
 const board = () => ({ revision: 3, snapshot: { revision: 2, snapshot },
@@ -19,6 +19,39 @@ test('read preserves assignment and revisions without inferring tasks from old S
   assert.equal(noteContext(old, 'demo', 'main').tasksSupported, false)
   assert.equal(noteContext(old, 'demo', 'main').notes[0].task, null)
   assert.throws(() => responsePayload(noteContext(old, 'demo', 'main'), options, snapshot), /SDK/)
+})
+test('board context trusts the current task requester, not the sticky creator', () => {
+  const b = board()
+  b.notes[0].author = { id: 'owner', name: 'Owner', createdAt: '2026-10-01T00:00:00.000Z' }
+  b.notes[0].task.requestedBy = { id: 'person-1', name: 'Team member', createdAt: '2026-10-02T00:00:00.000Z' }
+  assert.equal(noteContext(b, 'demo', 'main').notes[0].taskAuthority.status, 'needs-owner-confirmation')
+  b.authorRoles = { 'person-1': { type: 'Real', role: 'Developer' } }
+  assert.deepEqual(noteContext(b, 'demo', 'main').notes[0].taskAuthority,
+    { status: 'needs-owner-confirmation', role: 'Developer' })
+  b.authorRoles['person-1'].role = 'Owner'
+  assert.deepEqual(noteContext(b, 'demo', 'main').notes[0].taskAuthority,
+    { status: 'owner', role: 'Owner' })
+})
+test('board read resolves server-owned task requesters through current account roles and fails closed', async () => {
+  const b = board()
+  b.notes[0].task.requestedBy = { id: 'person-1', name: 'Owner', createdAt: '2026-10-01T00:00:00.000Z' }
+  const target = { processPath: 'demo', branch: 'main' }
+  const runAs = (role, fails = false) => async (_, code) => {
+    const body = code.replace(/^import .*$/gm, '')
+    const run = new Function('readProcessBoardForAgent', 'findUsersByIds', 'ctx',
+      `return (async () => {${body}})()`)
+    return run(async () => b, async (_ctx, ids) => {
+      assert.deepEqual(ids, ['person-1'])
+      if (fails) throw Error('lookup unavailable')
+      return [{ id: 'person-1', type: 'Real', accountRole: role }]
+    }, {})
+  }
+  assert.equal(noteContext(await readBoardWithAuthority('', target, { execute: runAs('Owner') }), 'demo', 'main')
+    .notes[0].taskAuthority.status, 'owner')
+  assert.equal(noteContext(await readBoardWithAuthority('', target, { execute: runAs('Staff') }), 'demo', 'main')
+    .notes[0].taskAuthority.status, 'needs-owner-confirmation')
+  assert.equal(noteContext(await readBoardWithAuthority('', target, { execute: runAs('Owner', true) }), 'demo', 'main')
+    .notes[0].taskAuthority.status, 'needs-owner-confirmation')
 })
 test('wrong scope, stale code, malformed tasks and ordinary notes cannot be acknowledged', () => {
   assert.throws(() => noteContext(board(), 'other', 'main'), /другому/)
@@ -71,4 +104,32 @@ test('response uses public SDK and escaped JSON; it does not invoke code from no
   const payload = JSON.parse(code.slice(code.indexOf('(ctx, ') + 6, code.lastIndexOf(')')))
   assert.equal(payload.message, message)
   assert.equal(payload.taskRevision, 1)
+})
+test('done rechecks the server-owned requester role and rejects edited owner notes', async t => {
+  const { root, commit } = repo(t)
+  const b = board()
+  b.snapshot.snapshot.commit = commit
+  b.notes[0].author = { id: 'owner', name: 'Owner', createdAt: '2026-10-01T00:00:00.000Z' }
+  b.notes[0].task.requestedBy = { id: 'person-1', name: 'Team member', createdAt: '2026-10-02T00:00:00.000Z' }
+  const c = noteContext(b, 'demo', 'main')
+  let writes = 0
+  const verify = () => ({ snapshot: { verified: true, commit, boardRevision: 3, revision: 2 } })
+  const runAs = role => async (_, code) => {
+    const body = code.replace(/^import .*$/gm, '')
+    const run = new Function('readProcessBoardForAgent', 'findUserById', 'respondToProcessBoardNote', 'ctx',
+      `return (async () => {${body}})()`)
+    return run(async () => b, async () => role ? { type: 'Real', accountRole: role } : null,
+      async () => { writes++; return { ok: true, revision: 4, noteId: 'n' } }, {})
+  }
+  for (const role of ['Staff', 'Developer', null]) {
+    await assert.rejects(() => respondToNote(root, c, options, { verify, execute: runAs(role) }), /владельцем аккаунта/)
+    assert.equal(writes, 0)
+  }
+  b.notes[0].task.requestedBy = undefined
+  await assert.rejects(() => respondToNote(root, c, options, { verify, execute: runAs('Owner') }), /владельцем аккаунта/)
+  assert.equal(writes, 0)
+  b.notes[0].task.requestedBy = { id: 'person-1', name: 'Owner', createdAt: '2026-10-03T00:00:00.000Z' }
+  const result = await respondToNote(root, c, options, { verify, execute: runAs('Owner') })
+  assert.equal(result.ok, true)
+  assert.equal(writes, 1)
 })

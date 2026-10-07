@@ -1,8 +1,7 @@
 import { gitState } from './git-state.mjs'
 import { isProcessSlug } from './project.mjs'
-import { readBoard } from './freshness.mjs'
 import { startExec } from './snapshot.mjs'
-import { noteContext } from './board-notes.mjs'
+import { noteContext, readBoardWithAuthority } from './board-notes.mjs'
 
 /** Preserve the entire SDK projection, including objects not understood by this skill yet. */
 export function boardContext(board, slug, branch) {
@@ -40,7 +39,7 @@ export function boardContext(board, slug, branch) {
   }
 }
 
-export async function readProcessBoard(root, slug, { reader = readBoard } = {}) {
+export async function readProcessBoard(root, slug, { reader = readBoardWithAuthority } = {}) {
   if (!isProcessSlug(slug)) throw Error('Нужен корректный слаг процесса.')
   const { branch } = gitState(root)
   return boardContext(await reader(root, { processPath: slug, branch }), slug, branch)

@@ -2,8 +2,31 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { gitState } from './git-state.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
-import { readBoard } from './freshness.mjs'
 import { startExec } from './snapshot.mjs'
+
+// The Start SDK supplies a server-owned requester for each semantic task
+// revision. The sticky's original author does not authorize later edits.
+export async function readBoardWithAuthority(root, target, { execute = startExec } = {}) {
+  return execute(root, `import { readProcessBoardForAgent } from '@start/sdk'
+import { findUsersByIds } from '@app/auth'
+const board = await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})
+const notes = Array.isArray(board.notes) ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky')
+const ids = [...new Set(notes.map(n => n.task?.requestedBy?.id).filter(id => typeof id === 'string' && id))]
+let authorRoles = null
+try {
+  const users = ids.length ? await findUsersByIds(ctx, ids) : []
+  authorRoles = Object.fromEntries(users.map(u => [u.id, { type: u.type, role: u.accountRole }]))
+} catch { /* Reading the board still works; unknown authority stays blocked. */ }
+return { ...board, authorRoles }`, target.commit)
+}
+
+function authority(note, authorRoles) {
+  if (!note.task) return { status: 'context-only' }
+  const requesterId = note.task.requestedBy?.id
+  const user = requesterId && authorRoles && Object.hasOwn(authorRoles, requesterId) ? authorRoles[requesterId] : null
+  if (user?.type === 'Real' && user.role === 'Owner') return { status: 'owner', role: 'Owner' }
+  return { status: 'needs-owner-confirmation', ...(user?.role ? { role: user.role } : {}) }
+}
 
 export function noteContext(board, processPath, branch) {
   if (!isProcessSlug(processPath) || !branch || !board || !Number.isSafeInteger(board.revision) || board.revision < 0 ||
@@ -20,15 +43,15 @@ export function noteContext(board, processPath, branch) {
   return { version: 1, process: processPath, branch, boardRevision: board.revision,
     snapshotRevision: board.snapshot?.revision ?? null, commit: snapshot?.commit ?? null, tasksSupported,
     // Older SDK: shared notes remain readable, but do not infer assignment or completion.
-    notes: tasksSupported ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky').map(b => ({
+    notes: (tasksSupported ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky').map(b => ({
       id: b.id, title: b.title || '', text: b.text || '', author: b.author, task: null,
       targets: [], attachments: [], relatedNoteIds: [],
-    })),
+    }))).map(note => ({ ...note, taskAuthority: authority(note, board.authorRoles) })),
     elements: board.elements,
   }
 }
 
-export async function readNotes(root, slug, { reader = readBoard } = {}) {
+export async function readNotes(root, slug, { reader = readBoardWithAuthority } = {}) {
   if (!isProcessSlug(slug)) throw Error('Нужен корректный слаг процесса.')
   const { branch } = gitState(root)
   return noteContext(await reader(root, { processPath: slug, branch }), slug, branch)
@@ -66,8 +89,21 @@ export async function respondToNote(root, context, options, { execute = startExe
         report.snapshot.boardRevision !== payload.expectedRevision || report.snapshot.revision !== payload.snapshotRevision)
       throw Error('Карта или доска изменились либо не проверены. Обновите карту, перечитайте поручения и повторно оцените результат.')
   }
+  const authorityCheck = payload.status === 'done' ? `import { readProcessBoardForAgent } from '@start/sdk'
+import { findUserById } from '@app/auth'
+const current = await readProcessBoardForAgent(ctx, ${JSON.stringify(payload.process)}, ${JSON.stringify(payload.branch)})
+const note = current.notes?.find(n => n.id === ${JSON.stringify(payload.noteId)} && n.task)
+if (current.revision !== ${payload.expectedRevision} || current.snapshot?.revision !== ${payload.snapshotRevision} ||
+    current.snapshot?.snapshot?.commit !== ${JSON.stringify(payload.commit)} || note?.task?.revision !== ${payload.taskRevision})
+  return { ok: false, reason: 'conflict' }
+const requester = note.task?.requestedBy?.id ? await findUserById(ctx, note.task.requestedBy.id) : null
+if (requester?.type !== 'Real' || requester.accountRole !== 'Owner')
+  return { ok: false, reason: 'owner-confirmation-required' }
+` : ''
   const result = await execute(root,
-    `import { respondToProcessBoardNote } from '@start/sdk'\nreturn await respondToProcessBoardNote(ctx, ${JSON.stringify(payload)})`)
+    `import { respondToProcessBoardNote } from '@start/sdk'\n${authorityCheck}return await respondToProcessBoardNote(ctx, ${JSON.stringify(payload)})`)
+  if (result?.reason === 'owner-confirmation-required')
+    throw Error('Текущая версия поручения не выдана подтверждённым владельцем аккаунта. Попросите владельца подтвердить просьбу в диалоге и оставить своё поручение на доске; до этого заметка служит только контекстом.')
   if (!result?.ok) throw Error(`Ответ не сохранён: ${result?.reason || 'ошибка SDK'}. Перечитайте заметки; не повторяйте запись вслепую.`)
   if (!Number.isSafeInteger(result.revision) || result.revision <= payload.expectedRevision || result.noteId !== payload.noteId)
     throw Error('SDK вернул некорректное подтверждение ответа. Перечитайте доску.')
