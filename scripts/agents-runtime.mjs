@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Compares published state without sending messages or changing routing. Agent lookup requires completed build sync; dry-run emits a metric.
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -34,15 +34,15 @@ try {
   const routes = Array.isArray(spec.routes) ? spec.routes : []
   const input = { agents: agents.map(({ key, config }) => ({ key, config })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
-      chainKey: `process-check:${slug}:${randomUUID()}`, text: route.sampleText || 'Проверка маршрута',
-      existingChainKey: route.testExistingChainKey || null })) }
+      contacts: route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
+      existingContacts: route.testExistingContacts || null })) }
   const code = `import { getPublishedAgentBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
     `const input = ${JSON.stringify(input)}\n` +
     `const agents = []\n` +
     `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentBySourcePath(ctx, item.config) }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
     `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.value.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
     `const routes = []\n` +
-    `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: await dryRunProcessChannelRouting(ctx, { channelId: item.channel, chainKey: item.chainKey, text: item.text }), existingDryRun: item.existingChainKey ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, chainKey: item.existingChainKey, text: item.text }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
+    `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text }) : null, existingDryRun: item.existingContacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.existingContacts, text: item.text }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
     `return { accountId: ctx.account.id, agents, routes }`
   const run = spawnSync('chatium', ['exec'], { cwd: root, input: code, encoding: 'utf8', timeout: 60_000, maxBuffer: 4 * 1024 * 1024 })
   if (run.error || run.status !== 0) throw Error(`Не удалось проверить опубликованное состояние: ${run.error?.message || run.stderr.trim()}`)
@@ -79,10 +79,13 @@ try {
     if (!id) { errors.push(`routes[${index}]: не установлен опубликованный ID первого агента`); continue }
     if (!row.value.config?.enabled || row.value.config.defaultAgentId !== id) errors.push(`routes[${index}]: канал не направлен к ${route.firstAgent}`)
     if (!row.value.linkedAgentIds?.includes(id)) errors.push(`routes[${index}]: агент не привязан к каналу`)
-    if (row.dryRun.mode !== 'selected' || row.dryRun.agentId !== id) errors.push(`routes[${index}]: сухая проверка выбрала ${row.dryRun.agentId || row.dryRun.mode}, ожидался ${id}`)
+    if (!route.testNewContacts) warnings.push(`routes[${index}]: первый вход не проверен по тестовым контактам из CRM`)
+    else if (row.dryRun?.mode !== 'selected' || row.dryRun.agentId !== id) errors.push(`routes[${index}]: сухая проверка выбрала ${row.dryRun?.agentId || row.dryRun?.mode || 'неизвестно'}, ожидался ${id}`)
+    else if (row.dryRun.reason !== 'default-agent') errors.push(`routes[${index}]: тест нового разговора выбрал ${id} по причине ${row.dryRun.reason || 'неизвестно'}, а не как адресата по умолчанию`)
     if (row.value.config?.rulesCount) warnings.push(`routes[${index}]: в канале есть дополнительные правила; проверь отдельные случаи в интерфейсе`)
-    if (!route.testExistingChainKey || !route.expectedExistingAgent) warnings.push(`routes[${index}]: продолжение существующего разговора требует testExistingChainKey и expectedExistingAgent`)
+    if (!route.testExistingContacts || !route.expectedExistingAgent) warnings.push(`routes[${index}]: продолжение существующего разговора требует testExistingContacts и expectedExistingAgent`)
     else if (row.existingDryRun?.mode !== 'selected' || row.existingDryRun.agentId !== ids.get(route.expectedExistingAgent)) errors.push(`routes[${index}]: существующий разговор направлен не к ${route.expectedExistingAgent}`)
+    else if (!['active-chain-last-touch', 'active-assignment', 'authoritative-assignment'].includes(row.existingDryRun.reason)) errors.push(`routes[${index}]: адресат совпал, но существующая цепочка или назначение не подтверждены`)
   }
   const status = errors.length ? 'unverified' : warnings.length ? 'partial' : 'verified'
   const report = { process: slug, root, accountId: published.accountId, branch, commit, executedCommit, checkedAt: new Date().toISOString(),
