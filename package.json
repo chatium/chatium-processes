@@ -5,6 +5,6 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22.0.0" },
-  "scripts": { "test": "node scripts/tests/run.mjs" },
+  "scripts": { "test": "node scripts/tests/run.mjs", "check:tester": "node .github/tester-candidate.mjs" },
   "dependencies": { "yaml": "^2.0.0" }
 }

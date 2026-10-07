@@ -13,6 +13,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm run check:tester
       - name: Block incomplete release tags
         if: startsWith(github.ref, 'refs/tags/')
         run: node .github/release-check.mjs
