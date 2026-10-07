@@ -120,11 +120,13 @@ test('context does not present stale owner approval from an old PLAN.md line', t
     return result.stdout
   }
   assert.match(context(), /решение «строим так\?» missing/)
+  assert.match(context(), /check\.mjs demo --task-stage design --knowledge-stage design/)
   assert.match(context(), /Этап: 2\. План — ждёт независимых заключений/)
   assert.match(context(), /Следующий шаг: Получи недостающие заключения design: knowledge-design.*architecture/)
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
   assert.match(context(), /решение «строим так\?» ready/)
+  assert.match(context(), /check\.mjs demo --task-stage build --knowledge-stage build/)
   assert.match(context(), /Этап: 2\. План — ждёт независимых заключений/)
   assert.match(context(), /Следующий шаг: Получи недостающие заключения design:/)
   f.put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Demo\n---\nДругое обещание клиенту.\n')

@@ -53,7 +53,9 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
    на итоговый `spec.yaml` и последующую реализацию. Основной агент может
    наметить черновик во время аудита знаний, но не заменяет им специалистов.
 3. Получи независимое заключение по архитектуре через
-   [комиссию](commission.md). Commit/push ветки и `check --publish-snapshot`:
+   [комиссию](commission.md). Commit/push ветки и
+   `check <process> --task-stage design --knowledge-stage design --publish-snapshot`,
+   затем читающий `check` с теми же этапами:
    сохрани снимок и открой карту в превью
    по [preview.md](preview.md). Красные проверки на этом шаге нормальны:
    ничего не построено; успешное контрольное чтение снимка всё же обязательно.

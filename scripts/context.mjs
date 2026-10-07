@@ -127,6 +127,10 @@ const designReview = (() => {
 })()
 const planApproved = planDecision.status === 'ready'
 const launchApproved = launchDecision.status === 'ready'
+const taskStage = options['task-stage'] || (!planApproved ? 'design' :
+  launchApproved ? 'launch' : realTasks.some(task => !task.done) ? 'build' : 'test')
+const knowledgeStage = options['knowledge-stage'] ||
+  (taskStage === 'design' ? 'design' : taskStage === 'launch' ? 'launch' : 'build')
 
 const lettersDir = join(root, map?.letters || `.mailings/storage/processes/${slug}/`)
 const letters = walk(lettersDir).filter(f => f.endsWith('.message.yaml'))
@@ -177,7 +181,7 @@ if (realTasks.length > 0) {
   for (const t of realTasks) say(`  [${t.done ? 'x' : ' '}] ${t.id} ${t.title}`)
 }
 try {
-  const work = taskReadiness({ root, slug, stage: options['task-stage'] || 'build' })
+  const work = taskReadiness({ root, slug, stage: taskStage })
   if (work.enabled) {
     say(`Рабочие карточки: завершено ${work.tasks.filter(t => t.status === 'done').length} из ${work.tasks.length}.`)
     for (const task of work.tasks) say(`  ${task.id} [${task.status}] ${task.title}`)
@@ -193,8 +197,7 @@ try {
   }
 } catch (error) { say(`Рабочие карточки не прочитаны: ${error.message}`) }
 say('')
-say(`Проверка: node .agents/skills/processes/scripts/check.mjs ${slug}`)
-const knowledgeStage = options['knowledge-stage'] || (launchApproved ? 'launch' : 'build')
+say(`Проверка: node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}`)
 say('')
 try {
   const knowledge = collectKnowledge({ root, slug })
@@ -226,7 +229,7 @@ try {
 say('')
 if (options.offline) say('Доска: актуальность и материалы не проверены (--offline). Перед завершением нужен обычный check.')
 else {
-  const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug, '--verify-snapshot', '--json', '--knowledge-stage', knowledgeStage, '--root', root],
+  const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug, '--verify-snapshot', '--json', '--task-stage', taskStage, '--knowledge-stage', knowledgeStage, '--root', root],
     { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 2 * 1024 * 1024 })
   try {
     if (result.error) throw result.error

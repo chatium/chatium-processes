@@ -36,7 +36,9 @@ url.searchParams.set('branch', branch)
 `process.yaml` — редактируемое описание, снимок карты хранится в Heap
 Start для пары процесс + ветка. Само появление YAML не создаёт снимок.
 Перед показом нового результата: заверши файловые правки → commit → push
-разрешённой ветки → `check --publish-snapshot` → читающий `check`. Нужны успешная запись и контрольное чтение
+разрешённой ветки → `check --publish-snapshot` → читающий `check`.
+При показе проекта до сборки добавь к обеим командам
+`--task-stage design --knowledge-stage design`. Нужны успешная запись и контрольное чтение
 (`snapshot.verified: true`). Детали — [map-freshness.md](map-freshness.md).
 
 При показе проекта до сборки красные технические проверки допустимы:

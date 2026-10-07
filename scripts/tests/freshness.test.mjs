@@ -42,7 +42,10 @@ function fixture(t) {
   writeFileSync(join(root, 'demo/code.txt'), 'initial')
   run(['add', '.']); run(['commit', '-m', 'Initial']); run(['push', '-u', 'origin', 'HEAD'])
   run(['push', 'origin', 'HEAD:main']) // The new-process scaffold requires the published base.
-  const checks = [{ id: 'map', title: 'Map', ok: true, errors: [], warnings: [] }]
+  const checks = [
+    { id: 'map', title: 'Map', ok: true, errors: [], warnings: [] },
+    { id: 'events.schema', title: 'Event contract', ok: true, errors: [], warnings: [] },
+  ]
   const expected = buildSnapshot({ root, slug: 'demo', checks, ...gitState(root),
     map: { title: 'Demo', stages: ['Start'], nodes: [{ id: 'first', stage: 'Start', kind: 'external', title: 'First', purpose: 'Start', source: 'demo/code.txt' }] } })
   const board = { snapshot: { snapshot: expected, revision: 3 }, revision: 8,
@@ -74,7 +77,7 @@ test('same SHA does not conceal changed map, letters, checks or automation steps
   for (const change of [s => { s.title = 'Wrong title' }, s => { s.nodes[0].status = 'missing' },
     s => { s.nodes[0].letters = [{ title: 'Wrong', subject: 'Subject', source: 'x' }] },
     s => { s.links.push({ id: 'unexpected', steps: [{ kind: 'delay', detail: '7 days' }] }) },
-    s => { s.checks[0].ok = false; s.checks[0].errors.push('broken') }]) {
+    s => { s.checks[1].ok = false; s.checks[1].errors.push('broken') }]) {
     const board = structuredClone(f.board); change(board.snapshot.snapshot)
     assert.throws(() => compareSnapshot(f.expected, board), SnapshotDrift)
   }
@@ -104,6 +107,22 @@ test('changing only the validation stage does not stale an unchanged board', t =
   const expected = structuredClone(f.expected)
   expected.checks.push({ id: 'tasks', title: 'Build stage', ok: true, errors: [], warnings: [] })
   expected.checks.push({ id: 'launch.variables', title: 'Launch variables', ok: false, errors: ['empty price'], warnings: [] })
+  assert.doesNotThrow(() => compareSnapshot(expected, board))
+})
+
+test('design and build diagnostics do not make the same published map stale', t => {
+  const f = fixture(t), board = structuredClone(f.board)
+  board.snapshot.snapshot.checks.push(
+    { id: 'map', title: 'Map', ok: true, errors: [], warnings: ['automation will be built'] },
+    { id: 'map.sources', title: 'Sources', ok: true, errors: [], warnings: ['page will be built'] },
+    { id: 'events.used', title: 'Events', ok: true, errors: [], warnings: ['writer will be built'] },
+  )
+  const expected = structuredClone(f.expected)
+  expected.checks.push(
+    { id: 'map', title: 'Map', ok: false, errors: ['automation is missing'], warnings: [] },
+    { id: 'map.sources', title: 'Sources', ok: false, errors: ['page is missing'], warnings: [] },
+    { id: 'events.used', title: 'Events', ok: false, errors: ['writer is missing'], warnings: [] },
+  )
   assert.doesNotThrow(() => compareSnapshot(expected, board))
 })
 
