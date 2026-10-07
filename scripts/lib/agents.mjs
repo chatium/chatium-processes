@@ -139,6 +139,13 @@ export function validateProcessAgents({ root, slug, map }) {
         route.testContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() ||
           typeof contact?.value !== 'string' || !contact.value.trim())))
       errors.push(`${where}: testContacts должен содержать 1–5 тестовых контактов с type и value`)
+    if (route?.testExistingContacts !== undefined || route?.expectedExistingAgent !== undefined) {
+      if (!Array.isArray(route.testExistingContacts) || !route.testExistingContacts.length || route.testExistingContacts.length > 5 ||
+          route.testExistingContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() ||
+            typeof contact?.value !== 'string' || !contact.value.trim()))
+        errors.push(`${where}: testExistingContacts должен содержать 1–5 тестовых контактов с существующей CRM-цепочкой`)
+      if (!byKey.has(route.expectedExistingAgent)) errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
+    }
   }
   for (const [i, handoff] of (Array.isArray(spec.handoffs) ? spec.handoffs : []).entries()) {
     const where = `handoffs[${i}]`

@@ -63,6 +63,9 @@ test('malformed routing test contacts fail local validation', () => {
   try {
     f.spec.routes[0].testContacts = [{ type: 'email', value: '' }]
     assert.match(f.run().errors.join('\n'), /testContacts/)
+    f.spec.routes[0].testContacts = [{ type: 'email', value: 'test@example.com' }]
+    f.spec.routes[0].testExistingContacts = [{ type: 'email', value: 'existing@example.com' }]
+    assert.match(f.run().errors.join('\n'), /expectedExistingAgent/)
   } finally { f.cleanup() }
 })
 
@@ -240,7 +243,7 @@ test('published-state check stays partial with extra channel rules and rejects a
     writeFileSync(chatium, '#!/bin/sh\ncat >/dev/null\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
     chmodSync(chatium, 0o755)
     const sha256 = createHash('sha256').update(readFileSync(join(f.root, 'demo/agents/helper.agent.json'))).digest('hex')
-    const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: sha256, agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }], routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 1 }, linkedAgentIds: ['a-1'] }, dryRun: { mode: 'selected', agentId: 'a-1' } }] }
+    const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: sha256, agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }], routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 1 }, linkedAgentIds: ['a-1'] }, dryRun: { mode: 'selected', agentId: 'a-1', reason: 'default-agent' } }] }
     const cli = fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url))
     const run = (record = false) => {
       writeFileSync(responseFile, JSON.stringify(response))
@@ -274,6 +277,8 @@ test('published-state check stays partial with extra channel rules and rejects a
 test('agents-runtime uses the SDK contact contract and records only a fully verified published result', () => {
   const f = fixture()
   try {
+    f.spec.routes[0].testExistingContacts = [{ type: 'email', value: 'existing@example.com' }]
+    f.spec.routes[0].expectedExistingAgent = 'helper'
     f.run()
     const processYaml = join(f.root, 'demo/process.yaml')
     writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
@@ -291,7 +296,7 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const config = readFileSync(join(f.root, 'demo/agents/helper.agent.json'))
     const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: createHash('sha256').update(config).digest('hex'), agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }],
       routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] },
-        dryRun: { mode: 'ignored', reason: 'test failure' } }] }
+        dryRun: { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }, existingDryRun: null }] }
     const run = () => {
       writeFileSync(responseFile, JSON.stringify(response))
       const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
@@ -303,10 +308,15 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     assert.equal(failed.report.status, 'unverified')
     const code = readFileSync(inputFile, 'utf8')
     assert.match(code, /contacts: item.contacts/)
-    assert.match(code, /"testContacts"|"contacts":\[\{"type":"email","value":"test@example.com"\}\]/)
-    assert.doesNotMatch(code, /chainKey|existingDryRun/)
+    assert.match(code, /"contacts":\[\{"type":"email","value":"test@example.com"\}\]/)
+    assert.match(code, /"existingContacts":\[\{"type":"email","value":"existing@example.com"\}\]/)
+    assert.doesNotMatch(code, /chainKey/)
     assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'missing')
-    response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1' }
+    response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1', reason: 'default-agent' }
+    const withoutExisting = run()
+    assert.equal(withoutExisting.report.status, 'unverified')
+    assert.match(withoutExisting.report.errors.join('\n'), /CRM-цепочка/)
+    response.routes[0].existingDryRun = { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }
     const passed = run()
     assert.equal(passed.exit, 0, JSON.stringify(passed.report))
     assert.equal(passed.report.status, 'verified')
