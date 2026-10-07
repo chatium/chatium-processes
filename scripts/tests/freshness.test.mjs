@@ -80,6 +80,24 @@ test('same SHA does not conceal changed map, letters, checks or automation steps
   }
 })
 
+test('build-hook map verifies visible content without claiming independent checks passed', async t => {
+  const f = fixture(t), board = structuredClone(f.board)
+  const automatic = board.snapshot.snapshot
+  automatic.producer = 'build-hook'
+  automatic.nodes[0].status = 'planned'
+  automatic.nodes[0].reason = 'Исходники опубликованы; готовность проверяется отдельно'
+  automatic.checks = [{ id: 'build-map', title: 'Проверка готовности процесса', ok: false,
+    errors: ['Проверки готовности выполняются отдельно'], warnings: [] }]
+  const result = await verifySnapshot(f.root, f.expected, { reader: async () => board })
+  assert.equal(result.verified, true)
+  assert.equal(result.producer, 'build-hook')
+  automatic.nodes[0].title = 'Другой шаг'
+  assert.throws(() => compareSnapshot(f.expected, board), SnapshotDrift)
+  automatic.nodes[0].title = f.expected.nodes[0].title
+  automatic.commit = '0'.repeat(40)
+  assert.throws(() => compareSnapshot(f.expected, board), SnapshotDrift)
+})
+
 test('readback detects a replaced revision even at the same commit', t => {
   const f = fixture(t)
   assert.throws(() => compareSnapshot(f.expected, f.board, 2), SnapshotDrift)

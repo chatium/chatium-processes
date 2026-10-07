@@ -81,7 +81,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
       try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
-    return { id: node.id, stage: node.stage, kind: node.kind === 'agent' ? 'external' : node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
+    return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
       reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
@@ -99,7 +99,8 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     }
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }
   })
-  return { version: 1, processPath: slug, title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
+  return { version: 1, processPath: slug, ...(map.knowledge ? { knowledge: map.knowledge } : {}),
+    title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
     checks: checks.map(item => ({ ...item, errors: boundedMessages(item.errors), warnings: boundedMessages(item.warnings) })) }
 }
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root) }) {
