@@ -99,6 +99,46 @@ test('page catalog keeps the V4 scenario coverage with review guidance', () => {
   }
 })
 
+test('curated page styles retain the established design range without internal references', () => {
+  const content = readFileSync(join(SKILL_DIR, 'creative/catalog/styles.json'), 'utf8')
+  const styles = JSON.parse(content).styles
+  const established = ['modern', 'classic', 'creative', 'elegant', 'medical', 'academic', 'tech',
+    'lifestyle', 'sport', 'gradient', 'brutalist', 'organic', 'dark_premium', 'soft', 'bold',
+    'retro', 'playful', 'disney', 'apocalyptic', 'cyberpunk', 'marvel', 'netflix', 'matrix',
+    'pixel_art', 'steampunk', 'noir', 'comic', 'space', 'synthwave', 'art_deco', 'japanese',
+    'graffiti', 'swiss_2026', 'bento_2026', 'editorial_magazine', 'liquid_glass',
+    'claymorphism', 'saas_hero_2026', 'high_ticket_coach', 'webinar_launch', 'acid_lime',
+    'editorial_product', 'neo_bauhaus', 'neo_culture_poster', 'cinematic_amber',
+    'friendly_illustrated', 'clean_product_showcase', 'eco_editorial', 'dark_gallery_glow',
+    'y2k_chrome', 'frutiger_aero', 'tactile_skeuomorphism', 'flash_playground',
+    'risograph_print', 'scrapbook_collage', 'paper_craft_layers', 'sketchbook_ink',
+    'kinetic_variable_type', 'infinite_canvas', 'data_storytelling', 'chromatic_system',
+    'art_ui_fusion', 'ascii_renaissance', 'sci_fi_hud', 'sunlit_material', 'archival_museum',
+    'botanical_atlas', 'blueprint_engineering', 'travel_documentary', 'architectural_monochrome']
+  assert.equal(established.length, 70)
+  for (const key of established) {
+    assert.ok(styles[key], `Missing style ${key}`)
+    assert.ok(styles[key].summary || styles[key].vibe, `No design direction for ${key}`)
+    assert.ok(styles[key].forbidden?.length, `No anti-patterns for ${key}`)
+  }
+  assert.doesNotMatch(content, /\/Users\/|botan-test|start\.chatium\.ru|agent-flows\/integrator/i)
+})
+
+test('catalog reads one chosen style without dumping the whole style library', () => {
+  const command = join(SKILL_DIR, 'scripts/catalog.mjs')
+  const list = spawnSync(process.execPath, [command, 'styles', '--search', 'академ'], { encoding: 'utf8' })
+  assert.equal(list.status, 0)
+  const found = JSON.parse(list.stdout)
+  assert.ok(found.items.some(item => item.id === 'academic'))
+  assert.ok(found.count < 10)
+  const chosen = spawnSync(process.execPath, [command, 'styles', 'academic'], { encoding: 'utf8' })
+  assert.equal(chosen.status, 0)
+  assert.equal(JSON.parse(chosen.stdout).id, 'academic')
+  assert.ok(chosen.stdout.length < 20000)
+  const typo = spawnSync(process.execPath, [command, 'styles', '--serach', 'академ'], { encoding: 'utf8' })
+  assert.equal(typo.status, 2)
+})
+
 test('copywriting direction rejects an unknown style and reaches the page brief', t => {
   const f = fixture(t)
   const styles = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/copywriting.json'), 'utf8')).styles
@@ -137,6 +177,27 @@ test('mechanic needs an expected outcome and a real section reference', t => {
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.match(creativePacket(f.args).errors.join('\n'), /не привязана к секции form_section/)
   f.spec.sections[2].mechanicRefs = ['signup']
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+})
+
+test('V4 mechanics stay available and a price claim needs a real source reference', t => {
+  const catalog = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/mechanics.json'), 'utf8')).mechanics
+  const v4 = ['form', 'quiz', 'calendar', 'calculator', 'cta_button', 'timer', 'popup', 'exit_intent',
+    'sticky_bar', 'floating_cta', 'social_share', 'messenger_button', 'phone_button', 'multi_step_form',
+    'chat_widget', 'promo_code', 'social_proof_popup', 'payment_button', 'interactive_comparison',
+    'referral', 'interactive_demo', 'scarcity_counter', 'anchor_price', 'melting_price',
+    'scroll_reward', 'flexible_pricing', 'micro_commitment', 'personal_video_bubble',
+    'save_for_later', 'gamified_challenge']
+  assert.ok(v4.every(type => catalog[type]?.guidance && Array.isArray(catalog[type].requires)))
+  const f = fixture(t)
+  f.spec.mechanics.push({ id: 'price', type: 'anchor_price', purpose: 'Показать реальную цену',
+    expectedOutcome: 'Человек видит условия', placement: 'benefits', sourceRef: 'unknown',
+    currentPrice: '3 900 ₽', previousPrice: '4 900 ₽', mobile: 'Обе цены читаемы' })
+  f.spec.sections[1].mechanicRefs = ['price']
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /sourceRef должен ссылаться/)
+  f.spec.mechanics[1].sourceRef = 'offer'
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.deepEqual(creativePacket(f.args).errors, [])
 })

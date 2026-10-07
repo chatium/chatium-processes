@@ -84,6 +84,8 @@ function validateLanding(spec, errors, references) {
       errors.push(`Механика ${m.id}: не привязана к секции ${m.placement}.`)
     for (const field of rule.requires) if (!(Array.isArray(m[field]) ? m[field].length : text(m[field])))
       errors.push(`Механика ${m.id || '?'}: требуется ${field}.`)
+    if (rule.requires.includes('sourceRef') && !sourceIds.has(m.sourceRef))
+      errors.push(`Механика ${m.id || '?'}: sourceRef должен ссылаться на проверенный источник из sources.`)
     if (['timer', 'scarcity_counter'].includes(m.type) && !sourceIds.has(m.deadlineSource || m.quantitySource))
       errors.push(`Механика ${m.id || '?'}: нужен источник срока/количества.`)
   }

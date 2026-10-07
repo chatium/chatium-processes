@@ -10,6 +10,27 @@
     "timer": { "requires": ["deadlineSource", "mobile"], "guidance": "Только реальный дедлайн из подтверждённого источника." },
     "scarcity_counter": { "requires": ["quantitySource", "mobile"], "guidance": "Количество мест или товара должно читаться из источника, а не быть декорацией." },
     "comparison": { "requires": ["source", "mobile"], "guidance": "Сравнивать только проверенные характеристики." },
-    "chat_widget": { "requires": ["target", "mobile"], "guidance": "Понятно, кто отвечает и куда уходят сообщения." }
+    "chat_widget": { "requires": ["target", "mobile"], "guidance": "Понятно, кто отвечает и куда уходят сообщения." },
+    "calculator": { "requires": ["formula", "inputs", "success", "error", "mobile"], "guidance": "Формула и диапазоны проверяются на контрольных примерах; итог не выдаётся за окончательную цену без основания." },
+    "popup": { "requires": ["trigger", "dismiss", "frequencyLimit", "target", "mobile"], "guidance": "Окно легко закрыть, оно не перекрывает путь и не появляется бесконечно." },
+    "exit_intent": { "requires": ["trigger", "dismiss", "frequencyLimit", "target", "mobile"], "guidance": "Не показывать ложный дефицит; на мобильном предусмотрен иной ненавязчивый сценарий." },
+    "floating_cta": { "requires": ["target", "mobile"], "guidance": "Кнопка не закрывает текст, форму и элементы навигации." },
+    "social_share": { "requires": ["target", "mobile"], "guidance": "Публикуется только та ссылка и подпись, которую посетитель видит и выбирает сам." },
+    "messenger_button": { "requires": ["target", "success", "mobile"], "guidance": "Канал действительно подключён; получатель и ожидание ответа понятны." },
+    "phone_button": { "requires": ["target", "mobile"], "guidance": "Номер подтверждён владельцем и доступен в нужное время." },
+    "multi_step_form": { "requires": ["fields", "target", "success", "error", "mobile"], "guidance": "Шаги и обязательные поля оправданы; данные не теряются при ошибке или повторной отправке." },
+    "promo_code": { "requires": ["sourceRef", "rule", "success", "error", "mobile"], "guidance": "Скидка и срок действия подтверждены; недействительный код не меняет сумму молча." },
+    "social_proof_popup": { "requires": ["sourceRef", "trigger", "dismiss", "mobile"], "guidance": "Покупки, имена и числа показываются только из допустимых реальных данных; вымышленные события запрещены." },
+    "interactive_comparison": { "requires": ["sourceRef", "fields", "mobile"], "guidance": "Все сравниваемые признаки подтверждены и имеют одинаковый смысл для вариантов." },
+    "referral": { "requires": ["sourceRef", "rule", "target", "success", "error", "mobile"], "guidance": "Бонус, условия получения и защита от повторов согласованы." },
+    "interactive_demo": { "requires": ["target", "success", "error", "mobile"], "guidance": "Демо не обещает возможности, которых нет в продукте, и не сохраняет данные без объяснения." },
+    "anchor_price": { "requires": ["sourceRef", "currentPrice", "previousPrice", "mobile"], "guidance": "Прежняя цена реальна и подтверждена; условия сравнения одинаковы." },
+    "melting_price": { "requires": ["sourceRef", "rule", "currentPrice", "mobile"], "guidance": "Рост цены допускается только при действительном согласованном правиле; таймер не имитирует изменение." },
+    "scroll_reward": { "requires": ["rule", "success", "mobile"], "guidance": "Награда действительно выдаётся; путь доступен без принудительного скролла и учитывает reduced motion." },
+    "flexible_pricing": { "requires": ["sourceRef", "rule", "currentPrice", "success", "error", "mobile"], "guidance": "Диапазон и итог оплаты согласованы; выбранная сумма передаётся платёжному обработчику." },
+    "micro_commitment": { "requires": ["steps", "target", "mobile"], "guidance": "Промежуточные согласия не подменяют разрешение на рассылку или оплату." },
+    "personal_video_bubble": { "requires": ["sourceRef", "asset", "dismiss", "mobile"], "guidance": "Видео принадлежит разрешённому источнику, не перекрывает контент и не запускается навязчиво." },
+    "save_for_later": { "requires": ["target", "success", "error", "mobile"], "guidance": "Человек явно выбирает контакт и согласие; ссылка не отправляется на случайный адрес." },
+    "gamified_challenge": { "requires": ["rule", "success", "error", "mobile"], "guidance": "Результат проверяем, выигрыш и условия не выдуманы, доступен путь без игры." }
   }
 }
