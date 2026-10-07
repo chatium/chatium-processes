@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { reviewPlan } from './review-normalization.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
@@ -8,6 +8,35 @@ import { changedInspectedReferences, collectReferenceLibrary, informationalRefer
 export const REVIEW_STAGES = ['design', 'build', 'launch']
 const text = value => typeof value === 'string' && value.trim().length > 0
 const normalized = value => value.replace(/\s+/gu, ' ').trim()
+
+function collectRiskDecisions(root, slug) {
+  const directory = join(root, slug, 'decisions/risk')
+  if (!existsSync(directory)) return []
+  const account = realpathSync(root)
+  if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory() ||
+      !realpathSync(directory).startsWith(account + sep))
+    throw Error('Каталог решений о рисках недоступен или небезопасен.')
+  const names = readdirSync(directory).filter(name => name.endsWith('.json')).sort()
+  if (names.length > 20) throw Error('Слишком много решений о рисках для одного пакета ревью.')
+  return names.map(name => {
+    if (!/^RD\d+\.json$/u.test(name)) throw Error(`Некорректное имя решения о риске: ${name}`)
+    const file = join(directory, name)
+    const stat = lstatSync(file)
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > 16 * 1024 ||
+        !realpathSync(file).startsWith(account + sep))
+      throw Error(`Решение о риске ${name} недоступно или слишком велико.`)
+    const content = readFileSync(file, 'utf8')
+    const decision = JSON.parse(content)
+    const id = basename(name, '.json')
+    if (decision?.version !== 1 || decision.id !== id ||
+        ['recommendation', 'choice', 'consequence', 'scope', 'control'].some(key =>
+          !text(decision[key]) || decision[key].length > 3000) ||
+        !text(decision.owner?.message) || !text(decision.owner?.messageReference) ||
+        !Number.isFinite(Date.parse(decision.owner?.answeredAt)))
+      throw Error(`${name}: нужен точный ответ владельца, альтернатива, последствие, граница и контроль по формату решений о рисках.`)
+    return { id, path: `${slug}/decisions/risk/${name}`, content }
+  })
+}
 
 // Resolve an absent target through its nearest existing ancestor. lstat keeps
 // dangling symlinks visible, so realpath fails instead of following them on write.
@@ -40,15 +69,22 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
   const knowledge = collectKnowledge({ root, slug })
   const method = join(SKILL_DIR, 'method')
   const rubric = JSON.parse(readFileSync(join(method, 'review-questions.json'), 'utf8'))
-  if (rubric.version !== 2 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 3 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length ||
       rubric.questions.some(q => !text(q.id) || !text(q.question) || !REVIEW_STAGES.includes(q.fromStage)))
     throw Error('Некорректная рубрика ревью знаний.')
   const questions = rubric.questions.filter(q => REVIEW_STAGES.indexOf(q.fromStage) <= REVIEW_STAGES.indexOf(stage))
+  const riskDecisions = collectRiskDecisions(root, slug)
+  questions.push(...riskDecisions.map(item => ({ id: `risk.${item.id}`, topic: 'cross-cutting', fromStage: 'design',
+    question: `Проверено ли отдельное решение ${item.id} вопреки существенной рекомендации и его последствие для этого этапа?`,
+    lookFor: 'Точный ответ владельца, предложенная альтернатива, осознанный выбор, последствия, границы и контроль; открытый технический или правовой блокер не исчезает из-за согласия владельца.',
+    applicability: 'Зарегистрированное решение обязательно проверяется на каждом зависимом этапе.',
+    evidencePaths: [item.path], requiredEvidencePaths: [item.path], allowNotApplicable: false })))
   const reviewerInstructions = readFileSync(join(method, 'reviewer.md'), 'utf8')
   const base = { version: 1, process: slug, stage, rubricVersion: rubric.version, questions,
-    reviewerInstructions, files: knowledge.files.map(file => file.path === `${slug}/PLAN.md`
-      ? { ...file, content: reviewPlan(file.content) } : file), staticChecks: knowledge.checks }
+    reviewerInstructions, files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
+      ? { ...file, content: reviewPlan(file.content) } : file),
+    ...riskDecisions.map(({ path, content }) => ({ path, content }))], staticChecks: knowledge.checks }
   // Reports themselves, Git SHA, timestamps and unrelated processes are excluded.
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage }))
 }
@@ -76,6 +112,8 @@ export function validateReview(report, packet) {
   const answers = report.answers.map(answer => {
     if (!answer || !ids.delete(answer.id)) throw Error('Неизвестный или повторный ID вопроса.')
     if (!['covered', 'gap', 'not-applicable'].includes(answer.status)) throw Error(`Неизвестный статус ${answer.id}.`)
+    if (answer.status === 'not-applicable' && questionById.get(answer.id)?.allowNotApplicable === false)
+      throw Error(`${answer.id}: зарегистрированное решение нельзя объявить неприменимым.`)
     checkedString(answer.reason, `${answer.id}.reason`)
     if (!Array.isArray(answer.evidence) || answer.evidence.length > 20) throw Error(`Некорректные evidence у ${answer.id}.`)
     if (answer.status !== 'gap' && !answer.evidence.length) throw Error(`Нужна цитата для ${answer.id}.`)
@@ -93,7 +131,7 @@ export function validateReview(report, packet) {
     if (answer.status === 'covered' && Array.isArray(requiredPaths) && requiredPaths.length &&
         !evidence.some(item => requiredPaths.some(part => part.endsWith('/') ?
           item.path.startsWith(part) || item.path.includes(part) : item.path.endsWith(part))))
-      throw Error(`Для ${answer.id} нужно доказательство из исполняемого исходника, а не только описание.`)
+      throw Error(`Для ${answer.id} нужно доказательство из указанного первичного источника, а не только общее описание.`)
     if (answer.status === 'gap') {
       if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
       checkedString(answer.nextAction, `${answer.id}.nextAction`)

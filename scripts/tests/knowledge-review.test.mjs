@@ -44,7 +44,9 @@ function syntheticReport(packet) {
     inspectedReferences: [...packet.referenceLibrary.required],
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки формата валидатора.',
-      evidence: [{ path: articlePath, quote: quote.slice(index % 3) }] })),
+      evidence: question.id.startsWith('risk.')
+        ? [{ path: question.requiredEvidencePaths[0], quote: `"id": "${question.id.slice(5)}"` }]
+        : [{ path: articlePath, quote: quote.slice(index % 3) }] })),
   }
 }
 
@@ -70,7 +72,7 @@ test('route protection cannot be marked covered with only a claim in the plan', 
     inspectedFiles: packet.files.map(file => file.path), inspectedReferences: [],
     answers: [{ id: 'security.routes', status: 'covered', reason: 'Защита есть.',
       evidence: [{ path: 'demo/PLAN.md', quote: 'Маршрут закрыт для сотрудников.' }] }] }
-  assert.throws(() => validateReview(report, packet), /исполняемого исходника/)
+  assert.throws(() => validateReview(report, packet), /первичного источника/)
   report.answers[0].evidence.push({ path: 'demo/pages/private/index.tsx', quote: 'export const route = staffOnly' })
   assert.equal(validateReview(report, packet).status, 'ready')
 })
@@ -128,6 +130,53 @@ test('an undocumented owner choice against a material recommendation blocks desi
   const result = validateReview(report, packet)
   assert.equal(result.status, 'needs-work')
   assert.deepEqual(result.blocking.map(item => item.id), ['evidence.decisions'])
+})
+
+test('each material risk decision has its own non-skippable question and source', t => {
+  const f = fixture(t)
+  for (const id of ['RD1', 'RD2']) f.put(`demo/decisions/risk/${id}.json`, JSON.stringify({
+    version: 1, id, recommendation: `Безопасный путь ${id}`,
+    choice: `Владелец выбрал рискованный путь ${id}`,
+    consequence: `Последствие ${id}`, scope: `Граница ${id}`, control: `Контроль ${id}`,
+    owner: { message: `Выбираю ${id}`, messageReference: `message:${id}`,
+      answeredAt: '2026-10-07T10:00:00.000Z' },
+  }, null, 2))
+  const packet = f.packet('design')
+  assert.deepEqual(packet.questions.filter(q => q.id.startsWith('risk.')).map(q => q.id),
+    ['risk.RD1', 'risk.RD2'])
+  assert.equal(validateReview(syntheticReport(packet), packet).status, 'ready')
+  const missing = syntheticReport(packet)
+  missing.answers = missing.answers.filter(a => a.id !== 'risk.RD2')
+  assert.throws(() => validateReview(missing, packet), /каждый вопрос/)
+  const wrong = syntheticReport(packet)
+  wrong.answers.find(a => a.id === 'risk.RD2').evidence =
+    [{ path: 'demo/decisions/risk/RD1.json', quote: '"id": "RD1"' }]
+  assert.throws(() => validateReview(wrong, packet), /допустимой области/)
+  const dismissed = syntheticReport(packet)
+  dismissed.answers.find(a => a.id === 'risk.RD2').status = 'not-applicable'
+  assert.throws(() => validateReview(dismissed, packet), /нельзя объявить неприменимым/)
+  const unresolved = syntheticReport(packet)
+  Object.assign(unresolved.answers.find(a => a.id === 'risk.RD2'), {
+    status: 'gap', priority: 'blocking', evidence: [],
+    reason: 'Не определён контроль риска.', nextAction: 'Уточнить контроль с владельцем.',
+  })
+  assert.equal(validateReview(unresolved, packet).status, 'needs-work')
+  const before = packet.inputDigest
+  f.put('demo/decisions/risk/RD2.json', readFileSync(join(f.root, 'demo/decisions/risk/RD2.json'), 'utf8')
+    .replace('Контроль RD2', 'Новый контроль RD2'))
+  assert.notEqual(f.packet('design').inputDigest, before)
+  assert.throws(() => save(f, packet), /изменились после подготовки/)
+})
+
+test('invalid or escaped risk records cannot disappear into a green review', t => {
+  const f = fixture(t)
+  f.put('demo/decisions/risk/RD1.json', '{"version":1,"id":"RD1"}')
+  assert.throws(() => f.packet('design'), /нужен точный ответ владельца/)
+  rmSync(join(f.root, 'demo/decisions/risk/RD1.json'))
+  const outside = join(f.base, 'outside.json')
+  writeFileSync(outside, '{}')
+  symlinkSync(outside, join(f.root, 'demo/decisions/risk/RD1.json'))
+  assert.throws(() => f.packet('design'), /недоступно или слишком велико/)
 })
 
 test('every rubric question needs one answer and every packet file must be listed once', t => {
