@@ -18,6 +18,7 @@ import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
 import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { Script } from 'node:vm'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
@@ -632,8 +633,9 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
       if (!step?.id) error(`${name}: у шага нет id`)
       else if (ids.has(step.id)) error(`${where}: id повторяется`)
       else ids.add(step.id)
-      if (step?.thenBranch !== undefined || step?.elseBranch !== undefined)
-        error(`${where}: thenBranch/elseBranch не поддерживаются; разделите сценарии на отдельные автоматизации`)
+      for (const field of ['thenBranch', 'elseBranch', 'thenSteps', 'elseSteps'])
+        if (step?.[field] !== undefined)
+          error(`${where}: ${field} не поддерживается; разделите сценарии на отдельные автоматизации`)
       if (!STEP_TYPES.includes(step?.type)) {
         error(`${where}: type «${step?.type}», допустимы ${STEP_TYPES.join(', ')}`)
         continue
@@ -652,7 +654,14 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
         } else if (d.type === 'dateExpression') {
           if (typeof d.dateExpression !== 'string' || !d.dateExpression.trim()) error(`${where}: пустой dateExpression`)
           else if (/\{\{|\}\}/.test(d.dateExpression)) error(`${where}: dateExpression должен быть JS-выражением, а не шаблоном {{ ... }}`)
-          else warn(`${where}: dateExpression нужно проверить на реальных входных данных в тестовом прогоне; статическая проверка не исполняет JS`)
+          else if (d.dateExpression.length > 4096) error(`${where}: dateExpression слишком длинный (максимум 4096 символов)`)
+          else {
+            const expression = /\breturn\b/.test(d.dateExpression)
+              ? `(()=>{${d.dateExpression}})()` : d.dateExpression
+            try { new Script(`(function(){ return ${expression} })`) }
+            catch { error(`${where}: dateExpression: синтаксис JS неверный; исправьте выражение`) }
+            warn(`${where}: dateExpression нужно проверить на реальных входных данных в тестовом прогоне; статическая проверка не исполняет JS`)
+          }
         } else error(`${where}: delay.type «${d.type}» неизвестен`)
       }
       const route = step.type === 'action' ? step.actionRoute : step.conditionRoute

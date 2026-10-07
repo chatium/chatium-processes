@@ -64,9 +64,12 @@
 | `delay` | `id`, `delay` | Ждёт: `{ type: delay, amount, units: seconds/minutes/hours/days }`, `{ type: exactTime, exactTime: ISO }`, `{ type: waitForTime, weekdays: [monday…], weekdayTime: "10:00" }`, `{ type: dateExpression, dateExpression: "steps.prepare.startsAt" }`. Последнее — JS-выражение, не шаблон `{{ ... }}`. |
 | `continueCondition` | `id`, `conditionName`, `conditionRoute`, `params` | Идёт дальше, только если условие выполнено |
 
-Шаг `condition` и поля `thenBranch`/`elseBranch` текущий рантайм не поддерживает.
+Шаг `condition` и поля `thenBranch`/`elseBranch`/`thenSteps`/`elseSteps`
+текущий рантайм не поддерживает.
 Для разных исходов создавай отдельные автоматизации с собственными условиями
 продолжения и событиями; не представляй их одним ветвящимся конфигом.
+`check` разбирает синтаксис `dateExpression`, не выполняя его; реальное
+значение и дату проверяй в тестовом прогоне.
 
 **Ссылка на функцию** — `routeJson: [<accountId>, "<модуль>", "<путь>"]`:
 числовой id аккаунта из `process.yaml`, путь модуля от корня аккаунта без

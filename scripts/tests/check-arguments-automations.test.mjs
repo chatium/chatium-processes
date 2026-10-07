@@ -78,8 +78,10 @@ test('unsupported branches and templated dateExpression fail automations check',
   f.put('demo/automations/a.automationConfig.json', JSON.stringify({
     title: 'Test', eventUrls: ['event://external/test'],
     steps: [
-      { id: 'branch', type: 'condition', thenBranch: { steps: [] } },
+      { id: 'branch', type: 'condition', thenBranch: { steps: [] }, thenSteps: [] },
       { id: 'wait', type: 'delay', delay: { type: 'dateExpression', dateExpression: '{{ steps.prepare.date }}' } },
+      { id: 'broken-js', type: 'delay', delay: { type: 'dateExpression', dateExpression: 'new Date(' } },
+      { id: 'valid-js', type: 'delay', delay: { type: 'dateExpression', dateExpression: 'new Date(event.dueDate)' } },
     ],
   }))
   const result = f.run()
@@ -88,7 +90,10 @@ test('unsupported branches and templated dateExpression fail automations check',
   assert.equal(automations.ok, false)
   assert.match(automations.errors.join('\n'), /condition/)
   assert.match(automations.errors.join('\n'), /thenBranch/)
+  assert.match(automations.errors.join('\n'), /thenSteps/)
   assert.match(automations.errors.join('\n'), /JS-выражением/)
+  assert.match(automations.errors.join('\n'), /broken-js.*синтаксис/)
+  assert.doesNotMatch(automations.errors.join('\n'), /valid-js/)
 })
 
 test('launch requires published action registry even when the local hook imports it', t => {
