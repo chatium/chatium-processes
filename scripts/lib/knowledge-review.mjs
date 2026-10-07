@@ -107,11 +107,7 @@ export function validateReview(report, packet) {
   if (!Array.isArray(report.inspectedFiles) || report.inspectedFiles.length !== files.size ||
       new Set(report.inspectedFiles).size !== files.size || report.inspectedFiles.some(p => !files.has(p)))
     throw Error('inspectedFiles должен перечислять все файлы пакета ровно один раз.')
-  const references = new Set(packet.referenceLibrary.files.map(f => f.path))
-  if (!Array.isArray(report.inspectedReferences) || new Set(report.inspectedReferences).size !== report.inspectedReferences.length ||
-      report.inspectedReferences.some(p => !references.has(p)) ||
-      packet.referenceLibrary.required.some(p => !report.inspectedReferences.includes(p)))
-    throw Error('inspectedReferences должен перечислять прочитанные справки без повторов, включая обязательные разделы.')
+  inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
   const ids = new Set(packet.questions.map(q => q.id))
   const questionById = new Map(packet.questions.map(question => [question.id, question]))
   if (!Array.isArray(report.answers) || report.answers.length !== ids.size) throw Error('Нужен ответ на каждый вопрос рубрики.')

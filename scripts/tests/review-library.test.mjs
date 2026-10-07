@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, LIBRARY_LIMITS, referencePrompt, verifyReferenceSnapshot,
+import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, LIBRARY_LIMITS, referencePrompt, verifyReferenceSnapshot,
   withReferenceLibrary, writeReferenceSnapshot } from '../lib/review-library.mjs'
 import { codeReviewStatus, makeCodeReviewPacket, recordCodeReview } from '../lib/code-review.mjs'
 import { makeReviewPacket, recordReview, reviewStatus } from '../lib/knowledge-review.mjs'
@@ -17,6 +17,7 @@ function fixture(t) {
     writeFileSync(join(base, path), content)
   }
   put('skills/processes/SKILL.md', '# Processes\n[Readiness](method/readiness.md)\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
+  put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by scope.\n## Ревью\nCheck the plan.\n')
   put('skills/processes/method/README.md', '# Method\nInterview before design.\n')
   put('skills/processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
   put('skills/processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
@@ -53,6 +54,8 @@ test('packet contains a navigable manifest without embedding reference texts', t
   assert.ok(library.files.some(file => file.content.includes('Bound every Heap read')))
   assert.ok(!serialized.includes('Bound every Heap read'))
   assert.ok(!serialized.includes('Find with an explicit limit'))
+  assert.ok(Object.keys(packet.referenceLibrary.sectionHashes).every(path =>
+    path.startsWith('skills/processes/WORKFLOW.md#H2:')))
   for (const file of packet.referenceLibrary.files) {
     assert.deepEqual(Object.keys(file).sort(), ['bytes', 'path', 'sha256'])
     assert.match(file.sha256, /^[a-f0-9]{64}$/)
@@ -128,6 +131,51 @@ test('navigation changes are informational, but common rules and inspected refer
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [
     'skills/processes/SKILL.md#обязательные-правила', 'skills/chatium-development/references/heap.md',
   ])
+})
+
+test('changing an uninspected workflow section does not invalidate a review', t => {
+  const f = fixture(t), original = f.packet()
+  const section = 'skills/processes/WORKFLOW.md#H2:Ревью'
+  const selected = [...original.referenceLibrary.required, section]
+  const saved = { referenceHashes: inspectedReferenceHashes(original.referenceLibrary, selected),
+    ruleDigests: original.referenceLibrary.ruleDigests }
+  assert.match(referencePrompt('/tmp/review-packet', original), /path#H2:заголовок/)
+  assert.deepEqual(original.referenceLibrary.sectionHashes[section], {
+    sha256: original.referenceLibrary.sectionHashes[section].sha256,
+    startLine: 4, endLine: 5,
+  })
+  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan.\n')
+  let current = f.packet()
+  assert.equal(current.inputDigest, original.inputDigest)
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
+  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan and source.\n')
+  current = f.packet()
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [section])
+  const wholeFile = { referenceHashes: inspectedReferenceHashes(original.referenceLibrary,
+    [...original.referenceLibrary.required, 'skills/processes/WORKFLOW.md']),
+  ruleDigests: original.referenceLibrary.ruleDigests }
+  assert.deepEqual(changedInspectedReferences(wholeFile, current.referenceLibrary), ['skills/processes/WORKFLOW.md'])
+})
+
+test('section selection cannot hide a changed mandatory reference or duplicate a whole file', t => {
+  const f = fixture(t), manifest = f.packet().referenceLibrary
+  assert.throws(() => inspectedReferenceHashes(manifest, [
+    ...manifest.required.filter(path => path !== 'skills/processes/build/review-safety.md'),
+    'skills/processes/build/review-safety.md#H2:Safety',
+  ]), /неизвестную|обязательные/)
+  assert.throws(() => inspectedReferenceHashes(manifest, [...manifest.required,
+    'skills/processes/WORKFLOW.md', 'skills/processes/WORKFLOW.md#H2:Ревью']), /одновременно/)
+  assert.throws(() => inspectedReferenceHashes(manifest, [...manifest.required,
+    'skills/processes/WORKFLOW.md#H2:Несуществующий']), /неизвестную/)
+})
+
+test('section keys exclude fenced examples and ambiguous repeated headings', t => {
+  const f = fixture(t)
+  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Ревью\nFirst.\n```md\n## Example only\n```\n## Ревью\nSecond.\n## Этапы\nThird.\n')
+  const sections = f.packet().referenceLibrary.sectionHashes
+  assert.equal(sections['skills/processes/WORKFLOW.md#H2:Ревью'], undefined)
+  assert.equal(sections['skills/processes/WORKFLOW.md#H2:Example only'], undefined)
+  assert.deepEqual(sections['skills/processes/WORKFLOW.md#H2:Этапы'].startLine, 9)
 })
 
 test('snapshot retains collected bytes even when original references change before writing', t => {

@@ -62,6 +62,17 @@ test('one mechanically repeated citation cannot make every different answer gree
   assert.throws(() => validateReview(report, packet), /механически повторена/)
 })
 
+test('review accepts a precise optional Markdown section and still requires complete mandatory references', t => {
+  const packet = fixture(t).packet('design')
+  const report = syntheticReport(packet)
+  const section = 'skills/processes/WORKFLOW.md#H2:Этапы'
+  assert.ok(packet.referenceLibrary.sectionHashes[section])
+  report.inspectedReferences.push(section)
+  assert.equal(validateReview(report, packet).status, 'ready')
+  report.inspectedReferences = report.inspectedReferences.filter(path => path !== packet.referenceLibrary.required[0])
+  assert.throws(() => validateReview(report, packet), /обязательные справки целиком/)
+})
+
 test('route protection cannot be marked covered with only a claim in the plan', () => {
   const packet = { process: 'demo', stage: 'implementation', inputDigest: 'current',
     files: [{ path: 'demo/PLAN.md', content: 'Маршрут закрыт для сотрудников.' },
