@@ -1019,9 +1019,10 @@ if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согла�
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
   if (decision.status !== 'ready') error(decision.error || decision.status)
 })
-if ((options['task-stage'] || 'build') !== 'design') check('owner.plan.board', 'Согласование текущей доски перед сборкой', ({ error }) => {
+if ((options['task-stage'] || 'build') !== 'design') check('owner.plan.board', 'Согласование текущей доски перед сборкой', ({ error, warn }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
   if (decision.status !== 'ready') return error(decision.error || decision.status)
+  if (options['no-snapshot']) return warn('Доска не сверена в локальной проверке --no-snapshot; перед переходом этапа нужен полный check.')
   if (decision.boardRevision === null) {
     if (snapshotResult.verified) {
       const current = ownerDecisionStatus({ root, slug, kind: 'plan', currentBoardRevision: snapshotResult.boardRevision })

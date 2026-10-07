@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { architectureReviewStatus } from './architecture-review.mjs'
 import { agentReviewStatus } from './agent-review.mjs'
@@ -44,8 +44,11 @@ export function reviewRequirements({ root, slug, stage = 'test' }) {
   if (agents && stage !== 'design') requirements.push({ id: 'agents', role: 'agents', stage })
   if (stage !== 'design') {
     const hasSpec = existsSync(join(root, slug, 'specs/analytics.yaml'))
-    const hasQuery = processSourceFiles(root, join(root, slug)).some(path =>
-      /\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path) && /\bqueryAi\s*\(/.test(readFileSync(path, 'utf8')))
+    const hasQuery = processSourceFiles(root, join(root, slug)).some(path => {
+      if (!/\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path)) return false
+      if (statSync(path).size > 80_000) throw Error(`Исходник ${rel(root, path)} слишком велик для определения комиссии.`)
+      return /\bqueryAi\s*\(/.test(readFileSync(path, 'utf8'))
+    })
     if (hasSpec || hasQuery) requirements.push({ id: 'analytics', role: 'analytics', stage })
   }
   return requirements

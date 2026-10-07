@@ -82,7 +82,8 @@ export function validateReview(report, packet) {
     const evidence = answer.evidence.map(item => {
       if (!item || !files.has(item.path)) throw Error(`Источник ${answer.id} отсутствует в пакете.`)
       const allowed = questionById.get(answer.id)?.evidencePaths
-      if (Array.isArray(allowed) && allowed.length && !allowed.some(part => item.path.includes(part)))
+      if (Array.isArray(allowed) && allowed.length && !allowed.some(part =>
+        part.endsWith('/') ? item.path.startsWith(part) || item.path.includes(part) : item.path.endsWith(part)))
         throw Error(`Источник ${answer.id} не относится к допустимой области доказательств.`)
       checkedString(item.quote, `${answer.id}.quote`, 2000)
       if (!normalized(files.get(item.path)).includes(normalized(item.quote))) throw Error(`Цитата ${answer.id} не найдена в ${item.path}.`)

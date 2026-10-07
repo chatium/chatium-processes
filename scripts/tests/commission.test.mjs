@@ -1,11 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { commissionStatus, reviewRequirements } from '../lib/commission.mjs'
 import { makeArchitectureReviewPacket, recordArchitectureReview } from '../lib/architecture-review.mjs'
 import { analyticsReviewStatus, makeAnalyticsReviewPacket, recordAnalyticsReview } from '../lib/analytics-review.mjs'
+
+const reviewsCli = fileURLToPath(new URL('../reviews.mjs', import.meta.url))
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-commission-'))
@@ -84,7 +88,7 @@ test('analytics sources require an independent conclusion with question-specific
   writeFileSync(join(root, '.knowledge-base/processes/demo/overview.md'), '---\ntitle: Demo\n---\nВладелец смотрит конверсию оплаты.\n')
   writeFileSync(join(root, 'demo/PLAN.md'), '# План\nВладелец смотрит конверсию оплаты.\n')
   mkdirSync(join(root, 'demo/specs'), { recursive: true })
-  writeFileSync(join(root, 'demo/specs/analytics.yaml'), Array.from({ length: 6 }, (_, i) => `metric_${i}: expected_${i}`).join('\n') + '\n')
+  writeFileSync(join(root, 'demo/specs/analytics.yaml'), Array.from({ length: 8 }, (_, i) => `metric_${i}: expected_${i}`).join('\n') + '\n')
   assert.ok(reviewRequirements({ root, slug: 'demo', stage: 'test' }).some(item => item.id === 'analytics'))
   assert.equal(analyticsReviewStatus({ root, slug: 'demo' }).status, 'missing')
   const packet = makeAnalyticsReviewPacket({ root, slug: 'demo' })
@@ -100,6 +104,17 @@ test('analytics sources require an independent conclusion with question-specific
   assert.equal(recordAnalyticsReview({ root, slug: 'demo', packet, report,
     agentReference: 'unit-test-only:analytics' }).status, 'ready')
   assert.equal(analyticsReviewStatus({ root, slug: 'demo' }).status, 'ready')
+  const directory = mkdtempSync(join(tmpdir(), 'process-analytics-review-packet-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const prepare = spawnSync(process.execPath, [reviewsCli, 'prepare', 'demo', '--role', 'analytics',
+    '--root', root, '--out', directory, '--json'], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(prepare.status, 0, prepare.stderr)
+  assert.equal(JSON.parse(readFileSync(join(directory, 'packet.json'), 'utf8')).stage, 'analytics')
+  writeFileSync(join(directory, 'answer.json'), JSON.stringify(report))
+  const record = spawnSync(process.execPath, [reviewsCli, 'record', 'demo', '--role', 'analytics',
+    '--root', root, '--packet', join(directory, 'packet.json'), '--report', join(directory, 'answer.json'),
+    '--agent', 'unit-test-only:analytics-cli', '--json'], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(record.status, 0, record.stderr)
 })
 
 test('a blocking architecture conclusion keeps the design commission red', t => {
