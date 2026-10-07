@@ -6,9 +6,10 @@ import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { stringifyYaml } from '../lib/yaml.mjs'
+import { parseYaml, stringifyYaml } from '../lib/yaml.mjs'
 import { validateProcessAgents } from '../lib/agents.mjs'
 import { makeAgentReviewPacket, agentReviewStatus } from '../lib/agent-review.mjs'
+import { agentRuntimeEvidenceStatus, writeAgentRuntimeEvidence } from '../lib/agent-runtime-evidence.mjs'
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'process-agents-'))
@@ -114,6 +115,50 @@ test('independent review packet binds role instructions and reference snapshot',
   } finally { f.cleanup() }
 })
 
+test('test stage requires a published runtime result for every AI process', () => {
+  const f = fixture()
+  try {
+    f.run()
+    writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
+    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml({ title: 'Demo', knowledge: '.knowledge-base/processes/demo/',
+      stages: ['Lead'], nodes: [{ ...f.map.nodes[0], stage: 'Lead', title: 'Helper', purpose: 'Help' }], links: [] }))
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('../check.mjs', import.meta.url)),
+      'demo', '--root', f.root, '--no-snapshot', '--task-stage', 'test', '--json'], { encoding: 'utf8' })
+    const report = JSON.parse(result.stdout)
+    assert.equal(report.checks.find(item => item.id === 'agents.runtime').ok, false)
+    assert.match(report.checks.find(item => item.id === 'agents.runtime').errors.join('\n'), /Нет проверки опубликованных помощников/)
+  } finally { f.cleanup() }
+})
+
+test('runtime evidence is bound to the tested commit, branch, agent sources and map IDs', () => {
+  const f = fixture()
+  try {
+    f.map.nodes[0].agentId = 'a-1'
+    f.run()
+    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml(f.map))
+    execFileSync('git', ['init', '-q', '-b', 'process/demo'], { cwd: f.root })
+    execFileSync('git', ['add', '.'], { cwd: f.root })
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'published agent'], { cwd: f.root })
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: f.root, encoding: 'utf8' }).trim()
+    const args = { root: f.root, slug: 'demo', map: f.map }
+    assert.equal(agentRuntimeEvidenceStatus(args).status, 'missing')
+    writeAgentRuntimeEvidence({ ...args, spec: f.spec, branch: 'process/demo', commit,
+      checkedAt: '2026-10-07T12:00:00Z' })
+    assert.equal(agentRuntimeEvidenceStatus(args).status, 'ready')
+    const wrongBranch = agentRuntimeEvidenceStatus({ ...args, currentBranch: () => 'main' })
+    assert.match(wrongBranch.errors.join('\n'), /текущая ветка/)
+    const unmerged = agentRuntimeEvidenceStatus({ ...args, ancestor: () => false })
+    assert.match(unmerged.errors.join('\n'), /не предшествует/)
+    const wrongPublished = agentRuntimeEvidenceStatus({ ...args, readAtCommit: (revision, path) =>
+      path.endsWith('helper.agent.json') ? Buffer.from('different') : execFileSync('git', ['show', `${revision}:${path}`], { cwd: f.root }) })
+    assert.match(wrongPublished.errors.join('\n'), /опубликованного файла/)
+    writeFileSync(join(f.root, 'demo/agents/helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Changed'], enabledTools: [] }))
+    assert.match(agentRuntimeEvidenceStatus(args).errors.join('\n'), /изменились после проверки/)
+    f.map.nodes[0].agentId = 'a-2'
+    assert.match(agentRuntimeEvidenceStatus(args).errors.join('\n'), /изменились после проверки/)
+  } finally { f.cleanup() }
+})
+
 test('published-state check remains partial without an existing-chain test and rejects a wrong preview branch', () => {
   const f = fixture()
   try {
@@ -132,9 +177,9 @@ test('published-state check remains partial without an existing-chain test and r
     const sha256 = createHash('sha256').update(readFileSync(join(f.root, 'demo/agents/helper.agent.json'))).digest('hex')
     const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: sha256, agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }], routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] }, dryRun: { mode: 'selected', agentId: 'a-1' } }] }
     const cli = fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url))
-    const run = () => {
+    const run = (record = false) => {
       writeFileSync(responseFile, JSON.stringify(response))
-      const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--json'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
+      const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--json', ...(record ? ['--record'] : [])], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
       return { exit: result.status, report: JSON.parse(result.stdout) }
     }
     const partial = run()
@@ -158,5 +203,47 @@ test('published-state check remains partial without an existing-chain test and r
     assert.equal(wrong.exit, 1)
     assert.equal(wrong.report.status, 'unverified')
     assert.match(wrong.report.errors.join('\n'), /нужна ветка process\/demo/)
+  } finally { f.cleanup() }
+})
+
+test('agents-runtime records only a fully verified published result', () => {
+  const f = fixture()
+  try {
+    f.spec.routes[0].testExistingChainKey = 'test-chain-1'
+    f.spec.routes[0].expectedExistingAgent = 'helper'
+    f.run()
+    const processYaml = join(f.root, 'demo/process.yaml')
+    writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
+    writeFileSync(processYaml, stringifyYaml({ title: 'Demo', knowledge: '.knowledge-base/processes/demo/',
+      stages: ['Lead'], nodes: [{ ...f.map.nodes[0], agentId: 'a-1', stage: 'Lead', title: 'Helper', purpose: 'Qualify' }], links: [] }))
+    execFileSync('git', ['init', '-q', '-b', 'process/demo'], { cwd: f.root })
+    execFileSync('git', ['add', '.'], { cwd: f.root })
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'fixture'], { cwd: f.root })
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: f.root, encoding: 'utf8' }).trim()
+    const bin = join(f.root, 'bin'), responseFile = join(f.root, 'runtime.json')
+    mkdirSync(bin)
+    const chatium = join(bin, 'chatium')
+    writeFileSync(chatium, '#!/bin/sh\ncat >/dev/null\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
+    chmodSync(chatium, 0o755)
+    const config = readFileSync(join(f.root, 'demo/agents/helper.agent.json'))
+    const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: createHash('sha256').update(config).digest('hex'), agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }],
+      routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] },
+        dryRun: { mode: 'selected', agentId: 'a-1' }, existingDryRun: null }] }
+    const run = () => {
+      writeFileSync(responseFile, JSON.stringify(response))
+      const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
+        'demo', '--root', f.root, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
+          PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
+      return { exit: result.status, report: JSON.parse(result.stdout) }
+    }
+    const failed = run()
+    assert.equal(failed.report.status, 'unverified')
+    assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'missing')
+    response.routes[0].existingDryRun = { mode: 'selected', agentId: 'a-1' }
+    const passed = run()
+    assert.equal(passed.exit, 0, JSON.stringify(passed.report))
+    assert.equal(passed.report.status, 'verified')
+    assert.ok(passed.report.recordedPath)
+    assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'ready')
   } finally { f.cleanup() }
 })

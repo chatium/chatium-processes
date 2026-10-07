@@ -27,6 +27,7 @@ import { templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 import { agentReviewStatus } from './lib/agent-review.mjs'
+import { agentRuntimeEvidenceStatus } from './lib/agent-runtime-evidence.mjs'
 import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 import { retirementStatus } from './lib/component-retirements.mjs'
 import { tableChangeStatus } from './lib/table-changes.mjs'
@@ -439,6 +440,10 @@ check('agents.review', 'Независимое ревью помощников',
   for (const gap of result.blocking || []) error(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
   for (const gap of result.advisory || []) warn(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
   for (const issue of result.structuralErrors || []) error(issue)
+})
+
+if (['test', 'launch'].includes(options['task-stage'])) check('agents.runtime', 'Проверка опубликованных помощников', ({ error }) => {
+  for (const issue of agentRuntimeEvidenceStatus({ root, slug, map }).errors) error(issue)
 })
 
 check('map.coverage', 'Всё построенное есть в карте', ({ error, warn }) => {
