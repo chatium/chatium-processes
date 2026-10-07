@@ -17,6 +17,29 @@
 1. **Таблица** `<process>/tables/<entity>.table.ts`. Имя уникальное:
    `t_<process>_<entity>_<4 символа>`, например
    `t_trial_class_bookings_K7q2`. Таблица живая сразу после push ветки.
+   В `<process>/specs/data.yaml` опиши каждый табличный узел карты: `id`,
+   тот же `source`, назначение `purpose`, ответственного `owner`, роли чтения
+   `readers`, идентичность записи `identity: {key, rule}` и `fields` с
+   `name`, `type`, `purpose`. Общее `retention: {decided, current, open}`
+   фиксирует согласованное правило хранения и удаления. Незакрытый срок
+   допустим при проектировании, но перед запуском `decided` должен быть `true`.
+   Пример минимальной записи:
+
+   ```yaml
+   version: 1
+   tables:
+     - id: requests
+       source: <process>/tables/requests.table.ts
+       purpose: Заявки на консультацию
+       owner: Менеджер по заявкам
+       readers: [Менеджер по заявкам, Администратор]
+       identity: { key: requestId, rule: Повтор по ID не создаёт вторую заявку }
+       fields:
+         - { name: requestId, type: string, purpose: Устойчивый номер заявки }
+   retention:
+     decided: true
+     current: Храним по согласованной политике; удаляем по запросу владельца данных
+   ```
 2. **Серверная функция создания** в `<process>/api/<action>.ts`: пишет
    запись и событие. Её же вызывает smoke через `chatium exec`, поэтому она
    отдельно от роута. Пример — запись на пробную тренировку в фитнес-студии:

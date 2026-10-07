@@ -32,6 +32,7 @@ import { retirementStatus } from './lib/component-retirements.mjs'
 import { tableChangeStatus } from './lib/table-changes.mjs'
 import { validateComponentContracts } from './lib/component-contracts.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
+import { validateDataContracts } from './lib/data-contracts.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -176,6 +177,7 @@ const eventByKey = new Map(events.filter(e => e && e.key).map(e => [e.key, e]))
 const analyticsRes = loadYamlFile(join(dir, 'specs', 'analytics.yaml'))
 const siteRes = loadYamlFile(join(dir, 'specs', 'site.yaml'))
 const servicesRes = loadYamlFile(join(dir, 'specs', 'services.yaml'))
+const dataRes = loadYamlFile(join(dir, 'specs', 'data.yaml'))
 // URL события строится от процесса: workspaceEvent — event://account/<процесс>/<ключ>,
 // customerEvent (captureCustomerEvent из @crm/sdk) — event://crm/customer/event/<процесс>/<ключ>
 const EVENT_URL_PREFIX = {
@@ -384,6 +386,14 @@ check('components.contracts', 'Контракты сайта и сервисов
     ...(siteRes.missing ? {} : { site: siteRes.data }),
     ...(servicesRes.missing ? {} : { services: servicesRes.data }),
   }).errors) error(issue)
+})
+
+check('data.contracts', 'Владение и жизненный цикл данных', ({ error, warn }) => {
+  if (dataRes.parseError) return error(`data.yaml не разбирается: ${dataRes.parseError}`)
+  const result = validateDataContracts({ map, data: dataRes.missing ? undefined : dataRes.data,
+    stage: options['task-stage'] || 'build' })
+  for (const issue of result.errors) error(issue)
+  for (const issue of result.warnings) warn(issue)
 })
 
 check('table.changes', 'Защита схемы действующих таблиц', ({ error }) => {

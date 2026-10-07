@@ -17,7 +17,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   architectureReviewPath(root, slug)
   const knowledge = collectKnowledge({ root, slug })
   const account = realpathSync(root)
-  const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml'].flatMap(name => {
+  const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml', 'data.yaml'].flatMap(name => {
     const path = join(root, slug, 'specs', name)
     if (!existsSync(path)) return []
     if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
