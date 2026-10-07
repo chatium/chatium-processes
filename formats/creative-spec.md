@@ -124,6 +124,7 @@ version: 1
 kind: series
 targetNode: welcome
 seriesType: welcome
+formats: [email]
 objective: Помочь клиенту после заявки
 audience: Оставившие заявку
 sources:
@@ -165,6 +166,11 @@ acceptance: [Сообщение отправлено только нужному
 проходит сборку. Для автоматической серии опусти `deliveryMode` или поставь
 `automation`, убери `manualInvocation` и укажи существующий
 `automationRef: <process>/automations/<name>/<name>.automationConfig.json`.
-Серию не надо привязывать к фиктивному событию ради формата. У каждого
-сообщения отдельный `.message.yaml` с `subject`, `html`, `plain` и `short`;
-[формат письма](letters.md) и [отправка](../blocks/message-series.md).
+Серию не надо привязывать к фиктивному событию ради формата. `formats`
+задаёт фактически используемые виды: `email`, `messenger`, `sms`. Если поле
+не указано, для старых заданий считается `[email]`. Для email нужны
+`subject`, `html`, `plain`; для мессенджера — `plain`; для SMS — `short`.
+`emailDesign` нужен только при email. У каждого сообщения отдельный
+`.message.yaml`. Выбранные форматы сверь с настройками доставки процесса;
+несоответствие должен отклонить ревьюер. См. [формат письма](letters.md)
+и [отправку](../blocks/message-series.md).

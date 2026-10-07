@@ -173,3 +173,21 @@ test('manual series letters do not require a fictional automation', t => {
   const letters = JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters')
   assert.doesNotMatch(letters.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
 })
+
+test('letter check requires content for selected transports only', t => {
+  const f = fixture(t)
+  const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
+  const spec = formats => f.put('demo/creative/followup/spec.yaml', JSON.stringify({ formats, deliveryMode: 'manual',
+    manualInvocation: { caller: 'Менеджер', trigger: 'После звонка', recipient: 'Контакт клиента', stop: 'Отказ' },
+    messages: [{ path }] }))
+  const errors = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters').errors.join('\n')
+  spec(['email'])
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nsubject: Здравствуйте\nplain: Текст\nhtml: <p>Текст</p>\n')
+  assert.doesNotMatch(errors(), /пустое или нет поле/)
+  spec(['email', 'sms'])
+  assert.match(errors(), /пустое или нет поле short/)
+  spec(['messenger'])
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\n')
+  assert.doesNotMatch(errors(), /пустое или нет поле/)
+})

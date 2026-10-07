@@ -416,7 +416,7 @@ test('series result checks every channel version and email render per message', 
     source: '.mailings/storage/processes/demo/followup/', creativeRef: 'demo/creative/followup/spec.yaml' }] })
   f.put('demo/automation/flow.automationConfig.json', { version: 1 })
   f.put('demo/creative/followup/spec.yaml', { version: 1, kind: 'series', targetNode: 'followup',
-    seriesType: 'welcome', objective: 'Помочь начать', audience: 'Оставившие заявку',
+    seriesType: 'welcome', formats: ['email', 'messenger', 'sms'], objective: 'Помочь начать', audience: 'Оставившие заявку',
     sources: [{ id: 'offer', path: '.knowledge-base/processes/demo/offer.md' }],
     voice: { addressing: 'вы', character: 'помогающий', emotionality: 'спокойно', example: 'Покажем первый шаг.' },
     emailDesign: { layout: 'Одна колонка', components: 'Текст', colors: 'Контраст', mobile: 'По ширине экрана' },
@@ -463,6 +463,79 @@ test('series result checks every channel version and email render per message', 
   assert.equal(recordCreativeReview({ ...args, stage: 'result', packet, report, agentReference: 'unit-test-only' }).status, 'ready')
   f.put(messagePath, { ...letter, short: 'Другая версия.' })
   assert.equal(creativeReviewStatus({ ...args, stage: 'result' }).status, 'invalid')
+})
+
+test('email-only series does not require SMS copy or messenger review', t => {
+  const f = fixture(t)
+  const messagePath = '.mailings/storage/processes/demo/followup/01-value.message.yaml'
+  const specPath = 'demo/creative/followup/spec.yaml'
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'followup', kind: 'series', title: 'Письмо',
+    source: '.mailings/storage/processes/demo/followup/', creativeRef: specPath }] })
+  f.put('demo/automation/flow.automationConfig.json', { version: 1 })
+  f.put(specPath, { version: 1, kind: 'series', targetNode: 'followup', seriesType: 'welcome',
+    formats: ['email'], objective: 'Помочь начать', audience: 'Оставившие заявку',
+    sources: [{ id: 'offer', path: '.knowledge-base/processes/demo/offer.md' }],
+    voice: { addressing: 'вы', character: 'помогающий', emotionality: 'спокойно', example: 'Первый шаг.' },
+    emailDesign: { layout: 'Одна колонка', components: 'Текст', colors: 'Контраст', mobile: 'Без горизонтальной прокрутки' },
+    messages: [{ id: 'value', path: messagePath, goal: 'Дать материал', mainIdea: 'Первый шаг с материалом',
+      subject: 'Первый шаг', blocks: [{ type: 'value', text: 'Откройте материал', sourceRef: 'offer' }] }],
+    automationRef: 'demo/automation/flow.automationConfig.json', openQuestions: [], acceptance: ['Письмо пришло'] })
+  const args = { root: f.root, slug: 'demo', nodeId: 'followup' }
+  writeCreativeBuild(args)
+  f.put('demo/.workspace.json', { config: { senderChannels: ['email-channel'] } })
+  const originalPacket = creativeReviewPacket({ ...args, stage: 'spec' })
+  assert.ok(originalPacket.files.some(file => file.path === 'demo/.workspace.json'))
+  f.put('demo/.workspace.json', { config: { senderChannels: ['another-channel'] } })
+  assert.notEqual(creativeReviewPacket({ ...args, stage: 'spec' }).inputDigest, originalPacket.inputDigest)
+  f.put('demo/.workspace.json', { config: { senderChannels: ['email-channel'] } })
+  f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', subject: 'Первый шаг',
+    html: '<p>Откройте материал.</p>', plain: 'Откройте материал.', short: '' })
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64')
+  f.put('demo/reviews/creative/value-desktop.png', png)
+  f.put('demo/reviews/creative/value-mobile.png', png)
+  const git = (...params) => spawnSync('git', params, { cwd: f.root, encoding: 'utf8' })
+  assert.equal(git('init', '-q').status, 0)
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'email-only').status, 0)
+  const version = git('rev-parse', 'HEAD').stdout.trim()
+  f.put('demo/reviews/creative/followup-visual.json', { captures: ['desktop', 'mobile'].map(view => ({
+    path: `demo/reviews/creative/value-${view}.png`, viewport: `email-${view}`,
+    messageId: 'value', codeVersion: version })) })
+  const packet = creativeReviewPacket({ ...args, stage: 'result' })
+  assert.ok(packet.questions.some(question => question.id === 'message.value.email'))
+  assert.ok(!packet.questions.some(question => question.id === 'message.value.short' || question.id === 'message.value.messenger'))
+})
+
+test('messenger-only series requires plain but no email images or subject', t => {
+  const f = fixture(t)
+  const messagePath = '.mailings/storage/processes/demo/followup/01-value.message.yaml'
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'followup', kind: 'series', title: 'Сообщение',
+    source: '.mailings/storage/processes/demo/followup/', creativeRef: 'demo/creative/followup/spec.yaml' }] })
+  f.put('demo/automation/flow.automationConfig.json', { version: 1 })
+  f.put('demo/creative/followup/spec.yaml', { version: 1, kind: 'series', targetNode: 'followup',
+    seriesType: 'welcome', formats: ['messenger'], objective: 'Помочь начать', audience: 'Оставившие заявку',
+    sources: [{ id: 'offer', path: '.knowledge-base/processes/demo/offer.md' }],
+    voice: { addressing: 'вы', character: 'помогающий', emotionality: 'спокойно', example: 'Первый шаг.' },
+    messages: [{ id: 'value', path: messagePath, goal: 'Дать материал', mainIdea: 'Первый шаг с материалом',
+      blocks: [{ type: 'value', text: 'Откройте материал', sourceRef: 'offer' }] }],
+    automationRef: 'demo/automation/flow.automationConfig.json', openQuestions: [], acceptance: ['Сообщение пришло'] })
+  const args = { root: f.root, slug: 'demo', nodeId: 'followup' }
+  writeCreativeBuild(args)
+  f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', plain: 'Откройте материал.' })
+  const packet = creativeReviewPacket({ ...args, stage: 'result' })
+  assert.equal(packet.visuals.length, 0)
+  assert.equal(packet.visualMode, 'none')
+  assert.ok(packet.questions.some(question => question.id === 'message.value.messenger'))
+  assert.ok(!packet.questions.some(question => question.id === 'message.value.email' || question.id === 'visual'))
+  const excerpts = ['Первый шаг', 'Отдать материал', 'Откройте материал.']
+  const report = { version: 1, process: 'demo', nodeId: 'followup', stage: 'result',
+    inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass',
+      reason: 'Проверен текст сообщения.', evidence: [{ path: messagePath, quote: excerpts[index % excerpts.length] }] })) }
+  assert.equal(recordCreativeReview({ ...args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }).status, 'ready')
+  f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', plain: '' })
+  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /нет содержательной версии plain/)
 })
 
 test('work task automatically includes selected references from its generated brief', t => {

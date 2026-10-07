@@ -60,7 +60,7 @@ test('checker validates plugin route against registry, variables in every varian
   assert.equal(check(['--registry',registry]).find(c=>c.id==='automations').ok,true)
   f.put('.mailings/storage/processes/demo/series/welcome.message.yaml', letter.replace('short: "{{name}}"\n', ''))
   checks=check(['--registry',registry])
-  assert.ok(checks.find(c=>c.id==='letters').errors.some(e=>e.includes('поле short')))
+  assert.ok(!checks.find(c=>c.id==='letters').errors.some(e=>e.includes('поле short')))
   f.put('.mailings/storage/processes/demo/series/welcome.message.yaml', letter.replace('short: "{{name}}"', 'short: "Откройте материал..."'))
   checks=check(['--registry',registry])
   assert.ok(checks.find(c=>c.id==='letters').warnings.some(w=>w.includes('выглядит обрезанной')))

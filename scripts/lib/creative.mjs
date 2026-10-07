@@ -161,16 +161,22 @@ function validateSeries(spec, errors, references) {
   const catalogData = catalog('email-types.json')
   if (!catalogData.types[spec.seriesType]) { errors.push(`Неизвестный seriesType ${spec.seriesType}`); return null }
   references.push('creative/catalog/email-design.md', 'creative/catalog/email-quality.md')
+  const formats = spec.formats === undefined ? ['email'] : spec.formats
+  if (!Array.isArray(formats) || !formats.length || !unique(formats) ||
+      formats.some(format => !['email', 'messenger', 'sms'].includes(format)))
+    errors.push('formats серии: укажите непустой список без повторов из email, messenger, sms.')
+  const uses = format => Array.isArray(formats) && formats.includes(format)
   for (const field of ['addressing', 'character', 'emotionality', 'example']) if (!text(spec.voice?.[field])) errors.push(`Голос серии: нужно ${field}.`)
-  for (const field of ['layout', 'components', 'colors', 'mobile']) if (!text(spec.emailDesign?.[field])) errors.push(`Дизайн писем: нужно ${field}.`)
+  if (uses('email')) for (const field of ['layout', 'components', 'colors', 'mobile'])
+    if (!text(spec.emailDesign?.[field])) errors.push(`Дизайн писем: нужно ${field}.`)
   if (!Array.isArray(spec.messages) || !spec.messages.length || !unique(spec.messages.map(m => m.id))) errors.push('Нужны сообщения с уникальными ID.')
   if (Array.isArray(spec.messages) && !unique(spec.messages.map(m => m.path))) errors.push('У сообщений повторяется путь файла.')
   if (Array.isArray(spec.messages) && !unique(spec.messages.map(m => m.mainIdea))) errors.push('У писем повторяется главная мысль; серия должна развиваться.')
   const sourceIds = new Set((spec.sources || []).map(s => s.id))
   for (const m of spec.messages || []) {
     if (!text(m.id) || !text(m.path) || !text(m.goal) || !text(m.mainIdea) ||
-        !text(m.subject) || !Array.isArray(m.blocks) || !m.blocks.length)
-      errors.push(`Письмо ${m.id || '?'}: нужны путь, роль, главная идея, тема и содержание.`)
+        (uses('email') && !text(m.subject)) || !Array.isArray(m.blocks) || !m.blocks.length)
+      errors.push(`Сообщение ${m.id || '?'}: нужны путь, роль, главная идея, содержание и тема для email.`)
     for (const field of ['hook', 'preheader']) if (m[field] !== undefined && typeof m[field] !== 'string')
       errors.push(`Письмо ${m.id || '?'}: ${field} должен быть строкой, если указан.`)
     for (const block of m.blocks || []) if (!text(block.type) || !text(block.text) || !sourceIds.has(block.sourceRef))
@@ -313,12 +319,14 @@ export function compileCreative(packet) {
     for (const image of spec.images || []) lines.push(`- ${image.id}: ${json(image)}`)
     lines.push('', '## A/B', json(spec.abTesting))
   } else {
+    const formats = spec.formats || ['email']
     lines.push(`## Тип серии: ${spec.seriesType}`, guidance.guidance, '', '## Голос', json(spec.voice),
-      '', '## Дизайн писем', json(spec.emailDesign), '',
-      'Для каждого сообщения создай три содержательных представления в одном файле: html/subject для email, plain для мессенджера, short для короткого канала. Сохрани одну мысль и факты, адаптируя форму к каналу.',
+      '', `## Нужные форматы: ${formats.join(', ')}`,
+      ...(formats.includes('email') ? ['', '## Дизайн писем', json(spec.emailDesign)] : []), '',
+      'Создай содержательные представления для выбранных форматов: email — subject/html/plain, messenger — plain, sms — short. Не добавляй другие каналы без задачи и настройки доставки.',
       '', '## Письма')
     for (const m of spec.messages) lines.push(`### ${m.id}: ${m.goal}`, `Файл: ${m.path}`, `Главная идея: ${m.mainIdea}`,
-      `Тема: ${m.subject}`, ...(m.preheader ? [`Прехедер: ${m.preheader}`] : []), ...(m.hook ? [`Хук: ${m.hook}`] : []),
+      ...(formats.includes('email') ? [`Тема: ${m.subject}`] : []), ...(m.preheader ? [`Прехедер: ${m.preheader}`] : []), ...(m.hook ? [`Хук: ${m.hook}`] : []),
       ...m.blocks.map(b => `- ${b.type}: ${b.text} [${b.sourceRef}]`),
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')

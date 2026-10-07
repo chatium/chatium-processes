@@ -53,7 +53,7 @@ const UTM_MAPPING_KEY = /^(?:utm_?)(source|medium|campaign|content|term)$/i
 const STEP_TYPES = ['action', 'delay', 'continueCondition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-const LETTER_REQUIRED = ['title', 'description', 'subject', 'plain', 'html', 'short']
+const LETTER_BASE_REQUIRED = ['title', 'description']
 const LETTER_FORBIDDEN = [
   'id', 'key', 'path', 'filename', 'email', 'telegram', 'sms', 'content', 'formats',
   'trigger', 'schedule', 'delay', 'action', 'transport', 'status', 'style', 'metadata',
@@ -792,10 +792,17 @@ check('automations.refs', 'Параметры шагов ведут на сущ�
 check('letters', 'Письма шагов отправки и их переменные', ({ error, warn }) => {
   const sent = new Set()
   const manuallyInvoked = new Set()
+  const formatsByLetter = new Map()
   for (const node of nodes.filter(node => node.kind === 'series' && typeof node.creativeRef === 'string')) {
     let spec
     try { spec = loadYamlFile(safeTaskPath(root, node.creativeRef)) }
     catch { continue } // Creative checks report an unsafe or missing spec.
+    const formats = Array.isArray(spec.data?.formats) ? spec.data.formats : ['email']
+    for (const message of spec.data?.messages || []) if (typeof message.path === 'string') {
+      const selected = formatsByLetter.get(message.path) || new Set()
+      for (const format of formats) selected.add(format)
+      formatsByLetter.set(message.path, selected)
+    }
     const manual = spec.data?.deliveryMode === 'manual' &&
       ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
     if (manual) for (const message of spec.data.messages || []) if (typeof message.path === 'string')
@@ -848,7 +855,13 @@ check('letters', 'Письма шагов отправки и их переме�
       continue
     }
     const letter = res.data || {}
-    for (const field of LETTER_REQUIRED) {
+    const basePath = p.replace(/\.v\d+\.message\.yaml$/, '.message.yaml')
+    const formats = formatsByLetter.get(basePath) || new Set(['email'])
+    const required = [...LETTER_BASE_REQUIRED,
+      ...(formats.has('email') ? ['subject', 'html', 'plain'] : []),
+      ...(formats.has('messenger') && !formats.has('email') ? ['plain'] : []),
+      ...(formats.has('sms') ? ['short'] : [])]
+    for (const field of required) {
       if (typeof letter[field] !== 'string' || !letter[field].trim()) error(`${p}: пустое или нет поле ${field}`)
     }
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
