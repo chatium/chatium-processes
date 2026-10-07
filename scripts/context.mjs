@@ -136,8 +136,8 @@ let stage
 if (kbFilled.length === 0) stage = '1. Знания — раздел процесса в базе знаний пуст'
 else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
   stage = '2. План — нет задач в PLAN.md или узлов в process.yaml'
+else if (designReview.status !== 'ready') stage = '2. План — ждёт независимых заключений'
 else if (!planApproved) stage = '2. План — ждёт согласования 1 «строим так?»'
-else if (designReview.status !== 'ready') stage = '2. План — ждёт независимой проверки архитектуры'
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
 else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
@@ -147,10 +147,11 @@ let nextAction
 if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
 else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
   nextAction = 'Заверши план задач и карту пути клиента.'
+else if (designReview.status !== 'ready')
+  nextAction = `Получи недостающие заключения design: ${designReview.requirements?.filter(item => item.status !== 'ready')
+    .map(item => `${item.id} (${item.status})`).join(', ') || designReview.error || 'см. reviews.mjs status'}.`
 else if (!planApproved)
   nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
-else if (designReview.status !== 'ready')
-  nextAction = 'Получи независимое заключение по архитектуре; запусти reviews.mjs status для этапа design.'
 else if (realTasks.some(task => !task.done))
   nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
 else if (!launchApproved)

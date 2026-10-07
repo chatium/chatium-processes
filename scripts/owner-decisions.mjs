@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
+import { commissionStatus } from './lib/commission.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
@@ -23,6 +24,11 @@ try {
   }
   const root = findRoot(options.root), kind = options.kind
   if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
+  if (kind === 'plan' && ['prepare', 'record'].includes(command)) {
+    const design = commissionStatus({ root, slug, stage: 'design' })
+    if (design.status !== 'ready') throw Error(`Сначала нужны принятые заключения методологии и архитектуры: ${design.requirements
+      .filter(item => item.status !== 'ready').map(item => `${item.id} ${item.status}`).join(', ')}.`)
+  }
   let result
   if (command === 'prepare') {
     if (options['board-revision'] === undefined) throw Error('Укажите --board-revision NUMBER или none после чтения доски.')

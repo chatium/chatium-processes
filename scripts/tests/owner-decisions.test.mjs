@@ -8,6 +8,7 @@ import { ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision
 import { fileURLToPath } from 'node:url'
 
 const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
+const decisionCli = fileURLToPath(new URL('../owner-decisions.mjs', import.meta.url))
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-owner-decision-'))
@@ -48,6 +49,17 @@ test('owner answer is required and binds business scope, not a bookkeeping commi
   const stale = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' })
   assert.equal(stale.status, 'stale')
   assert.ok(stale.changedFiles.includes('demo/PLAN.md'))
+})
+
+test('decision CLI will not solicit plan approval before independent design conclusions', t => {
+  const f = fixture(t)
+  const result = spawnSync(process.execPath,
+    [decisionCli, 'prepare', 'demo', '--kind', 'plan', '--board-revision', 'none', '--root', f.root],
+    { encoding: 'utf8' })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /Сначала нужны принятые заключения методологии и архитектуры/)
+  assert.match(result.stderr, /knowledge-design/)
+  assert.match(result.stderr, /architecture/)
 })
 
 test('launch decision detects changed delivery and board revision', t => {
@@ -108,16 +120,16 @@ test('context does not present stale owner approval from an old PLAN.md line', t
     return result.stdout
   }
   assert.match(context(), /решение «строим так\?» missing/)
-  assert.match(context(), /Этап: 2\. План — ждёт согласования/)
-  assert.match(context(), /Следующий шаг: Получи новое решение владельца/)
+  assert.match(context(), /Этап: 2\. План — ждёт независимых заключений/)
+  assert.match(context(), /Следующий шаг: Получи недостающие заключения design: knowledge-design.*architecture/)
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
   assert.match(context(), /решение «строим так\?» ready/)
-  assert.match(context(), /Этап: 2\. План — ждёт независимой проверки архитектуры/)
-  assert.match(context(), /Следующий шаг: Получи независимое заключение по архитектуре/)
+  assert.match(context(), /Этап: 2\. План — ждёт независимых заключений/)
+  assert.match(context(), /Следующий шаг: Получи недостающие заключения design:/)
   f.put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Demo\n---\nДругое обещание клиенту.\n')
   const stale = context()
   assert.match(stale, /решение «строим так\?» stale/)
-  assert.match(stale, /Этап: 2\. План — ждёт согласования/)
-  assert.match(stale, /Следующий шаг:.*Другое обещание|Следующий шаг:.*overview\.md/)
+  assert.match(stale, /Этап: 2\. План — ждёт независимых заключений/)
+  assert.match(stale, /Следующий шаг: Получи недостающие заключения design:/)
 })
