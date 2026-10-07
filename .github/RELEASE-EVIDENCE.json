@@ -11,7 +11,9 @@
     "decidedAt": "2026-10-07T09:18:20Z"
   },
   "distribution": {
-    "decision": "pending"
+    "decision": "public",
+    "reference": "conversation/user:public-repository-intent;conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:0",
+    "approvedAt": "2026-10-07T12:38:55Z"
   },
   "platform": {
     "mailingsProcessDelivery": {
