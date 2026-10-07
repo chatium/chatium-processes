@@ -9,7 +9,7 @@ export const REVIEW_STAGES = ['design', 'build', 'launch']
 const text = value => typeof value === 'string' && value.trim().length > 0
 const normalized = value => value.replace(/\s+/gu, ' ').trim()
 
-function collectRiskDecisions(root, slug) {
+export function collectRiskDecisions(root, slug) {
   const directory = join(root, slug, 'decisions/risk')
   if (!existsSync(directory)) return []
   const account = realpathSync(root)

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { makeArchitectureReviewPacket } from '../lib/architecture-review.mjs'
+import { validateReview } from '../lib/knowledge-review.mjs'
 
 test('architecture reviewer receives actual component specifications and notices their change', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-architecture-contract-'))
@@ -28,4 +29,41 @@ test('architecture reviewer receives actual component specifications and notices
   put('demo/specs/site.yaml', 'version: 1\ntitle: Другой сайт\n')
   const after = makeArchitectureReviewPacket({ root, slug: 'demo' })
   assert.notEqual(after.inputDigest, before.inputDigest)
+})
+
+test('architecture review tracks each owner risk decision but ignores plan bookkeeping', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-architecture-risk-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const put = (path, content) => {
+    const file = join(root, path)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content)
+  }
+  put('.knowledge-base/.knowledge.yml', 'order: [processes]\n')
+  put('.knowledge-base/processes/.knowledge.yml', 'order: [demo]\n')
+  put('.knowledge-base/processes/demo/.knowledge.yml', 'title: Demo\norder: [overview.md]\n')
+  put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nКлиент выбирает услугу.\n')
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  for (const id of ['RD1', 'RD2']) put(`demo/decisions/risk/${id}.json`, JSON.stringify({
+    version: 1, id, recommendation: 'Проверять адрес до отправки',
+    choice: 'Не проверять адрес', consequence: 'Ошибочный получатель',
+    scope: 'Только тест', control: 'Остановить отправку при сбое',
+    owner: { message: `Выбираю ${id}`, answeredAt: '2026-10-07T10:00:00.000Z' },
+  }, null, 2))
+  const before = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  assert.deepEqual(before.questions.filter(q => q.id.startsWith('risk.')).map(q => q.id),
+    ['risk.RD1', 'risk.RD2'])
+  const report = { version: 1, process: 'demo', stage: 'architecture', inputDigest: before.inputDigest,
+    inspectedFiles: before.files.map(file => file.path),
+    inspectedReferences: [...before.referenceLibrary.required],
+    answers: before.questions.map(question => ({ id: question.id, status: 'gap',
+      priority: 'blocking', reason: 'Синтетический незакрытый вопрос.', evidence: [],
+      nextAction: 'Проверить вручную.' })) }
+  report.answers.pop()
+  assert.throws(() => validateReview(report, before), /каждый вопрос/)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n- [x] T1 Собрать страницу\n## Согласования\n- План: согласован\n')
+  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает платный курс.\n- [x] T1 Собрать страницу\n## Согласования\n- План: согласован\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
 })

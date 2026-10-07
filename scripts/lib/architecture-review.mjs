@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
-import { canonicalTarget, validateReview } from './knowledge-review.mjs'
+import { canonicalTarget, collectRiskDecisions, validateReview } from './knowledge-review.mjs'
+import { reviewPlan } from './review-normalization.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 
@@ -25,14 +26,24 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     return [{ path: `${slug}/specs/${name}`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 2 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
     throw Error('Некорректная рубрика архитектуры.')
+  const riskDecisions = collectRiskDecisions(root, slug)
+  const questions = [...rubric.questions, ...riskDecisions.map(item => ({
+    id: `risk.${item.id}`,
+    question: `Учтены ли последствия отдельного решения ${item.id} вопреки существенной рекомендации в архитектуре и плане проверки?`,
+    lookFor: 'Проверь ответ владельца, область действия, альтернативу, последствия и контроль. Убедись, что выбор не скрывает техническую невозможность, опасный доступ или отсутствие критической ветви.',
+    evidencePaths: [item.path], requiredEvidencePaths: [item.path], allowNotApplicable: false,
+  }))]
   const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
-    questions: rubric.questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
-    files: [...knowledge.files, ...specFiles].sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
+    questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
+    files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
+      ? { ...file, content: reviewPlan(file.content) } : file), ...specFiles,
+    ...riskDecisions.map(({ path, content }) => ({ path, content }))]
+      .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
 }
 
