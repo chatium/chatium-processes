@@ -40,7 +40,7 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
   const knowledge = collectKnowledge({ root, slug })
   const method = join(SKILL_DIR, 'method')
   const rubric = JSON.parse(readFileSync(join(method, 'review-questions.json'), 'utf8'))
-  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 2 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length ||
       rubric.questions.some(q => !text(q.id) || !text(q.question) || !REVIEW_STAGES.includes(q.fromStage)))
     throw Error('Некорректная рубрика ревью знаний.')

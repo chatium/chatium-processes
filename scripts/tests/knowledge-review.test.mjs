@@ -116,6 +116,20 @@ test('a business-specific gap blocks design despite covered generic topics', t =
   assert.deepEqual(result.blocking.map(item => item.id), ['business.specific'])
 })
 
+test('an undocumented owner choice against a material recommendation blocks design', t => {
+  const packet = fixture(t).packet('design')
+  const question = packet.questions.find(item => item.id === 'evidence.decisions')
+  assert.match(question.lookFor, /вопреки рекомендации/)
+  const report = syntheticReport(packet)
+  const answer = report.answers.find(item => item.id === 'evidence.decisions')
+  Object.assign(answer, { status: 'gap', priority: 'blocking', evidence: [],
+    reason: 'Владелец отказался от подтверждения адреса, но последствия и граница отказа не записаны.',
+    nextAction: 'Сохранить точный ответ, объяснённый риск и способ контроля до проектирования.' })
+  const result = validateReview(report, packet)
+  assert.equal(result.status, 'needs-work')
+  assert.deepEqual(result.blocking.map(item => item.id), ['evidence.decisions'])
+})
+
 test('every rubric question needs one answer and every packet file must be listed once', t => {
   const packet = fixture(t).packet()
   const missing = syntheticReport(packet); missing.answers.pop()
