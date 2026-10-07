@@ -56,6 +56,43 @@ test('batch creation validates every card before changing task files or plan', t
   assert.equal(f.run('create-batch', '--file', join(f.root, 'batch.json')).status, 1)
 })
 
+test('oversized task is rejected before either single or batch creation changes the plan', t => {
+  const f = fixture(t)
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.objective = 'Описание '.repeat(10_000)
+  f.put('large.json', task)
+  const before = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  const single = f.run('create', 'W001', '--file', join(f.root, 'large.json'))
+  assert.equal(single.status, 1)
+  assert.match(single.stderr, /64 КБ/)
+  task.id = 'W002'
+  f.put('batch.json', [JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8')), task])
+  const batch = f.run('create-batch', '--file', join(f.root, 'batch.json'))
+  assert.equal(batch.status, 1)
+  assert.match(batch.stderr, /64 КБ/)
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  assert.equal(f.run('context', 'W001').status, 1)
+  assert.equal(f.run('context', 'W002').status, 1)
+})
+
+test('single and batch creation honor the same plan lock', t => {
+  const f = fixture(t)
+  const before = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  f.put('batch.json', [JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))])
+  f.put('demo/tasks/.create.lock', 'other-agent\n')
+  for (const [command, args] of [
+    ['create', ['W001', '--file', join(f.root, 'task.json')]],
+    ['create-batch', ['--file', join(f.root, 'batch.json')]],
+  ]) {
+    const result = f.run(command, ...args)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /создание задач уже идёт/i)
+  }
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  rmSync(join(f.root, 'demo/tasks/.create.lock'))
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+})
+
 test('implementation cannot start without a current owner plan answer', t => {
   const f = fixture(t)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)

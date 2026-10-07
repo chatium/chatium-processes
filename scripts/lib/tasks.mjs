@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { canonicalTarget, reviewStatus } from './knowledge-review.mjs'
 import { codeReviewStatus } from './code-review.mjs'
@@ -447,9 +447,11 @@ export function writeTask(root, slug, task, expectedRevision = null) {
   const planFile = safeTaskPath(root, `${slug}/PLAN.md`), plan = parseTaskPlan(readFileSync(planFile, 'utf8'))
   const issues = taskErrors(task, plan)
   if (issues.length) throw Error(issues.join('; '))
+  const content = JSON.stringify(task, null, 2) + '\n'
+  if (Buffer.byteLength(content) > 64 * 1024) throw Error(`${task.id}: карточка превышает 64 КБ.`)
   mkdirSync(dirname(file), { recursive: true })
   const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
-  writeFileSync(temporary, JSON.stringify(task, null, 2) + '\n', { flag: 'wx' })
+  writeFileSync(temporary, content, { flag: 'wx' })
   renameSync(temporary, file)
   return file
 }
@@ -467,14 +469,18 @@ function linkedPlanTask(source, task) {
   return lines.join('\n')
 }
 
-export function appendPlanTaskLink(root, slug, task) {
-  const path = safeTaskPath(root, `${slug}/PLAN.md`), source = readFileSync(path, 'utf8')
-  writeFileSync(path, linkedPlanTask(source, task))
-}
-
 export function createTasksBatch(root, slug, tasks) {
   if (!Array.isArray(tasks) || !tasks.length || tasks.length > 200)
     throw Error('Пакет должен содержать от 1 до 200 карточек.')
+  const lock = safeTaskPath(root, `${slug}/tasks/.create.lock`, { mayBeMissing: true })
+  let lockFd
+  try { lockFd = openSync(lock, 'wx') }
+  catch (error) {
+    if (error.code === 'EEXIST') throw Error('Создание задач уже идёт или было прервано: проверьте tasks/.create.lock и состояние карточек перед повтором.')
+    throw error
+  }
+  try {
+  writeSync(lockFd, `${process.pid} ${new Date().toISOString()}\n`)
   const planFile = safeTaskPath(root, `${slug}/PLAN.md`)
   const original = readFileSync(planFile, 'utf8')
   const plan = parseTaskPlan(original)
@@ -492,7 +498,9 @@ export function createTasksBatch(root, slug, tasks) {
     const issues = taskErrors(task, plan)
     if (issues.length) throw Error(issues.join('; '))
     updated = linkedPlanTask(updated, task)
-    return { id: task.id, file, content: JSON.stringify(task, null, 2) + '\n' }
+    const content = JSON.stringify(task, null, 2) + '\n'
+    if (Buffer.byteLength(content) > 64 * 1024) throw Error(`${task.id}: карточка превышает 64 КБ.`)
+    return { id: task.id, file, content }
   })
   const staged = [], created = []
   try {
@@ -518,5 +526,9 @@ export function createTasksBatch(root, slug, tasks) {
     throw error
   } finally {
     for (const path of staged) if (existsSync(path)) unlinkSync(path)
+  }
+  } finally {
+    closeSync(lockFd)
+    unlinkSync(lock)
   }
 }

@@ -11,7 +11,7 @@ import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
 import { parseYaml } from './lib/yaml.mjs'
-import { acceptanceErrors, appendPlanTaskLink, createTasksBatch, loadTasks, parseTaskPlan, safeTaskPath,
+import { acceptanceErrors, createTasksBatch, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistRolePath,
   taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
 
@@ -119,10 +119,7 @@ try {
   if (command === 'create') {
     const task = input()
     if (id && id !== task.id) throw Error('ID в команде и файле различаются.')
-    if (task.status !== 'queued' || task.revision !== 0 || task.acceptance !== null || task.result !== null)
-      throw Error('Новая задача должна быть queued, revision: 0, без результата и приёмки.')
-    const path = writeTask(root, slug, task)
-    appendPlanTaskLink(root, slug, task)
+    const [{ path }] = createTasksBatch(root, slug, [task])
     show({ created: task.id, path, next: `tasks.mjs context ${slug} ${task.id}` })
     process.exit(0)
   }
