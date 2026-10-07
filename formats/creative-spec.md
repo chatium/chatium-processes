@@ -174,3 +174,18 @@ acceptance: [Сообщение отправлено только нужному
 `.message.yaml`. Выбранные форматы сверь с настройками доставки процесса;
 несоответствие должен отклонить ревьюер. См. [формат письма](letters.md)
 и [отправку](../blocks/message-series.md).
+
+Если сообщение обещает медиа или вложение в конкретном канале, добавь к
+сообщению `requiredMedia`, например:
+
+```yaml
+requiredMedia:
+  - kind: media
+    key: guide-photo
+    channelIds: [telegram-1]
+```
+
+`kind` — `media` или `attachment`; `key` совпадает с элементом `media` или
+`attachments` в `.message.yaml`. `channelIds` — выбранные ID из
+`config.senderChannels`. `check` проверяет наличие и канальные ограничения,
+а реальную доставку и открытие файла — тестовая отправка в каждом канале.

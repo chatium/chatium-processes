@@ -8,6 +8,7 @@ import { safeTaskPath } from './tasks.mjs'
 import { parseYaml } from './yaml.mjs'
 import { SKILL_DIR } from './project.mjs'
 import { reviewCreativePlan } from './review-normalization.mjs'
+import { validateMessageMedia } from './message-media.mjs'
 
 const sha = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -118,6 +119,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     ...creative.copyFiles.map(f => f.path),
     ...creative.referenceFiles.map(f => f.path)]
   const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
+  let configuredChannels = []
   const planPath = `${slug}/PLAN.md`
   const planFile = safeTaskPath(root, planPath, { mayBeMissing: true })
   if (existsSync(planFile)) {
@@ -129,7 +131,10 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     const workspaceFile = safeTaskPath(root, workspacePath, { mayBeMissing: true })
     if (existsSync(workspaceFile)) {
       if (lstatSync(workspaceFile).size > 64 * 1024) throw Error('Слишком большой конфиг процесса для ревью серии.')
-      files.push({ path: workspacePath, content: readFileSync(workspaceFile, 'utf8') })
+      const content = readFileSync(workspaceFile, 'utf8')
+      files.push({ path: workspacePath, content })
+      const workspace = JSON.parse(content)
+      if (Array.isArray(workspace.config?.senderChannels)) configuredChannels = workspace.config.senderChannels
     }
   }
   const adjacent = creative.spec.kind === 'series' ? adjacentCreativeFiles(root, slug, nodeId) : null
@@ -151,11 +156,10 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         if (!variants.some(file => file.path === message.path)) throw Error(`Нет итогового письма ${message.path}`)
         for (const file of variants) {
           const letter = parseYaml(file.content)
-          for (const field of ['buttons', 'inlineButtons', 'media', 'attachments', 'images']) {
-            const value = letter?.[field]
-            if (Array.isArray(value) ? value.length : value !== undefined && value !== null && value !== '')
-              throw Error(`${file.path}: ${field} пока не передаётся через Mailings SDK в Sender; результат нельзя принять`)
-          }
+          const mediaIssues = validateMessageMedia(letter, {
+            requirements: message.requiredMedia || [], configuredChannels,
+          })
+          if (mediaIssues.length) throw Error(`${file.path}: ${mediaIssues.join('; ')}`)
           const required = ['title', 'description',
             ...(formats.includes('email') ? ['subject', 'html', 'plain'] : []),
             ...(formats.includes('messenger') && !formats.includes('email') ? ['plain'] : []),

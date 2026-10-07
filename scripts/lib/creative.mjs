@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { parseYaml } from './yaml.mjs'
 import { safeTaskPath } from './tasks.mjs'
 import { SKILL_DIR } from './project.mjs'
+import { validateMediaRequirements } from './message-media.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -182,6 +183,7 @@ function validateSeries(spec, errors, references) {
     for (const block of m.blocks || []) if (!text(block.type) || !text(block.text) || !sourceIds.has(block.sourceRef))
       errors.push(`Письмо ${m.id || '?'}: фрагмент без роли, текста или источника.`)
     if (m.cta && (!text(m.cta.label) || !text(m.cta.target))) errors.push(`Письмо ${m.id}: неполный CTA.`)
+    for (const issue of validateMediaRequirements(m.requiredMedia)) errors.push(`Письмо ${m.id}: ${issue}`)
     if (m.marketingTrigger && (!text(m.marketingTrigger.purpose) || !sourceIds.has(m.marketingTrigger.sourceRef)))
       errors.push(`Письмо ${m.id}: приём не обоснован источником.`)
   }

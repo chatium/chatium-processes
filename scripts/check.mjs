@@ -33,6 +33,7 @@ import { tableChangeStatus } from './lib/table-changes.mjs'
 import { validateComponentContracts } from './lib/component-contracts.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
 import { validateDataContracts } from './lib/data-contracts.mjs'
+import { validateMessageMedia } from './lib/message-media.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -54,7 +55,6 @@ const STEP_TYPES = ['action', 'delay', 'continueCondition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const LETTER_BASE_REQUIRED = ['title', 'description']
-const LETTER_UNDELIVERED = ['buttons', 'inlineButtons', 'media', 'attachments', 'images']
 const LETTER_FORBIDDEN = [
   'id', 'key', 'path', 'filename', 'email', 'telegram', 'sms', 'content', 'formats',
   'trigger', 'schedule', 'delay', 'action', 'transport', 'status', 'style', 'metadata',
@@ -794,6 +794,12 @@ check('letters', 'Письма шагов отправки и их переме�
   const sent = new Set()
   const manuallyInvoked = new Set()
   const formatsByLetter = new Map()
+  const requirementsByLetter = new Map()
+  let configuredChannels = []
+  try {
+    const config = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
+    if (Array.isArray(config.config?.senderChannels)) configuredChannels = config.config.senderChannels
+  } catch { /* workspace check reports absent or malformed config */ }
   for (const node of nodes.filter(node => node.kind === 'series' && typeof node.creativeRef === 'string')) {
     let spec
     try { spec = loadYamlFile(safeTaskPath(root, node.creativeRef)) }
@@ -803,6 +809,7 @@ check('letters', 'Письма шагов отправки и их переме�
       const selected = formatsByLetter.get(message.path) || new Set()
       for (const format of formats) selected.add(format)
       formatsByLetter.set(message.path, selected)
+      if (Array.isArray(message.requiredMedia)) requirementsByLetter.set(message.path, message.requiredMedia)
     }
     const manual = spec.data?.deliveryMode === 'manual' &&
       ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
@@ -865,11 +872,9 @@ check('letters', 'Письма шагов отправки и их переме�
     for (const field of required) {
       if (typeof letter[field] !== 'string' || !letter[field].trim()) error(`${p}: пустое или нет поле ${field}`)
     }
-    for (const field of LETTER_UNDELIVERED) {
-      const value = letter[field]
-      if (Array.isArray(value) ? value.length : value !== undefined && value !== null && value !== '')
-        error(`${p}: ${field} пока не передаётся через Mailings SDK в Sender; удалите поле только если оно не требуется клиенту, иначе доставка этого сообщения не готова`)
-    }
+    for (const issue of validateMessageMedia(letter, {
+      requirements: requirementsByLetter.get(basePath) || [], configuredChannels,
+    })) error(`${p}: ${issue}`)
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
       warn(`${p}: короткая версия выглядит обрезанной (многоточие в конце); проверьте законченность мысли и ссылку`)
     for (const field of LETTER_FORBIDDEN) if (field in letter) error(`${p}: поля ${field} нет в схеме письма`)

@@ -178,9 +178,9 @@ test('letter check requires content for selected transports only', t => {
   const f = fixture(t)
   const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
-  const spec = formats => f.put('demo/creative/followup/spec.yaml', JSON.stringify({ formats, deliveryMode: 'manual',
+  const spec = (formats, requiredMedia) => f.put('demo/creative/followup/spec.yaml', JSON.stringify({ formats, deliveryMode: 'manual',
     manualInvocation: { caller: 'Менеджер', trigger: 'После звонка', recipient: 'Контакт клиента', stop: 'Отказ' },
-    messages: [{ path }] }))
+    messages: [{ path, ...(requiredMedia ? { requiredMedia } : {}) }] }))
   const errors = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters').errors.join('\n')
   spec(['email'])
   f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nsubject: Здравствуйте\nplain: Текст\nhtml: <p>Текст</p>\n')
@@ -190,6 +190,14 @@ test('letter check requires content for selected transports only', t => {
   spec(['messenger'])
   f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\n')
   assert.doesNotMatch(errors(), /пустое или нет поле/)
-  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\nmedia: [photo.png]\n')
-  assert.match(errors(), /media пока не передаётся через Mailings SDK/)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { senderChannels: ['telegram-1'] } }))
+  spec(['messenger'], [{ kind: 'media', key: 'guide-photo', channelIds: ['telegram-1'] }])
+  assert.match(errors(), /нет обещанного медиа guide-photo/)
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\nmedia:\n  - key: guide-photo\n    type: image\n    url: https://example.com/photo.png\n    mime_type: image/png\n    only_channel_ids: [telegram-2]\n')
+  assert.match(errors(), /медиа не попадёт в канал telegram-1/)
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\nmedia:\n  - key: guide-photo\n    type: image\n    url: https://example.com/photo.png\n    mime_type: image/png\n    only_channel_ids: [telegram-1]\n')
+  assert.doesNotMatch(errors(), /медиа|media/)
+  spec(['messenger'], [null])
+  assert.match(errors(), /requiredMedia: неверное требование/)
 })

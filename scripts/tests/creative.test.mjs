@@ -504,9 +504,6 @@ test('email-only series does not require SMS copy or messenger review', t => {
   const packet = creativeReviewPacket({ ...args, stage: 'result' })
   assert.ok(packet.questions.some(question => question.id === 'message.value.email'))
   assert.ok(!packet.questions.some(question => question.id === 'message.value.short' || question.id === 'message.value.messenger'))
-  f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', subject: 'Первый шаг',
-    html: '<p>Откройте материал.</p>', plain: 'Откройте материал.', media: ['photo.png'] })
-  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /media пока не передаётся через Mailings SDK/)
 })
 
 test('messenger-only series requires plain but no email images or subject', t => {
@@ -539,6 +536,26 @@ test('messenger-only series requires plain but no email images or subject', t =>
     agentReference: 'unit-test-only' }).status, 'ready')
   f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', plain: '' })
   assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /нет содержательной версии plain/)
+  const specPath = 'demo/creative/followup/spec.yaml'
+  const spec = JSON.parse(readFileSync(join(f.root, specPath), 'utf8'))
+  spec.messages[0].requiredMedia = [{ kind: 'media', key: 'guide-photo', channelIds: ['telegram-1'] }]
+  f.put(specPath, spec)
+  f.put('demo/.workspace.json', { config: { senderChannels: ['telegram-1'] } })
+  writeCreativeBuild(args)
+  const message = { title: 'Первый шаг', description: 'Отдать материал', plain: 'Откройте материал.',
+    media: [{ key: 'guide-photo', type: 'image', url: 'https://example.com/photo.png', mime_type: 'image/png',
+      only_channel_ids: ['telegram-2'] }] }
+  f.put(messagePath, message)
+  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /медиа не попадёт в канал telegram-1/)
+  message.media[0].only_channel_ids = ['telegram-1']
+  f.put(messagePath, message)
+  assert.ok(creativeReviewPacket({ ...args, stage: 'result' }).messageFiles.some(file => file.path === messagePath))
+  message.media[0].url = '{{photo_url}}'
+  f.put(messagePath, message)
+  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /HTTPS URL/)
+  spec.messages[0].requiredMedia[0].channelIds = []
+  f.put(specPath, spec)
+  assert.match(creativePacket(args).errors.join('\n'), /непустые channelIds/)
 })
 
 test('work task automatically includes selected references from its generated brief', t => {
