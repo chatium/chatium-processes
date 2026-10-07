@@ -43,7 +43,7 @@ test('architecture review tracks each owner risk decision but ignores plan bookk
   put('.knowledge-base/processes/.knowledge.yml', 'order: [demo]\n')
   put('.knowledge-base/processes/demo/.knowledge.yml', 'title: Demo\norder: [overview.md]\n')
   put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nКлиент выбирает услугу.\n')
-  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 1000 рублей\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
   put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
   for (const id of ['RD1', 'RD2']) put(`demo/decisions/risk/${id}.json`, JSON.stringify({
     version: 1, id, recommendation: 'Проверять адрес до отправки',
@@ -58,12 +58,25 @@ test('architecture review tracks each owner risk decision but ignores plan bookk
     inspectedFiles: before.files.map(file => file.path),
     inspectedReferences: [...before.referenceLibrary.required],
     answers: before.questions.map(question => ({ id: question.id, status: 'gap',
-      priority: 'blocking', reason: 'Синтетический незакрытый вопрос.', evidence: [],
+      priority: question.id.startsWith('risk.') ? 'blocking' : 'advisory',
+      reason: 'Синтетический незакрытый вопрос.', evidence: [],
       nextAction: 'Проверить вручную.' })) }
   report.answers.pop()
   assert.throws(() => validateReview(report, before), /каждый вопрос/)
-  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n- [x] T1 Собрать страницу\n## Согласования\n- План: согласован\n')
-  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
-  put('demo/PLAN.md', '# План\n\nКлиент выбирает платный курс.\n- [x] T1 Собрать страницу\n## Согласования\n- План: согласован\n')
-  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
+  report.answers.push({ id: 'risk.RD2', status: 'covered', reason: 'Синтетическая проверка ссылки.',
+    evidence: [{ path: 'demo/decisions/risk/RD2.json', quote: 'RD2' }] })
+  assert.throws(() => validateReview(report, before), /связанных материалов/)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 1000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [x] T1 Собрать страницу\n## Согласования\n- План: согласован\n')
+  const linked = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  const completed = { ...report, inputDigest: linked.inputDigest, inspectedFiles: linked.files.map(file => file.path),
+    answers: report.answers.map(answer => answer.id.startsWith('risk.')
+      ? { id: answer.id, status: 'covered', reason: 'Синтетическая проверка ссылок.',
+        evidence: [{ path: `demo/decisions/risk/${answer.id.slice(5)}.json`, quote: answer.id.slice(5) },
+          { path: 'demo/PLAN.md', quote: answer.id.slice(5) }] }
+      : answer) }
+  assert.equal(validateReview(completed, linked).status, 'ready')
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 1000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
+  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, linked.inputDigest)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 9000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, linked.inputDigest)
 })

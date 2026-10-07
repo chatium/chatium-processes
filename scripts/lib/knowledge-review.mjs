@@ -76,11 +76,16 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
     throw Error('Некорректная рубрика ревью знаний.')
   const questions = rubric.questions.filter(q => REVIEW_STAGES.indexOf(q.fromStage) <= REVIEW_STAGES.indexOf(stage))
   const riskDecisions = collectRiskDecisions(root, slug)
+  const articlePaths = knowledge.files.filter(file => file.path.startsWith('.knowledge-base/') &&
+    file.path.endsWith('.md')).map(file => file.path)
   questions.push(...riskDecisions.map(item => ({ id: `risk.${item.id}`, topic: 'cross-cutting', fromStage: 'design',
     question: `Проверено ли отдельное решение ${item.id} вопреки существенной рекомендации и его последствие для этого этапа?`,
     lookFor: 'Точный ответ владельца, предложенная альтернатива, осознанный выбор, последствия, границы и контроль; открытый технический или правовой блокер не исчезает из-за согласия владельца.',
     applicability: 'Зарегистрированное решение обязательно проверяется на каждом зависимом этапе.',
-    evidencePaths: [item.path], requiredEvidencePaths: [item.path], allowNotApplicable: false })))
+    evidencePaths: [item.path, `${slug}/PLAN.md`, ...articlePaths],
+    requiredEvidenceGroups: [{ paths: [item.path] },
+      { paths: [`${slug}/PLAN.md`], marker: item.id },
+      { paths: articlePaths, marker: item.id }], allowNotApplicable: false })))
   const reviewerInstructions = readFileSync(join(method, 'reviewer.md'), 'utf8')
   const base = { version: 1, process: slug, stage, rubricVersion: rubric.version, questions,
     reviewerInstructions, files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
@@ -133,6 +138,12 @@ export function validateReview(report, packet) {
         !evidence.some(item => requiredPaths.some(part => part.endsWith('/') ?
           item.path.startsWith(part) || item.path.includes(part) : item.path.endsWith(part))))
       throw Error(`Для ${answer.id} нужно доказательство из указанного первичного источника, а не только общее описание.`)
+    const requiredGroups = questionById.get(answer.id)?.requiredEvidenceGroups
+    if (answer.status === 'covered' && Array.isArray(requiredGroups) && requiredGroups.some(group =>
+      !Array.isArray(group.paths) || !group.paths.length || !evidence.some(item =>
+        group.paths.includes(item.path) && (!group.marker ||
+          new RegExp(`(^|[^A-Za-z0-9])${group.marker}($|[^A-Za-z0-9])`, 'u').test(item.quote)))))
+      throw Error(`Для ${answer.id} нужны отдельные доказательства из записи решения и связанных материалов с его ID.`)
     if (answer.status === 'gap') {
       if (!['blocking', 'advisory'].includes(answer.priority)) throw Error(`Нужен приоритет пробела ${answer.id}.`)
       if (answer.id.startsWith('risk.') && answer.priority !== 'blocking')

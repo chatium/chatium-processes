@@ -45,7 +45,7 @@ function syntheticReport(packet) {
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки формата валидатора.',
       evidence: question.id.startsWith('risk.')
-        ? [{ path: question.requiredEvidencePaths[0], quote: `"id": "${question.id.slice(5)}"` }]
+        ? question.requiredEvidenceGroups.map(group => ({ path: group.paths[0], quote: question.id.slice(5) }))
         : [{ path: articlePath, quote: quote.slice(index % 3) }] })),
   }
 }
@@ -141,6 +141,13 @@ test('each material risk decision has its own non-skippable question and source'
     owner: { message: `Выбираю ${id}`, messageReference: `message:${id}`,
       answeredAt: '2026-10-07T10:00:00.000Z' },
   }, null, 2))
+  const withoutLinks = f.packet('design')
+  const incomplete = syntheticReport(withoutLinks)
+  incomplete.answers.find(a => a.id === 'risk.RD1').evidence =
+    [{ path: 'demo/decisions/risk/RD1.json', quote: 'RD1' }]
+  assert.throws(() => validateReview(incomplete, withoutLinks), /связанных материалов/)
+  f.put(articlePath, article(`${quote}\n\nRD1: выбор и последствия первого риска.\nRD2: выбор и последствия второго риска.`))
+  f.put('demo/PLAN.md', '# План\n\nRD1: контроль первого риска.\nRD2: контроль второго риска.\n')
   const packet = f.packet('design')
   assert.deepEqual(packet.questions.filter(q => q.id.startsWith('risk.')).map(q => q.id),
     ['risk.RD1', 'risk.RD2'])

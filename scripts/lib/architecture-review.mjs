@@ -32,11 +32,14 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
         typeof question.question !== 'string' || !question.question))
     throw Error('Некорректная рубрика архитектуры.')
   const riskDecisions = collectRiskDecisions(root, slug)
+  const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`, ...specFiles.map(file => file.path)]
   const questions = [...rubric.questions, ...riskDecisions.map(item => ({
     id: `risk.${item.id}`,
     question: `Учтены ли последствия отдельного решения ${item.id} вопреки существенной рекомендации в архитектуре и плане проверки?`,
     lookFor: 'Проверь ответ владельца, область действия, альтернативу, последствия и контроль. Убедись, что выбор не скрывает техническую невозможность, опасный доступ или отсутствие критической ветви.',
-    evidencePaths: [item.path], requiredEvidencePaths: [item.path], allowNotApplicable: false,
+    evidencePaths: [item.path, ...architecturePaths],
+    requiredEvidenceGroups: [{ paths: [item.path] },
+      { paths: architecturePaths, marker: item.id }], allowNotApplicable: false,
   }))]
   const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
     questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),

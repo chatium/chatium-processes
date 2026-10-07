@@ -1,9 +1,15 @@
 // Administrative progress must not invalidate a semantic review. Normalize
 // only fields whose runtime contract is checked separately by check/decisions.
 export function reviewPlan(content) {
-  return content.replace(/^- \[[xX ]\] (T\d+)/gm, '- [ ] $1')
-    .replace(/^- (?:План|Запуск|Строим):[^\n]*(?=\n|$)/gm, '')
-    .replace(/^[ \t]*- Рабочие задачи:[^\n]*(?:\n|$)/gm, '')
+  let approvals = false, task = false
+  return content.split('\n').flatMap(line => {
+    const heading = /^##\s+(.+?)\s*\r?$/u.exec(line)
+    if (heading) { approvals = heading[1] === 'Согласования'; task = false }
+    if (/^- \[[xX ]\] T\d+\s/u.test(line)) task = true
+    if (approvals && /^- (?:План|Запуск|Строим):\s*(?:не\s+)?согласован(?:о|а)?(?:\s|$)/iu.test(line)) return []
+    if (task && /^[ \t]+- Рабочие задачи:/u.test(line)) return []
+    return [line.replace(/^- \[[xX ]\] (T\d+)/u, '- [ ] $1')]
+  }).join('\n')
 }
 
 // Task criteria can contain the only recorded business condition for a page or
