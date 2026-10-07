@@ -22,8 +22,10 @@ import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
+import { validateProcessAgents } from './lib/agents.mjs'
+import { agentReviewStatus } from './lib/agent-review.mjs'
 
-const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external']
+const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
 const EVENT_CATEGORIES = ['traffic', 'engagement', 'conversion', 'revenue', 'retention', 'content', 'forms', 'other']
 const PAYLOAD_TYPES = ['string', 'number', 'boolean', 'date', 'object', 'array', 'any']
@@ -339,10 +341,26 @@ check('map.sources', 'Узлы карты построены', ({ error }) => {
       error(`${n.id}: в ${src} нет index.tsx`)
     }
     if (n.kind === 'table' && !src.endsWith('.table.ts')) error(`${n.id}: source таблицы — файл *.table.ts`)
+    if (n.kind === 'agent' && !src.endsWith('.agent.json')) error(`${n.id}: source агента — файл *.agent.json`)
     if (n.kind === 'series' && walk(abs).filter(f => f.endsWith('.message.yaml')).length === 0) {
       error(`${n.id}: в ${src} нет ни одного *.message.yaml`)
     }
   }
+})
+
+check('agents', 'Агенты процесса', ({ error, warn }) => {
+  const report = validateProcessAgents({ root, slug, map })
+  for (const issue of report.errors) error(issue)
+  for (const issue of report.warnings) warn(issue)
+})
+
+check('agents.review', 'Независимое ревью помощников', ({ error, warn }) => {
+  if (!validateProcessAgents({ root, slug, map }).enabled) return
+  const result = agentReviewStatus({ root, slug })
+  if (result.error) error(result.error)
+  for (const gap of result.blocking || []) error(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const gap of result.advisory || []) warn(`${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+  for (const issue of result.structuralErrors || []) error(issue)
 })
 
 check('map.coverage', 'Всё построенное есть в карте', ({ error, warn }) => {

@@ -6,7 +6,7 @@ description: "Проектирование, сборка и запуск биз�
 # Бизнес-процессы
 
 Бизнес-процесс (дальше — процесс) — путь клиента от первого касания до
-результата: страницы, формы, события, письма, автоматизации, оплата. Ты
+результата: страницы, формы, события, письма, автоматизации, оплата, помощники. Ты
 проектируешь его вместе с владельцем бизнеса и собираешь в его аккаунте.
 
 ## Общение с владельцем бизнеса
@@ -144,6 +144,7 @@ SMS или другого плагина, проверь возможность 
 | План, карта, код, реестр тестов | `<process>/` в корне аккаунта |
 | Реестр событий (читает рантайм автоматизаций) | `<process>/specs/events.yaml` |
 | Автоматизация и её действия | `<process>/automations/<automation>/` |
+| Самостоятельные помощники, их связи и испытания | `<process>/agents/` по [формату](formats/agents.md) |
 
 `<process>` — слаг латиницей в kebab-case по сути процесса, например
 `trial-class` или `order-followup`.
@@ -166,6 +167,9 @@ SMS или другого плагина, проверь возможность 
    [method/README.md](method/README.md). Затем `kb-check` и независимый
    аудит `design` по [method/review.md](method/review.md): статическая
    целостность и достаточность содержания проверяются отдельно.
+   Сам найди полезные места для ИИ по [вопросам о помощниках](method/topics/ai-agents.md).
+   Предложи конкретное применение на языке бизнеса; реализуй только принятое
+   владельцем. Отказ от ИИ допустим.
 2. **План.** Напиши `PLAN.md` и `process.yaml` —
    [formats/plan-md.md](formats/plan-md.md),
    [formats/process-yaml.md](formats/process-yaml.md).
@@ -187,6 +191,12 @@ SMS или другого плагина, проверь возможность 
    Перед каждой работой прочитай её мини-план, `build.md` и обязательные
    референсы; после работы подтверди каждый критерий через `tasks.mjs`.
    Для страницы/серии проведи отдельное ревью задания и результата.
+   Для принятого помощника используй [карточку](blocks/ai-agent.md),
+   [спецификацию и сценарии](formats/agents.md),
+   [правила инструкции](build/agent-instructions.md). Сверь локальные файлы через
+   `check` и проведи [независимое ревью роли](build/agent-review.md);
+   при подходящей цели передавай разговор следующей роли через `goal.type: redirect2`,
+   как описано в карточке. Фактический маршрут, инструменты и эффекты проверь после публикации.
    **До полного тестового прогона и сдачи** — отдельный reviewer реализации
    по [build/review.md](build/review.md): план ↔ код, безопасность, нагрузка
    Heap/KB, конкурентность, повторы и циклы. После исправлений — новое ревью.
@@ -236,6 +246,9 @@ node .agents/skills/processes/scripts/context.mjs <process>
 | `node .agents/skills/processes/scripts/kb-review.mjs status <process> --stage build` | Актуальность и результат сохранённого экспертного отчёта; запись ответа — `record` по [процедуре](method/review.md) |
 | `node .agents/skills/processes/scripts/code-review.mjs prepare <process>` | Пакет кода, зависимостей, плана и критериев для отдельного reviewer перед тестовым прогоном; [вызов и запись](build/review.md) |
 | `node .agents/skills/processes/scripts/code-review.mjs status <process>` | Актуальность независимого отчёта реализации, блокеры и замечания |
+| `node .agents/skills/processes/scripts/agent-review.mjs prepare <process>` | Пакет независимой проверки инструкций и связей помощников; ответ записывается через `record` по [процедуре](build/agent-review.md) |
+| `node .agents/skills/processes/scripts/agent-review.mjs status <process>` | Актуальность смыслового ревью помощников перед тестовым прогоном |
+| `node .agents/skills/processes/scripts/agents-runtime.mjs <process>` | После публикации сверяет исполненный коммит, конфиги, ветку, ID, инструменты и маршрут; без настоящего preview вернёт расхождение |
 | `node .agents/skills/processes/scripts/board.mjs read <process>` | Весь доступный контекст: снимок процесса, ручные элементы, связи, изображения и поручения |
 | `node .agents/skills/processes/scripts/board.mjs material <process> --from FILE --element ID` | Проверяет доступ к изображению и возвращает URL для просмотра |
 | `node .agents/skills/processes/scripts/board.mjs respond-note <process> --from FILE --note ID --status done --message-file FILE` | Ответ на поручение с проверкой ревизий; `needs-info` — вопрос владельцу; [процедура](build/board-notes.md) |
