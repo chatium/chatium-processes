@@ -24,7 +24,7 @@
 | R14 | О | P4 | Задание нельзя составить по документации; standalone требует автоматизацию | formats/creative-spec.md; scripts/tests/creative.test.mjs | в работе | 580b6db |
 | R15 | О | P0 | Учётная отметка требует повторить все ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/code-review.test.mjs: отметка/ссылка не меняет digest, смысловая правка меняет | закрыто | afe0d46 |
 | R16 | О | P8 | Простое уведомление менеджеру требует полной творческой цепочки | scripts/tests/commission.test.mjs; SKILL.md — нужен замер обязательного чтения на DSH | в работе | 3e4f962 |
-| R17 | О | P0 | Одна цитата на все ответы даёт зелёное ревью | scripts/tests/knowledge-review.test.mjs; scripts/tests/creative.test.mjs | в работе | 51b85b5 |
+| R17 | О | P0 | Одна цитата на все ответы даёт зелёное ревью | scripts/tests/knowledge-review.test.mjs и scripts/tests/code-review.test.mjs: общий валидатор отклоняет механический повтор для методологии, архитектуры, кода и ИИ; scripts/tests/creative.test.mjs: творческое ревью тоже отклоняет | закрыто | 0bfa537 |
 | R18 | О | P7 | После запуска нет способа остановить или проследить процесс | build/operations.md; build/review-questions.json | в работе | 0fbc612 |
 | R19 | О | P2 | Страна и решение по согласиям не выяснены | method/interview.md; method/review-questions.json | в работе | e35a2e2 |
 | R20 | О | P5 | Заявка создана, сотрудник о ней не узнал | scripts/tests/architecture-review.test.mjs; scripts/tests/code-review.test.mjs: отсутствие уведомления как blocking; blocks/form-table-event.md — нужен реальный тест доставки и сбоя | в работе | 6e06e5e |
@@ -156,7 +156,7 @@
 | I11 | В | P6 | Правка роли потеряла прежние инструкции и ID | — | открыто | — |
 | I12 | В | P6 | Один сломанный агент не мешает общему готово | — | открыто | — |
 | Q01 | О | P1 | Этап сборки перескочил через проверку плана | scripts/tests/check-arguments-automations.test.mjs; scripts/tests/tasks.test.mjs: start v2 требует ответа владельца и комиссии design; нужен полный прогон | в работе | 6cdc872 |
-| Q02 | О | P0 | Отрицательный вердикт не остановил переход к сборке | — | открыто | — |
+| Q02 | О | P0 | Отрицательный вердикт не остановил переход к сборке | scripts/tests/commission.test.mjs: blocking по архитектуре делает design красным; scripts/tasks.mjs: start требует ready design; нужен полный прогон перехода | в работе | 0bfa537 |
 | Q03 | О | P1 | Четвёртый раз запускается задача с теми же входами после трёх одинаковых отказов | scripts/tests/tasks.test.mjs: отказ, затем новый вход разрешает запуск | закрыто | 5230b72 |
 | Q04 | О | P1 | Ошибка одного компонента скрыта общим успехом | — | открыто | — |
 | Q05 | О | P1 | Автоматизация включена до появления её действия | scripts/tests/check-arguments-automations.test.mjs и scripts/tests/letters.test.mjs: launch требует маршрут локального действия в реестре опубликованного аккаунта, принимает реальный формат SDK без accountId; нужен реальный enable | в работе | 2ade4e8 |
