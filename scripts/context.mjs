@@ -143,8 +143,23 @@ else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
 else stage = '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
 
+let nextAction
+if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
+else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
+  nextAction = 'Заверши план задач и карту пути клиента.'
+else if (!planApproved)
+  nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
+else if (designReview.status !== 'ready')
+  nextAction = 'Получи независимое заключение по архитектуре; запусти reviews.mjs status для этапа design.'
+else if (realTasks.some(task => !task.done))
+  nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
+else if (!launchApproved)
+  nextAction = `Проверь путь клиента в тестовом режиме и получи решение владельца «запускаем?»: ${launchDecision.error || launchDecision.status}`
+else nextAction = 'Проверь полный check и опубликованный снимок перед сдачей или запуском.'
+
 say(`Процесс: ${map?.title || slug} (${slug}/)`)
 say(`Этап: ${stage}`)
+say(`Следующий шаг: ${nextAction}`)
 say('')
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
