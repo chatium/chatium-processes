@@ -63,6 +63,33 @@ test('process without AI stays valid without agent files', () => {
   finally { rmSync(root, { recursive: true, force: true }) }
 })
 
+test('a broken agent turns the process check red even when another agent is valid', () => {
+  const f = fixture()
+  try {
+    f.spec.agents.push({ ...f.spec.agents[0], key: 'backup', node: 'backup',
+      config: 'demo/agents/backup.agent.json', opportunity: 'help' })
+    f.map.nodes.push({ id: 'backup', kind: 'agent', source: 'demo/agents/backup.agent.json' })
+    writeFileSync(join(f.root, 'demo/agents/backup.agent.json'), JSON.stringify({ title: 'Backup', model: 'model', instructions: ['Help'], enabledTools: [] }))
+    f.run()
+    writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
+    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml({ title: 'Demo', knowledge: '.knowledge-base/processes/demo/',
+      stages: ['Lead'], nodes: f.map.nodes.map(node => ({ ...node, stage: 'Lead', title: node.id, purpose: 'Help' })), links: [] }))
+    const cli = fileURLToPath(new URL('../check.mjs', import.meta.url))
+    const check = () => {
+      const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--no-snapshot', '--json'], { encoding: 'utf8' })
+      assert.ok([0, 1].includes(result.status), result.stderr)
+      return JSON.parse(result.stdout)
+    }
+    const valid = check()
+    assert.equal(valid.checks.find(item => item.id === 'agents').ok, true)
+    writeFileSync(join(f.root, 'demo/agents/backup.agent.json'), '{broken')
+    const broken = check()
+    assert.equal(broken.checks.find(item => item.id === 'agents').ok, false)
+    assert.ok(broken.passed < broken.total)
+    assert.match(broken.checks.find(item => item.id === 'agents').errors.join('\n'), /backup/)
+  } finally { f.cleanup() }
+})
+
 test('agent source symlink is rejected instead of traversing outside the process', () => {
   const f = fixture()
   try {
