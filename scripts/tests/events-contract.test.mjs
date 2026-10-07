@@ -134,6 +134,49 @@ test('event guide example never reintroduces undefined UTM placeholders', () => 
   assert.match(guide, /Object\.keys\(utm\)\.length/)
 })
 
+test('commented event writers do not satisfy the declared-event contract', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка
+    description: Заявка
+    payloadMapping: {}
+`)
+  f.put('demo/api/lead.ts', `// await captureCustomerEvent(ctx, { event: 'lead_created' })
+const example = "captureCustomerEvent(ctx, { event: 'lead_created' })"
+`)
+  assert.match(named(f.run(), 'events.used').errors.join('\n'), /никто не пишет/)
+})
+
+test('nested metric values and compound contact identifiers cannot hide a contact', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка
+    description: Заявка
+    payloadMapping:
+      customerEmail: { title: Почта, fieldName: action_param1, type: string }
+`)
+  f.put('demo/api/lead.ts', `await captureCustomerEvent(ctx, {
+  event: 'lead_created',
+  contacts: [{ type: 'email', value: row.customerEmail }],
+  metricEventData: { action_param1_mapstrstr: { category: 'x' }, action_param2: row.customerEmail },
+})`)
+  const checks = f.run()
+  assert.match(named(checks, 'events.registry').errors.join('\n'), /контакт не хранят в payloadMapping/)
+  assert.match(named(checks, 'events.data').errors.join('\n'), /контакт не хранят в action_param2/)
+})
+
+test('commented unsafe metric example does not block a valid event', t => {
+  const f = fixture(t)
+  f.put('demo/api/lead.ts', `// Не делай так: metricEventData: { action_param1: row.email }
+const payload = { metricEventData: { action_param1: row.id } }
+`)
+  assert.equal(named(f.run(), 'events.data').ok, true)
+})
+
 test('analytics funnel rejects unrelated event identities and imaginary events', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', `events:

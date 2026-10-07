@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import { isProcessSlug } from './project.mjs'
 import { validateProcessAgents } from './agents.mjs'
 import { parseYaml } from './yaml.mjs'
+import { canonicalTarget } from './knowledge-review.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const isCommit = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value)
@@ -18,25 +19,44 @@ const nodeDigest = map => hash(JSON.stringify(agentNodes(map)))
 function inputs(root, slug, map, spec) {
   const errors = validateProcessAgents({ root, slug, map })
   if (!errors.enabled || errors.errors.length) throw Error(`Локальный контракт помощников не готов: ${errors.errors.join('; ')}`)
+  if (!Number.isInteger(map?.accountId) || map.accountId <= 0) throw Error('В карте нужен accountId для проверки помощников.')
   const configs = spec.agents.map(agent => {
     const path = agent.config
     const absolute = resolve(root, path)
     if (!absolute.startsWith(resolve(root, slug, 'agents') + sep) ||
+        !canonicalTarget(absolute).startsWith(realpathSync(resolve(root, slug, 'agents')) + sep) ||
         !path.endsWith('.agent.json') || lstatSync(absolute).isSymbolicLink())
       throw Error(`Недопустимый путь конфига ${path}`)
     return { path, sha256: hash(readFileSync(absolute)) }
   }).sort((a, b) => a.path.localeCompare(b.path))
-  return { specSha256: hash(readFileSync(join(root, slug, 'agents/spec.yaml'))),
+  return { accountId: map.accountId, specSha256: hash(readFileSync(join(root, slug, 'agents/spec.yaml'))),
     agentNodesSha256: nodeDigest(map), configs }
 }
 
-export function writeAgentRuntimeEvidence({ root, slug, branch, commit, checkedAt, map, spec }) {
+function safeEvidenceFile(root, slug) {
+  const base = resolve(root), process = join(base, slug), tests = join(process, 'tests')
+  const file = join(tests, 'agents-runtime.json')
+  for (const [path, kind] of [[process, 'dir'], [tests, 'dir'], [file, 'file']]) {
+    let stat
+    try { stat = lstatSync(path) }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error }
+    if (stat.isSymbolicLink() || (kind === 'dir' ? !stat.isDirectory() : !stat.isFile()))
+      throw Error(`Путь результата проверки помощников содержит ссылку или неподходящий файл: ${path}`)
+  }
+  const canonical = canonicalTarget(file)
+  if (!canonical.startsWith(realpathSync(base) + sep)) throw Error('Путь результата проверки помощников выходит за пределы аккаунта.')
+  return file
+}
+
+export function writeAgentRuntimeEvidence({ root, slug, branch, commit, checkedAt, accountId, map, spec }) {
   if (!isProcessSlug(slug) || !isCommit(commit) || typeof branch !== 'string' || !branch ||
       !Number.isFinite(Date.parse(checkedAt))) throw Error('Нельзя записать неполную проверку помощников.')
-  const file = join(root, slug, 'tests/agents-runtime.json')
-  const data = { version: 1, process: slug, method: 'agents-runtime.mjs',
-    runId: randomUUID(), branch, testedCommit: commit, checkedAt, ...inputs(root, slug, map, spec) }
-  mkdirSync(dirname(file), { recursive: true })
+  const file = safeEvidenceFile(root, slug)
+  const checked = inputs(root, slug, map, spec)
+  if (accountId !== checked.accountId) throw Error('Исполненный accountId не совпадает с картой процесса.')
+  const data = { version: 2, process: slug, method: 'agents-runtime.mjs',
+    runId: randomUUID(), branch, testedCommit: commit, checkedAt, ...checked }
+  if (!existsSync(join(root, slug, 'tests'))) mkdirSync(join(root, slug, 'tests'))
   writeFileSync(file, JSON.stringify(data, null, 2) + '\n')
   return file
 }
@@ -62,6 +82,7 @@ function gitBranch(root) {
 
 /** A published runtime check is required at test/launch; a hand-written file is still trust-based. */
 export function agentRuntimeEvidenceStatus({ root, slug, map,
+  maxAgeMs = Infinity,
   readAtCommit = (commit, path) => gitRead(root, commit, path),
   ancestor = (tested, current) => gitAncestor(root, tested, current),
   currentBranch = () => gitBranch(root) }) {
@@ -69,7 +90,9 @@ export function agentRuntimeEvidenceStatus({ root, slug, map,
   const local = validateProcessAgents({ root, slug, map })
   if (!local.enabled) return { status: 'ready', errors: [] }
   if (local.errors.length) return { status: 'invalid', errors: local.errors }
-  const file = join(root, slug, 'tests/agents-runtime.json')
+  let file
+  try { file = safeEvidenceFile(root, slug) }
+  catch (error) { return { status: 'invalid', errors: [error.message] } }
   if (!existsSync(file)) return { status: 'missing', errors: ['Нет проверки опубликованных помощников. Запусти agents-runtime.mjs <process> --record после публикации ветки.'] }
   if (lstatSync(file).isSymbolicLink() || lstatSync(file).size > 64 * 1024)
     return { status: 'invalid', errors: ['Результат проверки помощников должен быть обычным JSON-файлом до 64 KB.'] }
@@ -82,12 +105,16 @@ export function agentRuntimeEvidenceStatus({ root, slug, map,
   if (!saved || typeof saved !== 'object' || Array.isArray(saved))
     return { status: 'invalid', errors: ['Результат проверки помощников должен быть JSON-объектом.'] }
   const errors = []
-  if (saved?.version !== 1 || saved.process !== slug || saved.method !== 'agents-runtime.mjs' ||
+  if (saved?.version !== 2 || saved.process !== slug || saved.method !== 'agents-runtime.mjs' ||
       typeof saved.runId !== 'string' || !/^[0-9a-f-]{36}$/.test(saved.runId) ||
       !Number.isFinite(Date.parse(saved.checkedAt)) || !isCommit(saved.testedCommit) ||
       typeof saved.branch !== 'string' || !saved.branch)
     errors.push('Неверная принадлежность или происхождение результата проверки помощников.')
-  if (saved.specSha256 !== expected.specSha256 || saved.agentNodesSha256 !== expected.agentNodesSha256 ||
+  if (Number.isFinite(maxAgeMs) && Date.now() - Date.parse(saved.checkedAt) > maxAgeMs)
+    errors.push('Проверка опубликованных помощников устарела по времени; повтори agents-runtime.mjs --record перед следующим этапом.')
+  if (Date.parse(saved.checkedAt) - Date.now() > 5 * 60_000)
+    errors.push('Время проверки опубликованных помощников находится в будущем.')
+  if (saved.accountId !== expected.accountId || saved.specSha256 !== expected.specSha256 || saved.agentNodesSha256 !== expected.agentNodesSha256 ||
       JSON.stringify(saved.configs) !== JSON.stringify(expected.configs))
     errors.push('Спецификация, конфиг или ID помощника изменились после проверки.')
   if (!sha256(saved.specSha256) || !sha256(saved.agentNodesSha256) ||
@@ -104,8 +131,9 @@ export function agentRuntimeEvidenceStatus({ root, slug, map,
       errors.push('Спецификация помощников отсутствовала в исполненном коммите или отличалась.')
     if (!mapAtCommit) errors.push('Карта помощников отсутствовала в исполненном коммите.')
     else try {
-      if (nodeDigest(parseYaml(mapAtCommit.toString('utf8'))) !== saved.agentNodesSha256)
-        errors.push('ID или источники помощников в исполненном коммите отличались.')
+      const committedMap = parseYaml(mapAtCommit.toString('utf8'))
+      if (nodeDigest(committedMap) !== saved.agentNodesSha256 || committedMap.accountId !== saved.accountId)
+        errors.push('Аккаунт, ID или источники помощников в исполненном коммите отличались.')
     } catch { errors.push('Карта помощников в исполненном коммите не разбирается.') }
     for (const item of expected.configs) {
       const content = readAtCommit(saved.testedCommit, item.path)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Compares published state without sending messages or changing routing. Agent lookup may lazy-sync; dry-run emits a metric.
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -36,27 +36,33 @@ try {
     sha256: createHash('sha256').update(readFileSync(join(root, agent.config))).digest('hex'),
     model: JSON.parse(readFileSync(join(root, agent.config), 'utf8')).model || null }))
   const routes = Array.isArray(spec.routes) ? spec.routes : []
+  for (const [index, route] of routes.entries())
+    if (!Array.isArray(route.testContacts) || !route.testContacts.length || route.testContacts.length > 5 ||
+        route.testContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() ||
+          typeof contact?.value !== 'string' || !contact.value.trim()))
+      throw Error(`routes[${index}]: для сухой проверки нужны 1–5 тестовых контактов testContacts с type и value`)
   const input = { agents: agents.map(({ key, config }) => ({ key, config })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
-      chainKey: `process-check:${slug}:${randomUUID()}`, text: route.sampleText || 'Проверка маршрута',
-      existingChainKey: route.testExistingChainKey || null })) }
+      contacts: route.testContacts || [], text: route.sampleText || 'Проверка маршрута',
+      startParam: route.testStartParam || undefined })) }
   const code = `import { getPublishedAgentBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
     `const input = ${JSON.stringify(input)}\n` +
     `const agents = []\n` +
     `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentBySourcePath(ctx, item.config) }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
     `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.value.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
     `const routes = []\n` +
-    `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: await dryRunProcessChannelRouting(ctx, { channelId: item.channel, chainKey: item.chainKey, text: item.text }), existingDryRun: item.existingChainKey ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, chainKey: item.existingChainKey, text: item.text }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
+    `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text, startParam: item.startParam }) }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
     `return { accountId: ctx.account.id, agents, routes }`
   const run = spawnSync('chatium', ['exec'], { cwd: root, input: code, encoding: 'utf8', timeout: 60_000, maxBuffer: 4 * 1024 * 1024 })
   if (run.error || run.status !== 0) throw Error(`Не удалось проверить опубликованное состояние: ${run.error?.message || run.stderr.trim()}`)
   const published = JSON.parse(run.stdout)
-  const errors = [], warnings = [...local.warnings]
+  const errors = [], warnings = [], informational = [...local.warnings]
   if (dirty) errors.push('папка процесса содержит неопубликованные изменения')
   const executedCommit = run.stderr.match(/Executed commit: ([0-9a-f]{40})/)?.[1]
   if (!executedCommit) errors.push('CLI не подтвердил коммит исполненного кода')
   else if (executedCommit !== commit) errors.push(`опубликован коммит ${executedCommit}, локально ${commit}`)
   if (map.accountId && published.accountId !== map.accountId) errors.push(`Аккаунт ${published.accountId} не совпадает с картой ${map.accountId}`)
+  if (!map.accountId) errors.push('В карте нет accountId для проверки опубликованных помощников')
   const ids = new Map()
   for (const agent of agents) {
     const row = published.agents?.find(item => item.key === agent.key)
@@ -83,23 +89,24 @@ try {
     if (!id) { errors.push(`routes[${index}]: не установлен опубликованный ID первого агента`); continue }
     if (!row.value.config?.enabled || row.value.config.defaultAgentId !== id) errors.push(`routes[${index}]: канал не направлен к ${route.firstAgent}`)
     if (!row.value.linkedAgentIds?.includes(id)) errors.push(`routes[${index}]: агент не привязан к каналу`)
-    if (row.dryRun.mode !== 'selected' || row.dryRun.agentId !== id) errors.push(`routes[${index}]: сухая проверка выбрала ${row.dryRun.agentId || row.dryRun.mode}, ожидался ${id}`)
+    if (row.dryRun?.mode !== 'selected' || row.dryRun?.agentId !== id) errors.push(`routes[${index}]: сухая проверка выбрала ${row.dryRun?.agentId || row.dryRun?.mode || 'ничего'}, ожидался ${id}`)
     if (row.value.config?.rulesCount) warnings.push(`routes[${index}]: в канале есть дополнительные правила; проверь отдельные случаи в интерфейсе`)
-    if (!route.testExistingChainKey || !route.expectedExistingAgent) warnings.push(`routes[${index}]: продолжение существующего разговора требует testExistingChainKey и expectedExistingAgent`)
-    else if (row.existingDryRun?.mode !== 'selected' || row.existingDryRun.agentId !== ids.get(route.expectedExistingAgent)) errors.push(`routes[${index}]: существующий разговор направлен не к ${route.expectedExistingAgent}`)
   }
   const status = errors.length ? 'unverified' : warnings.length ? 'partial' : 'verified'
   const report = { process: slug, root, accountId: published.accountId, branch, commit, executedCommit, checkedAt: new Date().toISOString(),
-    status, errors, warnings,
+    scope: 'published-agents-and-new-conversation-routing',
+    limitations: routes.length ? ['Продолжение существующего разговора dryRunProcessChannelRouting не проверяет; нужен отдельный контролируемый сценарий и ревью помощников.'] : [],
+    status, errors, warnings, informational,
     agents: published.agents, routes: published.routes }
   if (options.record && status === 'verified')
     report.recordedPath = writeAgentRuntimeEvidence({ root, slug, branch, commit,
-      checkedAt: report.checkedAt, map, spec })
+      checkedAt: report.checkedAt, accountId: published.accountId, map, spec })
   if (options.json) console.log(JSON.stringify(report, null, 2))
   else {
     console.log(`Помощники ${slug}: ${report.status}.`)
     for (const issue of errors) console.log(`✘ ${issue}`)
     for (const issue of warnings) console.log(`! ${issue}`)
+    for (const issue of informational) console.log(`i ${issue}`)
     if (report.recordedPath) console.log(`Результат записан: ${report.recordedPath}`)
   }
   process.exitCode = status === 'verified' ? 0 : 1

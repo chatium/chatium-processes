@@ -37,6 +37,7 @@ import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
+import { scanJsSource, balancedObjectEnd } from './lib/source-lex.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -52,7 +53,8 @@ const EVENT_FIELD_NAMES = [
   'action_param1_uint32arr', 'action_param1_mapstrstr', 'action_param2_mapstrstr',
   'customer_contacts', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
 ]
-const CONTACT_MAPPING_KEY = /^(?:contacts?|customer_?contacts?|contact_?(?:email|phone)|recipient_?(?:email|phone)|e?mail|phone|mobile|telephone|telegram|whatsapp|vk)$/i
+const CONTACT_MAPPING_KEY = /(?:e_?mail|phone|mobile|telephone|telegram|whatsapp|^contacts?$|^customer_?contacts?$|^recipient_?contacts?$)/i
+const CONTACT_VALUE_NAME = /(?:e_?mail|phone|mobile|telephone|telegram|whatsapp)/i
 const UTM_MAPPING_KEY = /^(?:utm_?)(source|medium|campaign|content|term)$/i
 const STEP_TYPES = ['action', 'delay', 'continueCondition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
@@ -202,11 +204,14 @@ function eventFromUrl(url) {
 function eventWrites() {
   const out = []
   for (const [file, src] of codeSources) {
-    for (const m of src.matchAll(/writeWorkspaceEvent\(\s*[\w.]+\s*,\s*([^,)]+)/g)) {
+    const { clean, code } = scanJsSource(src)
+    for (const m of clean.matchAll(/writeWorkspaceEvent\(\s*[\w.]+\s*,\s*([^,)]+)/g)) {
+      if (code[m.index] === ' ') continue
       const lit = /^['"`]([^'"`$]+)['"`]$/.exec(m[1].trim())
       out.push({ file, key: lit ? lit[1] : null, raw: m[1].trim(), via: 'workspaceEvent' })
     }
-    for (const m of src.matchAll(/captureCustomerEvent\(\s*[\w.]+\s*,\s*\{[\s\S]*?\bevent:\s*([^,\n}]+)/g)) {
+    for (const m of clean.matchAll(/captureCustomerEvent\(\s*[\w.]+\s*,\s*\{[\s\S]*?\bevent:\s*([^,\n}]+)/g)) {
+      if (code[m.index] === ' ') continue
       const lit = /^['"`]([^'"`$]+)['"`]$/.exec(m[1].trim())
       out.push({ file, key: lit ? lit[1] : null, raw: m[1].trim(), via: 'customerEvent' })
     }
@@ -443,7 +448,8 @@ check('agents.review', 'Независимое ревью помощников',
 })
 
 if (['test', 'launch'].includes(options['task-stage'])) check('agents.runtime', 'Проверка опубликованных помощников', ({ error }) => {
-  for (const issue of agentRuntimeEvidenceStatus({ root, slug, map }).errors) error(issue)
+  const maxAgeMs = options['task-stage'] === 'launch' ? 15 * 60_000 : 24 * 60 * 60_000
+  for (const issue of agentRuntimeEvidenceStatus({ root, slug, map, maxAgeMs }).errors) error(issue)
 })
 
 check('map.coverage', 'Всё построенное есть в карте', ({ error, warn }) => {
@@ -515,19 +521,24 @@ check('events.registry', 'Реестр событий specs/events.yaml', ({ err
 check('events.data', 'Контакты и метрика в коде события', ({ error, warn }) => {
   for (const [file, src] of codeSources) {
     const where = rel(root, file)
+    const scanned = scanJsSource(src)
     // Explicit undefined UTM properties in a form are not attribution. The
     // server accepts omitted UTM keys; preserve only values actually read.
-    for (const block of src.matchAll(/\butm\s*:\s*\{([^{}]*)\}/g)) {
+    for (const block of scanned.code.matchAll(/\butm\s*:\s*\{([^{}]*)\}/g)) {
       if (/\b(?:source|medium|campaign|content|term)\s*:\s*undefined\b/.test(block[1]))
         error(`${where}: UTM не заполняют undefined-заглушками; передай реальные метки из запроса или опусти неизвестные поля`)
     }
-    if (/\butm(?:Source|Medium|Campaign|Content|Term|_source|_medium|_campaign|_content|_term)\s*:\s*undefined\b/.test(src))
+    if (/\butm(?:Source|Medium|Campaign|Content|Term|_source|_medium|_campaign|_content|_term)\s*:\s*undefined\b/.test(scanned.code))
       error(`${where}: UTM-поле явно задано как undefined; считай фактическое значение или опусти поле`)
-    for (const block of src.matchAll(/metricEventData\s*:\s*\{([^}]*)\}/g)) {
-      if (/\bcustomer_contacts\s*:/.test(block[1]))
+    for (const block of scanned.code.matchAll(/\bmetricEventData\s*:\s*\{/g)) {
+      const opening = scanned.code.indexOf('{', block.index)
+      const end = balancedObjectEnd(scanned.code, opening)
+      if (end < 0) { error(`${where}: metricEventData не удалось разобрать до закрывающей скобки`); continue }
+      const body = scanned.code.slice(opening + 1, end)
+      if (/\bcustomer_contacts\s*:/.test(body))
         error(`${where}: customer_contacts нельзя передавать в metricEventData — CRM формирует его из contacts`)
-      for (const field of block[1].matchAll(/\baction_param\w*\s*:\s*([^,\n}]+)/g)) {
-        if (/\b(?:email|phone|mobile|telegram|whatsapp)\b/i.test(field[1]))
+      for (const field of body.matchAll(/\baction_param\w*\s*:\s*([^,\n}]+)/g)) {
+        if (CONTACT_VALUE_NAME.test(field[1]))
           error(`${where}: контакт не хранят в ${field[0].split(':')[0].trim()}; передай его в contacts, а не в metricEventData`)
       }
     }
