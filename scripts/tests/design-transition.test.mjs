@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { makeReviewPacket, recordReview } from '../lib/knowledge-review.mjs'
 import { makeArchitectureReviewPacket, recordArchitectureReview } from '../lib/architecture-review.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { commissionStatus } from '../lib/commission.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
 
@@ -74,11 +75,16 @@ test('implementation starts only after approved plan and accepted design conclus
   })
   assert.equal(recordArchitectureReview({ root, slug: 'demo', packet: architecture,
     report: red, agentReference: 'unit-test-only:architecture-red' }).status, 'needs-work')
+  const mixed = commissionStatus({ root, slug: 'demo', stage: 'design' })
+  assert.equal(mixed.status, 'needs-work')
+  assert.equal(mixed.requirements.find(item => item.id === 'knowledge-design').status, 'ready')
+  assert.equal(mixed.requirements.find(item => item.id === 'architecture').status, 'needs-work')
   const blocked = run('start', 'W001')
   assert.equal(blocked.status, 1)
   assert.match(blocked.stderr, /architecture: needs-work/)
   assert.equal(recordArchitectureReview({ root, slug: 'demo', packet: architecture,
     report: reportFor(architecture), agentReference: 'unit-test-only:architecture-green' }).status, 'ready')
+  assert.equal(commissionStatus({ root, slug: 'demo', stage: 'design' }).status, 'ready')
   const started = run('start', 'W001')
   assert.equal(started.status, 0, started.stderr)
   assert.match(started.stdout, /"attemptId": "R001"/)
