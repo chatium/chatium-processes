@@ -6,7 +6,7 @@ export function reviewPlan(content) {
     const heading = /^##\s+(.+?)\s*\r?$/u.exec(line)
     if (heading) { approvals = heading[1] === 'Согласования'; task = false }
     if (/^- \[[xX ]\] T\d+\s/u.test(line)) task = true
-    if (approvals && /^- (?:План|Запуск|Строим):\s*(?:не\s+)?согласован(?:о|а)?(?:\s|$)/iu.test(line)) return []
+    if (approvals && /^- (?:План|Запуск|Строим):\s*(?:не\s+)?согласован(?:о|а)?(?:\s+(?:\d{2}\.\d{2}(?:\.\d{4})?|\d{4}-\d{2}-\d{2}))?\s*$/iu.test(line)) return []
     if (task && /^[ \t]+- Рабочие задачи:/u.test(line)) return []
     return [line.replace(/^- \[[xX ]\] (T\d+)/u, '- [ ] $1')]
   }).join('\n')

@@ -79,4 +79,8 @@ test('architecture review tracks each owner risk decision but ignores plan bookk
   assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, linked.inputDigest)
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 9000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: не согласован\n')
   assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, linked.inputDigest)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 1000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: согласовано снижение цены до 1000 рублей\n')
+  const meaningfulApprovalLine = makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Экономика\n- План: цена 1000 рублей\nRD1: архитектурный контроль первого решения.\nRD2: архитектурный контроль второго решения.\n- [ ] T1 Собрать страницу\n## Согласования\n- План: согласовано снижение цены до 9000 рублей\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, meaningfulApprovalLine)
 })
