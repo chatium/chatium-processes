@@ -572,7 +572,11 @@ check('events.used', 'Каждое событие кто-то пишет и кт
   }
   for (const e of events) {
     if (!e?.key || !EVENT_URL_PREFIX[e.type]) continue
-    if (!written.has(e.key)) error(`событие ${e.key} объявлено, но его никто не пишет (writeWorkspaceEvent / captureCustomerEvent)`)
+    if (!written.has(e.key)) {
+      const message = `событие ${e.key} объявлено, но его никто не пишет (writeWorkspaceEvent / captureCustomerEvent)`
+      if (options['task-stage'] === 'design') warn(`${message}; исходник появится на этапе сборки`)
+      else error(message)
+    }
     if (!listened.has(eventUrl(e))) warn(`событие ${e.key} никто не слушает — только для аналитики?`)
   }
 })

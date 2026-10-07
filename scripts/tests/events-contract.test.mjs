@@ -17,8 +17,8 @@ function fixture(t) {
   }
   put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}')
   put('demo/process.yaml', 'title: Demo\nnodes: []\nlinks: []\n')
-  const run = () => {
-    const result = spawnSync(process.execPath, [checkScript, 'demo', '--root', root, '--no-snapshot', '--json'],
+  const run = (...flags) => {
+    const result = spawnSync(process.execPath, [checkScript, 'demo', '--root', root, '--no-snapshot', '--json', ...flags],
       { encoding: 'utf8', timeout: 15_000 })
     assert.ok(result.stdout, result.stderr)
     return JSON.parse(result.stdout).checks
@@ -89,6 +89,9 @@ test('declared event without a writer fails; real writer satisfies the contract'
     description: Клиент оставил заявку
     payloadMapping: {}
 `)
+  const design = named(f.run('--task-stage', 'design'), 'events.used')
+  assert.equal(design.ok, true)
+  assert.match(design.warnings.join('\n'), /никто не пишет.*этапе сборки/)
   assert.match(named(f.run(), 'events.used').errors.join('\n'), /никто не пишет/)
   f.put('demo/api/lead.ts', `await captureCustomerEvent(ctx, {
   event: 'lead_created', contacts: [{ type: 'email', value: input.email }],
