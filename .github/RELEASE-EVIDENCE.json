@@ -13,5 +13,12 @@
   "distribution": {
     "decision": "pending"
   },
+  "platform": {
+    "mailingsProcessDelivery": {
+      "commit": "d0fa2ea3af960e5237910d344c53a4e8364d3c2e",
+      "deployedAt": "2026-10-07T11:25:24Z",
+      "verification": "pending-test-delivery"
+    }
+  },
   "runs": {}
 }
