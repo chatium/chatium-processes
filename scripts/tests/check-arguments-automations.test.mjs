@@ -190,4 +190,6 @@ test('letter check requires content for selected transports only', t => {
   spec(['messenger'])
   f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\n')
   assert.doesNotMatch(errors(), /пустое или нет поле/)
+  f.put(path, 'title: Первый шаг\ndescription: Подтверждение\nplain: Текст\nmedia: [photo.png]\n')
+  assert.match(errors(), /media пока не передаётся через Mailings SDK/)
 })

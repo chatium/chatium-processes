@@ -504,6 +504,9 @@ test('email-only series does not require SMS copy or messenger review', t => {
   const packet = creativeReviewPacket({ ...args, stage: 'result' })
   assert.ok(packet.questions.some(question => question.id === 'message.value.email'))
   assert.ok(!packet.questions.some(question => question.id === 'message.value.short' || question.id === 'message.value.messenger'))
+  f.put(messagePath, { title: 'Первый шаг', description: 'Отдать материал', subject: 'Первый шаг',
+    html: '<p>Откройте материал.</p>', plain: 'Откройте материал.', media: ['photo.png'] })
+  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /media пока не передаётся через Mailings SDK/)
 })
 
 test('messenger-only series requires plain but no email images or subject', t => {

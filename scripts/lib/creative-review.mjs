@@ -144,6 +144,11 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         if (!variants.some(file => file.path === message.path)) throw Error(`Нет итогового письма ${message.path}`)
         for (const file of variants) {
           const letter = parseYaml(file.content)
+          for (const field of ['buttons', 'inlineButtons', 'media', 'attachments', 'images']) {
+            const value = letter?.[field]
+            if (Array.isArray(value) ? value.length : value !== undefined && value !== null && value !== '')
+              throw Error(`${file.path}: ${field} пока не передаётся через Mailings SDK в Sender; результат нельзя принять`)
+          }
           const required = ['title', 'description',
             ...(formats.includes('email') ? ['subject', 'html', 'plain'] : []),
             ...(formats.includes('messenger') && !formats.includes('email') ? ['plain'] : []),

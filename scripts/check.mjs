@@ -54,6 +54,7 @@ const STEP_TYPES = ['action', 'delay', 'continueCondition', 'draft']
 const DELAY_UNITS = ['seconds', 'minutes', 'hours', 'days']
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const LETTER_BASE_REQUIRED = ['title', 'description']
+const LETTER_UNDELIVERED = ['buttons', 'inlineButtons', 'media', 'attachments', 'images']
 const LETTER_FORBIDDEN = [
   'id', 'key', 'path', 'filename', 'email', 'telegram', 'sms', 'content', 'formats',
   'trigger', 'schedule', 'delay', 'action', 'transport', 'status', 'style', 'metadata',
@@ -863,6 +864,11 @@ check('letters', 'Письма шагов отправки и их переме�
       ...(formats.has('sms') ? ['short'] : [])]
     for (const field of required) {
       if (typeof letter[field] !== 'string' || !letter[field].trim()) error(`${p}: пустое или нет поле ${field}`)
+    }
+    for (const field of LETTER_UNDELIVERED) {
+      const value = letter[field]
+      if (Array.isArray(value) ? value.length : value !== undefined && value !== null && value !== '')
+        error(`${p}: ${field} пока не передаётся через Mailings SDK в Sender; удалите поле только если оно не требуется клиенту, иначе доставка этого сообщения не готова`)
     }
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
       warn(`${p}: короткая версия выглядит обрезанной (многоточие в конце); проверьте законченность мысли и ссылку`)
