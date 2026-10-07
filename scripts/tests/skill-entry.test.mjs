@@ -1,12 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const entry = readFileSync(fileURLToPath(new URL('../../SKILL.md', import.meta.url)), 'utf8')
 const workflow = readFileSync(fileURLToPath(new URL('../../WORKFLOW.md', import.meta.url)), 'utf8')
 const environment = readFileSync(fileURLToPath(new URL('../../build/environment.md', import.meta.url)), 'utf8')
 const packageInfo = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'))
+const skillRoot = fileURLToPath(new URL('../../', import.meta.url))
 
 test('installed skill entry routes complex processes without claiming standalone work', () => {
   const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(entry)?.[1]
@@ -31,4 +33,25 @@ test('documented and tested Node versions match the Chatium CLI minimum', () => 
   assert.ok(Number.isInteger(required) && required >= 22, 'Chatium CLI requires Node 22 or newer')
   assert.equal(documented, required, 'installation guide must not allow an older runtime')
   assert.ok(running >= required, `tests must run on Node ${required} or newer`)
+})
+
+test('platform reference paths in process guidance exist in the pinned development skill', t => {
+  const developmentSkill = process.env.PROCESSES_TEST_DEVELOPMENT_SKILL
+  if (!developmentSkill) return t.skip('Full npm test supplies the pinned development skill')
+  const missing = []
+  function visit(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (['.git', '.github', 'node_modules'].includes(entry.name)) continue
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) visit(path)
+      else if (entry.isFile() && entry.name.endsWith('.md')) {
+        const source = readFileSync(path, 'utf8')
+        for (const match of source.matchAll(/chatium-development\/([A-Za-z0-9_./-]+\.md)/g)) {
+          if (!existsSync(join(developmentSkill, match[1]))) missing.push(`${path}: ${match[1]}`)
+        }
+      }
+    }
+  }
+  visit(skillRoot)
+  assert.deepEqual(missing, [])
 })
