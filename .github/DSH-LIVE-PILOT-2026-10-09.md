@@ -209,3 +209,13 @@ Source Build и typecheck прошли. Живой параллельный вы
 `localRecordsComplete=false` и `conversionRate=null`. Временные строки
 удалены в `finally`, повторное чтение не нашло их. Это не проверяет
 повтор оплаты или CRM-журнал.
+
+На исполненном `site-agent-control@2c2aad2` повторный импорт
+`sendMessageFromTemplate` всё ещё падает в опубликованном Mailings SDK при
+`segment: s.string().optional().nullable()` до вызова отправки. Доставка и
+автоматизации остаются закрыты этим дефектом; локальная ветка Mailings
+`codex/fix-template-segment-schema@57614b5` не опубликована. Проверка
+соседней справки выявила недокументированное ограничение
+`processDeliveryChannelIds`; исправление подготовлено в ветке
+`chatium-agent-skills/codex/process-delivery-docs@fb0cc96`, R45 открыт до
+интеграции в установленный `chatium-development`.
