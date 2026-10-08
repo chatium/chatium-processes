@@ -279,3 +279,16 @@ Source Build всех трёх прошёл. F10 закрыт этой же от
 проверку. Живой `plant-care@296f893` отдельно показал, что пустые адрес
 поддержки и ссылка на политику блокируют запуск. Полный запуск остаётся
 закрытым другими условиями.
+
+В пакетной проверке UTM на `process/site-agent-control@451ec6f` отправлена
+одна разрешённая тестовая заявка `t9P02rT9Apahn3KPCjR0funne` с
+`utm_source=process_audit`. Заявка сохранилась и получила `eventState=ok`,
+но карточка клиента `RtmWQiDbnli0PmoNQtM0funne` осталась с `utm=null`.
+Причина в CRM SDK: `linkContacts` передавал метки в метрику, но не сохранял
+`customer.utm`. Исправление первых непустых меток опубликовано только в
+ветке CRM `codex/process-utm@19c133c`; её Source Build и точечный typecheck
+прошли. Полный typecheck падает на независимой ошибке `collectionPicker.ts`,
+что воспроизведено и на коде `origin/main`. До разрешения
+на CRM `main` и повторной проверки карточки и самого события R22 открыт.
+Протокол в `site-agent-control/tests/site-data-run.json` опубликован в
+ветке аккаунта `process/site-agent-control@640be1b`.
