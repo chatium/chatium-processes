@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -40,21 +41,17 @@ test('platform reference paths in process guidance exist in the pinned developme
   if (!developmentSkill) return t.skip('Full npm test supplies the pinned development skill')
   const missing = []
   const legacy = []
-  function visit(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (['.git', '.github', 'node_modules'].includes(entry.name)) continue
-      const path = join(directory, entry.name)
-      if (entry.isDirectory()) visit(path)
-      else if (entry.isFile() && entry.name.endsWith('.md')) {
-        const source = readFileSync(path, 'utf8')
-        if (/\breferences\//.test(source)) legacy.push(path)
-        for (const match of source.matchAll(/chatium-development\/([A-Za-z0-9_./-]+\.md)/g)) {
-          if (!existsSync(join(developmentSkill, match[1]))) missing.push(`${path}: ${match[1]}`)
-        }
-      }
+  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: skillRoot })
+    .toString().split('\0').filter(path => path.endsWith('.md') &&
+      !['.github', 'node_modules'].includes(path.split('/')[0]))
+  for (const relative of files) {
+    const path = join(skillRoot, relative)
+    const source = readFileSync(path, 'utf8')
+    if (/\breferences\//.test(source)) legacy.push(path)
+    for (const match of source.matchAll(/chatium-development\/([A-Za-z0-9_./-]+\.md)/g)) {
+      if (!existsSync(join(developmentSkill, match[1]))) missing.push(`${path}: ${match[1]}`)
     }
   }
-  visit(skillRoot)
   assert.deepEqual(legacy, [], 'process guidance must not cite the obsolete references/ layout')
   assert.deepEqual(missing, [])
 })

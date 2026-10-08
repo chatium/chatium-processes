@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,7 +19,14 @@ function installedSources(directory) {
 }
 
 function leakedFiles(directory) {
-  return installedSources(directory).flatMap(path => {
+  const sources = directory === root
+    ? execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root })
+      .toString().split('\0').filter(Boolean)
+      .filter(path => !ignored.has(path.split('/')[0]) && !path.startsWith('scripts/tests/'))
+      .filter(path => /\.(?:md|json|yaml|yml)$/.test(path))
+      .map(path => join(root, path))
+    : installedSources(directory)
+  return sources.flatMap(path => {
     const content = readFileSync(path, 'utf8')
     return /\/Users\/[^\s/]+\/|\/Projects\/chatium accounts\/start\.chatium\.ru|\bV4\b/u.test(content)
       ? [relative(directory, path)] : []

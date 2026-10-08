@@ -438,6 +438,13 @@ test('record tracks provenance and missing/ready/stale without hashing its own r
   assert.throws(() => save(f, packet), /изменились/)
 })
 
+test('reviewer cannot record a conclusion after changing a checked source', t => {
+  const f = fixture(t), packet = f.packet()
+  f.put(codePath, `${quote}\nexport const changedDuringReview = true\n`)
+  assert.throws(() => save(f, packet), /Исходники, план, зависимости или критерии изменились/)
+  assert.equal(codeReviewStatus({ root: f.root, slug: 'demo' }).status, 'missing')
+})
+
 test('current packet validation rejects forged evidence, omitted files/tasks and malformed reports', t => {
   const f = fixture(t), packet = f.packet(), altered = structuredClone(packet)
   altered.files.find(file => file.path === codePath).content += '\nFAKE_AUTHORIZATION\n'
