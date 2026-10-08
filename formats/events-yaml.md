@@ -115,7 +115,11 @@ const captured = await captureCustomerEvent(ctx, {
     action_param2: row.serviceType,
   },
 })
-if (!captured.success) ctx.account.log('CRM не приняла событие', { level: 'warn', json: captured })
+if (!captured.success) ctx.account.log('CRM не приняла событие', {
+  level: 'warn', json: { recordId: row.id, errorCode: captured.errorCode },
+})
+// Передай captured.success вызывающему коду: сохранённая запись не означает,
+// что событие принято или письмо доставлено.
 ```
 
 - Ключ — строкой прямо в вызове (`event: '...'` или второй аргумент
@@ -130,6 +134,9 @@ if (!captured.success) ctx.account.log('CRM не приняла событие',
   Для `customerEvent` нужен хотя бы один контакт в `contacts` или
   подтверждённые контакты через `appendUserContacts`; иначе CRM вернёт
   `no_contacts`. Проверяй `captured.success`.
+  Если событие запускает отправку, не показывай человеку «письмо отправлено»
+  при `success: false` или исключении. Сохрани ID записи для диагностики;
+  повтор события должен быть безопасен при неизвестном исходе первого вызова.
   Передавай все действительно известные контакты, не выдумывай отсутствующие.
   CRM сама формирует `customer_contacts` при `captureCustomerEvent` — не
   передавай его в `metricEventData` и не описывай в `payloadMapping`.

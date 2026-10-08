@@ -53,19 +53,36 @@
      utm?: { source?: string; medium?: string; campaign?: string; content?: string; term?: string }
    }) {
      const row = await Bookings.create(ctx, { name: input.name, email: input.email, serviceType: input.serviceType })
-     const captured = await captureCustomerEvent(ctx, {
-       event: 'trial_booked',
-       name: 'Запись на пробную тренировку',
-       contacts: [{ type: 'email', value: row.email }],
-       customer: { displayName: row.name, ...(input.utm ? { utm: input.utm } : {}) },
-       linkRecords: [row],
-       metricEventData: { action_param1: row.id, action_param2: row.serviceType },
-     })
-     if (!captured.success) ctx.account.log('CRM не приняла событие', { level: 'warn', json: captured })
-     return row
+     let eventAccepted = false
+     try {
+       const captured = await captureCustomerEvent(ctx, {
+         event: 'trial_booked',
+         name: 'Запись на пробную тренировку',
+         contacts: [{ type: 'email', value: row.email }],
+         customer: { displayName: row.name, ...(input.utm ? { utm: input.utm } : {}) },
+         linkRecords: [row],
+         metricEventData: { action_param1: row.id, action_param2: row.serviceType },
+       })
+       eventAccepted = captured.success
+       if (!captured.success) ctx.account.log('CRM не приняла событие', {
+         level: 'warn', json: { bookingId: row.id, errorCode: captured.errorCode },
+       })
+     } catch (error) {
+       ctx.account.log('Подтверждение события CRM не получено', {
+         level: 'warn', json: { bookingId: row.id, errorType: error instanceof Error ? error.name : 'unknown' },
+       })
+     }
+     return { row, eventAccepted }
    }
    ```
 
+   Передай `eventAccepted` из функции в ответ POST-роута. Если он `false`,
+   запись уже сохранена, но запуск письма или автоматизации не подтверждён:
+   интерфейс сообщает об этом отдельно и не пишет «письмо отправлено».
+   В журнале остаётся ID записи для разбора; порядок безопасного повтора
+   события определи до запуска, чтобы повтор формы не создавал дубли.
+   Даже `eventAccepted: true` означает принятие события CRM, а не
+   подтверждённую доставку сообщения.
 3. **POST-роут** в том же файле: схема тела, проверка, вызов функции.
 4. **Событие** объявлено в `<process>/specs/events.yaml` с `type:
    customerEvent` и `payloadMapping` на те же слоты —
@@ -75,6 +92,9 @@
    допустимые значения, передай их в запрос вместе с данными формы. На
    сервере не подставляй `undefined` вместо известных UTM и не доверяй
    присланным контактам как доказательству личности клиента.
+   Если согласие и ссылка на политику ещё не согласованы, отключи отправку
+   формы даже в превью опубликованной ветки; пустой `policyUrl` при активной
+   форме недопустим.
 6. **Уведомление сотруднику**, если по заявке кто-то должен действовать:
    после сохранения записи вызови `sendNotification` из `@store/sdk`
    по [справке Store Inbox](../../chatium-development/store-notifications.md).
@@ -111,7 +131,9 @@
 ## Грабли
 
 - Событие пишется только после успешной записи в таблицу. Ошибка CRM не
-  должна ронять форму — логируй её.
+  должна терять сохранённую заявку или превращаться в ложное подтверждение
+  отправки: верни отдельное состояние, запиши ID для диагностики и проверь
+  повтор без дубля.
 - Ключ события — строкой прямо в вызове: иначе `check` его не найдёт.
 - Поля вне слотов метрики не сохраняются.
 - Email и телефон передавай в `contacts`, имя — в `customer.displayName`;
