@@ -9,6 +9,8 @@ function git(root, args) {
     maxBuffer: 2 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
   return result.status === 0 ? result.stdout.trim() : null
 }
+const identity = node => `${node.id}\0${node.kind}\0${node.source}`
+const lifecycleKey = node => node.kind === 'table' ? identity(node) : `${node.id}\0${node.kind}`
 
 /** Git history is only a detection aid; a shallow clone cannot prove absence. */
 export function historicalComponents(root, slug, { commits, show } = {}) {
@@ -23,15 +25,17 @@ export function historicalComponents(root, slug, { commits, show } = {}) {
     let map
     try { map = parseYaml(body) } catch { continue }
     for (const node of Array.isArray(map?.nodes) ? map.nodes : [])
-      if (typeof node?.id === 'string' && typeof node?.source === 'string' && !seen.has(node.id))
-        seen.set(node.id, { id: node.id, kind: node.kind, source: node.source })
+      if (typeof node?.id === 'string' && typeof node?.kind === 'string' &&
+          typeof node?.source === 'string' && !seen.has(lifecycleKey(node)))
+        seen.set(lifecycleKey(node), { id: node.id, kind: node.kind, source: node.source })
   }
   return { available: true, nodes: [...seen.values()] }
 }
 
 export function retirementStatus({ root, slug, map, automationFiles = [], history = historicalComponents(root, slug) }) {
   const errors = [], current = Array.isArray(map?.nodes) ? map.nodes : []
-  const removed = history.nodes.filter(node => !current.some(active => active.id === node.id))
+  const currentIds = new Set(current.map(lifecycleKey))
+  const removed = history.nodes.filter(node => !currentIds.has(lifecycleKey(node)))
   if (!history.available) return { status: 'unverified', errors: ['История карты недоступна: вывод компонентов нельзя подтвердить.'], removed }
   if (!removed.length) return { status: 'ready', errors, removed }
   const path = join(root, slug, 'retirements.json')
@@ -45,12 +49,14 @@ export function retirementStatus({ root, slug, map, automationFiles = [], histor
     return { status: 'invalid', errors: ['retirements.json: нужны version: 1 и components (до 150).'], removed }
   const records = new Map()
   for (const record of ledger.components) {
-    if (!record || typeof record.id !== 'string' || records.has(record.id)) errors.push('В retirements.json повторяется или отсутствует ID.')
-    else records.set(record.id, record)
+    if (!record || typeof record.id !== 'string' || typeof record.kind !== 'string' ||
+        typeof record.source !== 'string' || records.has(identity(record)))
+      errors.push('В retirements.json повторяется или отсутствует ID, вид либо источник.')
+    else records.set(identity(record), record)
   }
   for (const node of removed) {
-    const record = records.get(node.id)
-    if (!record) { errors.push(`${node.id}: нет решения о выводе компонента.`); continue }
+    const record = records.get(identity(node))
+    if (!record) { errors.push(`${node.id} (${node.source}): нет решения о выводе компонента.`); continue }
     if (record.kind !== node.kind || record.source !== node.source ||
         typeof record.reason !== 'string' || !record.reason.trim() ||
         typeof record.ownerResponse !== 'string' || !record.ownerResponse.trim() ||
@@ -58,7 +64,8 @@ export function retirementStatus({ root, slug, map, automationFiles = [], histor
         !Number.isFinite(Date.parse(record.decidedAt)) ||
         !(record.replacement === null || typeof record.replacement === 'string'))
       errors.push(`${node.id}: неполная запись о причинах, замене и решении владельца.`)
-    if ((map.links || []).some(link => link.from === node.id || link.to === node.id))
+    if (!current.some(active => active.id === node.id) &&
+        (map.links || []).some(link => link.from === node.id || link.to === node.id))
       errors.push(`${node.id}: на выведенный компонент осталась живая связь карты.`)
     const source = resolve(root, node.source)
     if (!source.startsWith(resolve(root) + sep)) errors.push(`${node.id}: исходный путь небезопасен.`)
@@ -67,7 +74,8 @@ export function retirementStatus({ root, slug, map, automationFiles = [], histor
     for (const file of automationFiles) if (readFileSync(file, 'utf8').includes(node.source))
       errors.push(`${node.id}: автоматизация ${rel(root, file)} ещё ссылается на прежний источник.`)
   }
-  for (const id of records.keys()) if (!removed.some(node => node.id === id))
-    errors.push(`${id}: запись о выводе не соответствует удалённому узлу истории.`)
+  const removedIds = new Set(removed.map(identity))
+  for (const [key, record] of records) if (!removedIds.has(key))
+    errors.push(`${record.id} (${record.source}): запись о выводе не соответствует удалённому узлу истории.`)
   return { status: errors.length ? 'invalid' : 'ready', errors, removed, path }
 }
