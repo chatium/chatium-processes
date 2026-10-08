@@ -3,19 +3,38 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { isProcessSlug, rel } from './project.mjs'
+import { balancedObjectEnd, scanJsSource } from './source-lex.mjs'
 
 const sha = body => createHash('sha256').update(body).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 
 function tableShape(source) {
-  const names = [...source.matchAll(/\bHeap\.Table\s*\(\s*(['"`])([^'"`]+)\1\s*,/g)]
+  const { clean, code } = scanJsSource(source)
+  const names = [...clean.matchAll(/\bHeap\.Table\s*\(\s*(['"`])([^'"`]+)\1\s*,/g)]
+    .filter(match => code.slice(match.index, match.index + 'Heap.Table'.length) === 'Heap.Table')
+  if (names.length !== 1) return null
+  const name = names[0]
+  let opening = name.index + name[0].length
+  while (/\s/.test(clean[opening] || '')) opening++
+  const closing = balancedObjectEnd(code, opening)
+  if (closing < 0) return null
+  const body = clean.slice(opening + 1, closing), bodyCode = code.slice(opening + 1, closing)
+  if (body.includes('...')) return null
   const fields = new Map()
   const pattern = /\b([A-Za-z_$][\w$]*)\s*:\s*(Heap\.[A-Za-z_$][\w$]*\s*\()/g
-  for (const match of source.matchAll(pattern)) {
+  let cursor = 0, braces = 0
+  for (const match of body.matchAll(pattern)) {
+    if (bodyCode.slice(match.index, match.index + match[1].length) !== match[1]) continue
+    for (; cursor < match.index; cursor++) {
+      if (bodyCode[cursor] === '{') braces++
+      else if (bodyCode[cursor] === '}') braces--
+    }
+    if (braces !== 0) continue
+    if (fields.has(match[1])) return null
     const start = match.index + match[0].lastIndexOf('Heap.')
     let depth = 0, quote = '', end = start
-    for (; end < source.length; end++) {
-      const char = source[end]
+    for (; end < body.length; end++) {
+      const char = body[end]
       if (quote) {
         if (char === '\\') { end++; continue }
         if (char === quote) quote = ''
@@ -24,10 +43,10 @@ function tableShape(source) {
       else if (char === ')' && --depth === 0) { end++; break }
     }
     if (depth !== 0) return null
-    fields.set(match[1], [...source.slice(start, end).matchAll(/\bHeap\.([A-Za-z_$][\w$]*)/g)]
+    fields.set(match[1], [...body.slice(start, end).matchAll(/\bHeap\.([A-Za-z_$][\w$]*)/g)]
       .map(item => item[1]).join('>'))
   }
-  return names.length === 1 && fields.size ? { name: names[0][2], fields } : null
+  return fields.size ? { name: name[2], fields } : null
 }
 
 function schemaRisks(previous, current) {

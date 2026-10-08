@@ -85,3 +85,29 @@ test('physical table rename cannot be classified as additive', t => {
     changeClass: 'additive-or-metadata', reason: 'Claimed harmless addition' })
   assert.match(tableChangeStatus({ root, slug: 'demo' }).errors.join('\n'), /обязательное поле.*миграц/)
 })
+
+test('comments cannot hide a physical rename and code outside the table is ignored', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-table-comment-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const path = 'demo/tables/orders.table.ts', file = join(root, path)
+  mkdirSync(dirname(file), { recursive: true })
+  const old = "export default Heap.Table('t_orders', { amount: Heap.Number() })\nconst outside = { status: Heap.String() }\n"
+  const current = "// Example: Heap.Table('decoy', {})\nconst docs = \"Heap.Table('string-decoy', {})\"\nexport default Heap.Table('t_orders_new', { amount: Heap.Number() })\n"
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  git('init', '-q'); git('config', 'user.email', 'test@example.invalid'); git('config', 'user.name', 'Test')
+  writeFileSync(file, old); git('add', '.'); git('commit', '-qm', 'old name')
+  writeFileSync(file, current); git('add', '.'); git('commit', '-qm', 'new name and refactor')
+  const hash = value => createHash('sha256').update(value).digest('hex')
+  writeFileSync(join(root, 'demo/tables/schema-decisions.json'), JSON.stringify({ version: 1, changes: [{
+    path, previousSha256: hash(old), currentSha256: hash(current), occupancy: 'populated',
+    rowsCheckedAt: new Date().toISOString(), rowCheckReference: 'exec:count',
+    changeClass: 'confirmation', reason: 'Only comments and unrelated code changed',
+    ownerResponse: 'Согласен', ownerMessageReference: 'conversation:test',
+  }] }))
+  const errors = tableChangeStatus({ root, slug: 'demo' }).errors.join('\n')
+  assert.match(errors, /физического имени.*миграц/)
+  assert.doesNotMatch(errors, /смена типа поля status/)
+})
