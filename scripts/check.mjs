@@ -38,6 +38,7 @@ import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
 import { scanJsSource, balancedObjectEnd } from './lib/source-lex.mjs'
+import { validateClientModules } from './lib/client-modules.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -998,6 +999,10 @@ check('sdk.writes', 'Нет записи файлов через SDK', ({ error 
     const m = re.exec(src)
     if (m) error(`${rel(root, file)}: ${m[1]} — запись файлов из кода процесса не работает, храни изменяемое в Heap`)
   }
+})
+
+check('client.modules', 'Клиентские модули Vue доступны после сборки', ({ error }) => {
+  for (const issue of validateClientModules({ root, slug }).errors) error(issue)
 })
 
 check('tests', 'Реестр тестов tests/records.ts', ({ error, warn }) => {
