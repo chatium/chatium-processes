@@ -152,6 +152,16 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   if (stage === 'result') {
     const output = outputFiles(root, creative.node.source)
     files.push(...output)
+    const evidencePath = `${slug}/tests/${nodeId}-result.json`
+    const evidenceFile = safeTaskPath(root, evidencePath, { mayBeMissing: true })
+    if (existsSync(evidenceFile)) {
+      if (lstatSync(evidenceFile).size > 128 * 1024) throw Error('Слишком большой протокол проверки результата.')
+      const content = readFileSync(evidenceFile, 'utf8')
+      const evidence = JSON.parse(content)
+      if (evidence?.version !== 1 || evidence?.nodeId !== nodeId || !Array.isArray(evidence?.cases))
+        throw Error(`${evidencePath}: нужны version: 1, nodeId и cases[].`)
+      files.push({ path: evidencePath, content })
+    }
     if (creative.node.kind === 'series') {
       const messages = creative.spec.messages
       const actual = output.filter(file => file.path.endsWith('.message.yaml'))

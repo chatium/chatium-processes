@@ -508,6 +508,9 @@ test('series result checks every channel version and email render per message', 
   f.put(messagePath, { ...letter, short: '' })
   assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /нет содержательной версии short/)
   f.put(messagePath, letter)
+  f.put('demo/tests/followup-result.json', { version: 1, nodeId: 'followup', cases: [
+    { name: 'approved test delivery', result: 'passed', evidence: 'Observed in test inbox.' },
+  ] })
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64')
   f.put('demo/reviews/creative/value-desktop.png', png)
   f.put('demo/reviews/creative/value-mobile.png', png)
@@ -525,6 +528,7 @@ test('series result checks every channel version and email render per message', 
     messageId: 'value', codeVersion: version })) })
   const packet = creativeReviewPacket({ ...args, stage: 'result' })
   assert.equal(packet.messageFiles[0].path, messagePath)
+  assert.ok(packet.files.some(file => file.path === 'demo/tests/followup-result.json'))
   for (const suffix of ['email', 'messenger', 'short', 'render'])
     assert.ok(packet.questions.some(question => question.id === `message.value.${suffix}`))
   const report = { version: 1, process: 'demo', nodeId: 'followup', stage: 'result',
@@ -539,6 +543,8 @@ test('series result checks every channel version and email render per message', 
   assert.equal(recordCreativeReview({ ...args, stage: 'result', packet, report, agentReference: 'unit-test-only' }).status, 'ready')
   f.put(messagePath, { ...letter, short: 'Другая версия.' })
   assert.equal(creativeReviewStatus({ ...args, stage: 'result' }).status, 'invalid')
+  f.put('demo/tests/followup-result.json', { version: 1, nodeId: 'other', cases: [] })
+  assert.throws(() => creativeReviewPacket({ ...args, stage: 'result' }), /нужны version: 1, nodeId и cases/)
 })
 
 test('email-only series does not require SMS copy or messenger review', t => {
