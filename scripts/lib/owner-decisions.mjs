@@ -6,6 +6,7 @@ import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget } from './knowledge-review.mjs'
 import { isProcessSlug, rel } from './project.mjs'
 import { readProcessBoard } from './board.mjs'
+import { reviewPlan } from './review-normalization.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
@@ -41,7 +42,7 @@ function commit(root) {
   return result.status === 0 ? result.stdout.trim() : null
 }
 
-function normalized(path, content) {
+function normalized(path, content, historical = false) {
   if (path.endsWith('/.workspace.json')) {
     try {
       const config = JSON.parse(content)
@@ -52,9 +53,13 @@ function normalized(path, content) {
     } catch { /* The ordinary validator reports an invalid workspace. */ }
   }
   if (!path.endsWith('/PLAN.md')) return content
-  return content.replace(/^- \[[xX]\]/gm, '- [ ]')
+  const previous = content.replace(/^- \[[xX]\]/gm, '- [ ]')
     .replace(/^- (?:Строим|Запуск):.*$/gm, '')
     .replace(/^  - Рабочие задачи:.*\n?/gm, '')
+  // Older decisions included the administrative "План: согласован" line in
+  // their digest. Keep that digest readable while new decisions share the
+  // reviewer's distinction between status and business content.
+  return historical ? previous : reviewPlan(previous)
 }
 
 export function ownerDecisionPath(root, slug, kind) {
@@ -65,10 +70,10 @@ export function ownerDecisionPath(root, slug, kind) {
   return path
 }
 
-export function approvalScope({ root, slug, kind }) {
+export function approvalScope({ root, slug, kind, historical = false }) {
   ownerDecisionPath(root, slug, kind)
   const knowledge = collectKnowledge({ root, slug })
-  const files = new Map(knowledge.files.map(file => [file.path, normalized(file.path, file.content)]))
+  const files = new Map(knowledge.files.map(file => [file.path, normalized(file.path, file.content, historical)]))
   if (kind === 'launch') {
     const rootPath = join(root, slug)
     for (const path of approvalFiles(root, rootPath)) {
@@ -77,7 +82,7 @@ export function approvalScope({ root, slug, kind }) {
       // A launch decision covers executable behavior too: prices, recipients and
       // delivery rules often live in route handlers rather than config files.
       if (!/\.(?:json|ya?ml|md|tpl|[cm]?js|jsx|[cm]?ts|tsx|vue)$/.test(relative)) continue
-      files.set(relative, normalized(relative, readFileSync(path, 'utf8')))
+      files.set(relative, normalized(relative, readFileSync(path, 'utf8'), historical))
     }
     for (const path of approvalFiles(root, join(root, '.mailings/storage/processes', slug))) {
       if (path.endsWith('.message.yaml')) files.set(rel(root, path), readFileSync(path, 'utf8'))
@@ -132,7 +137,8 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision }) 
     return { status: 'invalid', path, error: 'Решение владельца неполно или принадлежит другому процессу.' }
   if (saved.decision !== 'approve') return { status: 'declined', path, error: 'Владелец не согласовал этот шаг.' }
   const current = approvalScope({ root, slug, kind })
-  if (saved.scopeDigest !== current.digest) {
+  const historical = saved.scopeDigest === current.digest ? null : approvalScope({ root, slug, kind, historical: true })
+  if (saved.scopeDigest !== current.digest && saved.scopeDigest !== historical?.digest) {
     const previous = new Map(saved.scopeManifest?.map(file => [file.path, file.sha256]) || [])
     const changedFiles = current.manifest.filter(file => previous.get(file.path) !== file.sha256).map(file => file.path)
     for (const path of previous.keys()) if (!current.manifest.some(file => file.path === path)) changedFiles.push(path)

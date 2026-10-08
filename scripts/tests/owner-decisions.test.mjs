@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { approvalScope, ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { fileURLToPath } from 'node:url'
 
 const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
@@ -49,6 +49,32 @@ test('owner answer is required and binds business scope, not a bookkeeping commi
   const stale = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' })
   assert.equal(stale.status, 'stale')
   assert.ok(stale.changedFiles.includes('demo/PLAN.md'))
+})
+
+test('recording plan approval does not invalidate it when only the approval status changes', t => {
+  const f = fixture(t)
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Форма записи\n## Согласования\n- План: не согласован\n- Запуск: не согласован\n')
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Форма записи\n## Согласования\n- План: согласован 2026-10-08\n- Запуск: не согласован\n')
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'ready')
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Форма записи\n- План: цена 9000 рублей\n## Согласования\n- План: согласован 2026-10-08\n- Запуск: не согласован\n')
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'stale')
+})
+
+test('an existing approved decision remains readable after status normalization changes', t => {
+  const f = fixture(t)
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Форма записи\n## Согласования\n- План: согласован 2026-10-08\n')
+  const legacy = approvalScope({ root: f.root, slug: 'demo', kind: 'plan', historical: true })
+  assert.notEqual(legacy.digest, approvalScope({ root: f.root, slug: 'demo', kind: 'plan' }).digest)
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
+  const old = { version: 1, kind: 'plan', process: 'demo', decision: 'approve',
+    ...answer(), shownCommit: packet.shownCommit, boardRevision: null,
+    scopeDigest: legacy.digest, scopeManifest: legacy.manifest }
+  f.put('demo/decisions/plan.json', JSON.stringify(old))
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'ready')
+  f.put('demo/PLAN.md', '# План\n\n- [ ] T1 Другая цена и форма записи\n## Согласования\n- План: согласован 2026-10-08\n')
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'stale')
 })
 
 test('decision CLI will not solicit plan approval before independent design conclusions', t => {
