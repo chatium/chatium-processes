@@ -904,3 +904,5 @@ boolean `testOnly: true` и разрешённый тестовый контак
 в аккаунт 3 `main@bacc4f8`; `sync-skill status` — `актуален`, локальный
 `chatium typecheck` — 0 ошибок. Рабочая ветка DSH эти изменения ещё не
 получила.
+Установленная копия на `main@bacc4f8` также прошла `npm test`:
+312 passed, 2 skipped, 0 failed.
