@@ -1,14 +1,19 @@
 // Administrative progress must not invalidate a semantic review. Normalize
 // only fields whose runtime contract is checked separately by check/decisions.
 export function reviewPlan(content) {
-  let approvals = false, task = false
+  let approvals = false, ownerTodos = false, task = false
   return content.split('\n').flatMap(line => {
     const heading = /^##\s+(.+?)\s*\r?$/u.exec(line)
-    if (heading) { approvals = heading[1] === 'Согласования'; task = false }
+    if (heading) {
+      approvals = heading[1] === 'Согласования'
+      ownerTodos = heading[1] === 'Нужно от вас'
+      task = false
+    }
     if (/^- \[[xX ]\] T\d+\s/u.test(line)) task = true
     if (approvals && /^- (?:План|Запуск|Строим):\s*(?:не\s+)?согласован(?:о|а)?(?:\s+(?:\d{2}\.\d{2}(?:\.\d{4})?|\d{4}-\d{2}-\d{2}))?\s*$/iu.test(line)) return []
     if (task && /^[ \t]+- Рабочие задачи:/u.test(line)) return []
-    return [line.replace(/^- \[[xX ]\] (T\d+)/u, '- [ ] $1')]
+    return [line.replace(ownerTodos ? /^- \[[xX ]\] /u : /^- \[[xX ]\] (T\d+)/u,
+      ownerTodos ? '- [ ] ' : '- [ ] $1')]
   }).join('\n')
 }
 

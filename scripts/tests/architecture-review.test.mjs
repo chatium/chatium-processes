@@ -29,6 +29,12 @@ test('architecture reviewer receives actual component specifications and notices
   put('demo/specs/site.yaml', 'version: 1\ntitle: Другой сайт\n')
   const after = makeArchitectureReviewPacket({ root, slug: 'demo' })
   assert.notEqual(after.inputDigest, before.inputDigest)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [ ] Согласовать текст чек-листа.\n')
+  const ownerBefore = makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [x] Согласовать текст чек-листа.\n')
+  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, ownerBefore)
+  put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [x] Согласовать другую цену.\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, ownerBefore)
 })
 
 test('covered data answer requires citations from plan, table, event and analytics', t => {

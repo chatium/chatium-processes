@@ -316,6 +316,17 @@ test('knowledge conclusion survives task bookkeeping and consent record updates'
   assert.notEqual(f.packet().inputDigest, before)
 })
 
+test('checking an owner to-do leaves knowledge review current while changing its request does not', t => {
+  const f = fixture(t)
+  const plan = '# План\n\nФорма заявки.\n## Нужно от вас\n- [ ] Согласовать текст чек-листа — без этого он людям не выдаётся.\n'
+  f.put('demo/PLAN.md', plan)
+  const before = f.packet().inputDigest
+  f.put('demo/PLAN.md', plan.replace('- [ ]', '- [x]'))
+  assert.equal(f.packet().inputDigest, before)
+  f.put('demo/PLAN.md', plan.replace('текст чек-листа', 'цену курса'))
+  assert.notEqual(f.packet().inputDigest, before)
+})
+
 test('stale input packets cannot record a previously passing review', t => {
   const f = fixture(t), packet = f.packet()
   f.put(articlePath, article(`${quote}\nУслуга временно недоступна.`))
