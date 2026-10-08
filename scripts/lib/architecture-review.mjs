@@ -48,6 +48,14 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const knowledge = collectKnowledge({ root, slug })
   const account = realpathSync(root)
   const taskFiles = collectTaskContracts(root, slug, account)
+  const workspacePath = join(root, slug, '.workspace.json')
+  let workspaceFile = null
+  if (existsSync(workspacePath)) {
+    if (!realpathSync(workspacePath).startsWith(account + sep) ||
+        !statSync(workspacePath).isFile() || statSync(workspacePath).size > 80_000)
+      throw Error('Конфигурация процесса недоступна или слишком велика для ревью.')
+    workspaceFile = { path: `${slug}/.workspace.json`, content: readFileSync(workspacePath, 'utf8') }
+  }
   const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml', 'data.yaml'].flatMap(name => {
     const path = join(root, slug, 'specs', name)
     if (!existsSync(path)) return []
@@ -56,16 +64,18 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     return [{ path: `${slug}/specs/${name}`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 7 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 8 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
     throw Error('Некорректная рубрика архитектуры.')
   const riskDecisions = collectRiskDecisions(root, slug)
   const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`,
+    ...(workspaceFile ? [workspaceFile.path] : []),
     ...specFiles.map(file => file.path), ...taskFiles.map(file => file.path)]
-  const dataEvidence = [`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
-    .filter(path => specFiles.some(file => file.path === path))
+  const dataEvidence = [...(workspaceFile ? [workspaceFile.path] : []),
+    ...[`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
+      .filter(path => specFiles.some(file => file.path === path))]
   const questions = [...rubric.questions.map(question => {
     if (question.id === 'consistency' && taskFiles.length) return { ...question,
       allowNotApplicable: false, requiredEvidenceGroups: [
@@ -91,7 +101,8 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
     questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
     files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
-      ? { ...file, content: reviewPlan(file.content) } : file), ...specFiles, ...taskFiles,
+      ? { ...file, content: reviewPlan(file.content) } : file),
+    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, ...taskFiles,
     ...riskDecisions.map(({ path, content }) => ({ path, content }))]
       .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))

@@ -20,8 +20,12 @@ test('architecture reviewer receives actual component specifications and notices
   put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nКлиент выбирает услугу.\n')
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n')
   put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  put('demo/.workspace.json', '{"type":"process","config":{"variables":{"price":{"value":"500 ₽"}}}}\n')
   put('demo/specs/site.yaml', 'version: 1\ntitle: Сайт\n')
   const before = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  assert.ok(before.files.some(file => file.path === 'demo/.workspace.json'))
+  assert.ok(before.questions.find(question => question.id === 'data').requiredEvidenceGroups
+    .some(group => group.paths.includes('demo/.workspace.json')))
   assert.ok(before.files.some(file => file.path === 'demo/specs/site.yaml'))
   assert.ok(before.questions.some(question => question.id === 'site-and-services'))
   assert.ok(before.questions.some(question => question.id === 'staff-notifications' &&
@@ -29,6 +33,8 @@ test('architecture reviewer receives actual component specifications and notices
   put('demo/specs/site.yaml', 'version: 1\ntitle: Другой сайт\n')
   const after = makeArchitectureReviewPacket({ root, slug: 'demo' })
   assert.notEqual(after.inputDigest, before.inputDigest)
+  put('demo/.workspace.json', '{"type":"process","config":{"variables":{"price":{"value":"600 ₽"}}}}\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, after.inputDigest)
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [ ] Согласовать текст чек-листа.\n')
   const ownerBefore = makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [x] Согласовать текст чек-листа.\n')
@@ -85,7 +91,7 @@ test('architecture reviewer checks existing work-card conditions without trackin
   assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
 })
 
-test('covered data answer requires citations from plan, table, event and analytics', t => {
+test('covered data answer requires citations from plan, workspace, table, event and analytics', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-architecture-join-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const put = (path, content) => {
@@ -99,6 +105,7 @@ test('covered data answer requires citations from plan, table, event and analyti
   put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nПросмотр связываем с заявкой.\n')
   put('demo/PLAN.md', '# План\n\nСохраняем visitorUid вместе с заявкой и связываем просмотр с заявкой.\n')
   put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  put('demo/.workspace.json', '{"type":"process","config":{"variables":{}}}\n')
   put('demo/specs/data.yaml', 'tables:\n  - id: requests\n    fields: [name]\n')
   put('demo/specs/events.yaml', 'events:\n  - key: request_created\n    visitorUid: uid\n')
   put('demo/specs/analytics.yaml', 'report: link by visitorUid\n')
@@ -119,6 +126,8 @@ test('covered data answer requires citations from plan, table, event and analyti
     { path: 'demo/specs/events.yaml', quote: 'visitorUid: uid' },
     { path: 'demo/specs/analytics.yaml', quote: 'link by visitorUid' },
   )
+  assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
+  dataAnswer.evidence.push({ path: 'demo/.workspace.json', quote: '"variables":{}' })
   assert.equal(validateReview(report, packet).status, 'ready')
   dataAnswer.status = 'not-applicable'
   assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)
