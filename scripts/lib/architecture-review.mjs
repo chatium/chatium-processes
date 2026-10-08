@@ -56,12 +56,13 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
       throw Error('Конфигурация процесса недоступна или слишком велика для ревью.')
     workspaceFile = { path: `${slug}/.workspace.json`, content: readFileSync(workspacePath, 'utf8') }
   }
-  const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml', 'data.yaml'].flatMap(name => {
-    const path = join(root, slug, 'specs', name)
+  const specFiles = ['specs/events.yaml', 'specs/analytics.yaml', 'specs/site.yaml',
+    'specs/services.yaml', 'specs/data.yaml', 'agents/spec.yaml', 'agents/cases.yaml'].flatMap(name => {
+    const path = join(root, slug, name)
     if (!existsSync(path)) return []
     if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
       throw Error(`Спецификация ${name} недоступна или слишком велика для ревью.`)
-    return [{ path: `${slug}/specs/${name}`, content: readFileSync(path, 'utf8') }]
+    return [{ path: `${slug}/${name}`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
   if (rubric.version !== 8 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
