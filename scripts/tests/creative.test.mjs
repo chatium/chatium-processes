@@ -219,6 +219,9 @@ test('mechanic needs an expected outcome and a real section reference', t => {
   f.spec.sections[2].mechanicRefs = ['signup']
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.deepEqual(creativePacket(f.args).errors, [])
+  f.spec.mechanics[0]['случайный остаток после запятой'] = null
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /случайный остаток после запятой пусто/)
 })
 
 test('V4 mechanics stay available and a price claim needs a real source reference', t => {

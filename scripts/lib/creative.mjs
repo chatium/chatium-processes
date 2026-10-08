@@ -99,9 +99,13 @@ function validateLanding(spec, errors, references) {
     for (const point of s.points || []) if (!text(point.text) || !sourceIds.has(point.sourceRef))
       errors.push(`Секция ${s.id || '?'}: у тезиса нет текста или подтверждённого sourceRef.`)
   }
-  const selected = Array.isArray(spec.mechanics) ? spec.mechanics : []
+  const rawMechanics = Array.isArray(spec.mechanics) ? spec.mechanics : []
+  const selected = rawMechanics.filter(m => m && typeof m === 'object' && !Array.isArray(m))
+  if (selected.length !== rawMechanics.length) errors.push('Механика должна быть объектом с полями настройки.')
   if (!unique(selected.map(m => m.id))) errors.push('ID механик должны быть уникальны.')
   for (const m of selected) {
+    for (const [field, value] of Object.entries(m)) if (value === null)
+      errors.push(`Механика ${m.id || '?'}: поле ${field} пусто; проверьте разделители и кавычки в YAML.`)
     const rule = mechanics.mechanics[m.type]
     if (!rule) { errors.push(`Неизвестная механика ${m.type}`); continue }
     if (!text(m.id) || !text(m.purpose) || !text(m.placement)) errors.push(`Механика ${m.id || '?'}: нужны цель и место.`)
