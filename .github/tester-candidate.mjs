@@ -51,17 +51,38 @@ export function parseRegister(source) {
     })
 }
 
+export function assessLiveBatches(batches, liveIds) {
+  const errors = [], seen = new Map(), expected = new Set(liveIds)
+  if (!Array.isArray(batches) || batches.length < 1 || batches.length > 4)
+    return { errors: ['Живые проверки должны быть собраны в 1–4 пакета.'] }
+  for (const batch of batches) {
+    if (!batch?.id || !batch.fixture || !batch.negative || !batch.positive || !batch.evidence ||
+        batch.status !== 'pending' || !Array.isArray(batch.ids) || !batch.ids.length)
+      errors.push(`${batch?.id || '?'}: нужен сценарий, место, журнал, ID и статус pending.`)
+    for (const id of batch.ids || []) {
+      if (!expected.has(id)) errors.push(`${id}: нет в списке живых проверок.`)
+      seen.set(id, (seen.get(id) || 0) + 1)
+    }
+  }
+  for (const id of liveIds) if (seen.get(id) !== 1)
+    errors.push(`${id}: назначен ${seen.get(id) || 0} пакетам вместо одного.`)
+  return { errors, batchCount: batches.length }
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = resolve(import.meta.dirname, '..')
   const rows = parseRegister(readFileSync(resolve(root, '.github/REMEDIATION-REGISTER-2026-10-07.md'), 'utf8'))
   const deferrals = JSON.parse(readFileSync(resolve(root, '.github/TESTER-DEFERRALS.json'), 'utf8'))
   const result = assessTesterCandidate({ rows, deferrals })
-  if (result.errors.length) {
-    for (const error of result.errors) console.error(`✘ ${error}`)
+  const batches = JSON.parse(readFileSync(resolve(root, '.github/LIVE-BATCHES-2026-10-08.json'), 'utf8'))
+  const live = assessLiveBatches(batches.batches, deferrals.groups['live-process'].ids)
+  if (result.errors.length || live.errors.length) {
+    for (const error of [...result.errors, ...live.errors]) console.error(`✘ ${error}`)
     process.exitCode = 1
   } else {
     console.log(`Кандидат для тестировщика учтён: ${rows.length - result.pendingCount} закрыто, ${result.pendingCount} ожидают проверки.`)
     for (const [group, count] of Object.entries(result.groups)) console.log(`  ${group}: ${count}`)
+    console.log(`Живые проверки собраны в ${live.batchCount} общих прогона; их статус pending.`)
     console.log('Это не разрешение на запуск процесса и не подтверждение готовности выпуска.')
   }
 }
