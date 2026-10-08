@@ -220,6 +220,9 @@ test('launch refuses an empty business variable while build can continue', t => 
   const checks = (...flags) => JSON.parse(f.run(...flags).stdout).checks
   assert.equal(checks().some(check => check.id === 'launch.variables'), false)
   assert.match(checks('--task-stage', 'launch').find(check => check.id === 'launch.variables').errors.join('\n'), /переменная price: перед запуском/)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { variables: { price: { value: '3900', description: 'Цена предложения' } } } }))
+  assert.equal(checks('--task-stage', 'launch').find(check => check.id === 'launch.variables').ok, true)
 })
 
 test('launch check lists missing full automation run as a separate gate', t => {
