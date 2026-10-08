@@ -219,3 +219,18 @@ Source Build и typecheck прошли. Живой параллельный вы
 `processDeliveryChannelIds`; исправление подготовлено в ветке
 `chatium-agent-skills/codex/process-delivery-docs@fb0cc96`, R45 открыт до
 интеграции в установленный `chatium-development`.
+
+Кандидат для второго тестировщика опубликован в `chatium-processes/main@e51138a`:
+327/327 локальных тестов и `check:tester` прошли; hosted CI
+https://github.com/chatium/chatium-processes/actions/runs/37852354424 завершился
+успешно. Это кандидат для испытаний, не полный релиз: реестр содержит
+54 закрытых и 112 ожидающих строк, в том числе живые и независимые проверки.
+Штатный `sync-skill` установил именно `e51138a` в
+`funnels-git-3/main@66ba237`; обе тестовые ветки получили эту копию merge:
+`process/site-agent-control@a4deab1`, `process/plant-care@bd6cbbb`.
+Source Build трёх опубликованных веток прошёл. В обеих установленных копиях
+`sync-skill status` показал `актуален`, `check --no-snapshot --task-stage build`
+дал 29/37, включая зелёные `table.changes` и `retirements`. Остальные красные
+группы относятся к задачам, решениям владельца и обязательным заключениям.
+Хук после merge поставил соседний `chatium-development@d71590d`, поэтому
+исправление справки Mailings из `fb0cc96` в установленной версии ещё отсутствует.
