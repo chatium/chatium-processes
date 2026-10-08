@@ -35,6 +35,18 @@ test('accepted standalone agent, map and scenarios form a valid local contract',
   finally { f.cleanup() }
 })
 
+test('numeric token limit is rejected before Source Git agent synchronization', () => {
+  const f = fixture()
+  try {
+    const file = join(f.root, 'demo/agents/helper.agent.json')
+    const config = JSON.parse(readFileSync(file, 'utf8'))
+    writeFileSync(file, JSON.stringify({ ...config, tokensLimitPerChain: 6000 }))
+    assert.match(f.run().errors.join('\n'), /tokensLimitPerChain должен быть объектом/)
+    writeFileSync(file, JSON.stringify({ ...config, tokensLimitPerChain: { kind: 'const', value: 6000 } }))
+    assert.deepEqual(f.run().errors, [])
+  } finally { f.cleanup() }
+})
+
 test('unapproved role and map drift block readiness', () => {
   const f = fixture()
   try {

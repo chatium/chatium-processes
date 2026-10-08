@@ -5,6 +5,16 @@ import { parseYaml } from './yaml.mjs'
 
 const KEY = /^[a-z][a-z0-9-]*$/
 const DECISIONS = new Set(['accepted', 'declined', 'deferred'])
+const TOKEN_PERIODS = new Set(['day', 'hour', 'minute', 'second'])
+
+function validTokenLimit(value) {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      !['const', 'hard', 'soft'].includes(value.kind) ||
+      typeof value.value !== 'number' || !Number.isFinite(value.value)) return false
+  return value.kind === 'const' || (typeof value.periodValue === 'number' &&
+    Number.isFinite(value.periodValue) && TOKEN_PERIODS.has(value.periodUnit))
+}
 
 function agentFiles(dir, errors) {
   const files = []
@@ -97,6 +107,8 @@ export function validateProcessAgents({ root, slug, map }) {
           typeof ref.path !== 'string' || !ref.path || typeof ref.pattern !== 'string' || !ref.pattern ||
           (!ref.isWorkspaceTool && !Number.isInteger(ref.accountId)))))
           errors.push(`${where}: enabledTools должен содержать канонические ссылки на инструменты`)
+        if (!validTokenLimit(config.tokensLimitPerChain))
+          errors.push(`${where}: tokensLimitPerChain должен быть объектом {kind: "const", value: число} либо {kind: "hard"|"soft", value: число, periodValue: число, periodUnit}`)
         for (const field of ['department', 'specialists', 'supervisorAgentId']) if (field in config) errors.push(`${where}: ${field} относится к старой схеме отделов`)
       } catch (error) { errors.push(`${where}: ${agent.config} не разбирается как JSON: ${error.message}`) }
     }
