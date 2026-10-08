@@ -184,6 +184,26 @@ test('launch requires published action registry even when the local hook imports
   assert.match(automations('--task-stage', 'launch', '--registry', join(f.root, 'registry.json')).errors.join('\n'), /реестр/)
 })
 
+test('automation step cannot hide a failure behind success false', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\naccountId: 10\nnodes: []\nlinks: []\n')
+  const config = { title: 'Fail closed', eventUrls: [], settings: { continueOnError: false }, steps: [
+    { id: 'send', type: 'action', actionName: 'Send',
+      actionRoute: { routeType: 'function', routeJson: [10, 'demo/actions/send', '/send'] }, params: {} },
+    { id: 'can_continue', type: 'continueCondition', conditionName: 'Can continue',
+      conditionRoute: { routeType: 'function', routeJson: [10, 'demo/actions/condition', '/check'] }, params: {} },
+  ] }
+  f.put('demo/automations/send.automationConfig.json', JSON.stringify(config))
+  f.put('demo/actions/send.ts', "// return { success: false }\nexport const send = app.function('/send', async () => { return { success: false } })\n")
+  f.put('demo/actions/condition.ts', "export const check = app.function('/check', async () => ({ success: false }))\n")
+  const report = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(item => item.id === 'automations')
+  assert.equal((report().warnings.join('\n').match(/возвращает \{ success: false \}/g) || []).length, 2)
+  assert.equal((report('--task-stage', 'test').errors.join('\n').match(/возвращает \{ success: false \}/g) || []).length, 2)
+  f.put('demo/actions/send.ts', "// return { success: false }\nexport const send = app.function('/send', async () => { throw new Error('send failed') })\n")
+  f.put('demo/actions/condition.ts', "export const check = app.function('/check', async () => ({ success: true, satisfied: false }))\n")
+  assert.doesNotMatch(report('--task-stage', 'test').errors.join('\n'), /возвращает \{ success: false \}/)
+})
+
 test('letter variables are not mistaken for workspace variables', t => {
   const f = fixture(t)
   f.put('demo/message.ts', 'letter.variables.map(item => item.name); config.variables?.price?.value;\n')

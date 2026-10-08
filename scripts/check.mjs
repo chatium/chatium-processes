@@ -756,6 +756,13 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
           const src = readFileSync(mod, 'utf8')
           const fnRe = new RegExp(`app\\s*\\.function\\(\\s*['"\`]${String(fnPath).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}['"\`]`)
           if (!fnRe.test(src)) error(`${where}: в ${rel(root, mod)} нет app.function('${fnPath}')`)
+          const withoutComments = scanJsSource(src).clean
+          const returnsFailure = /\breturn\s*(?:\(\s*)?\{\s*success\s*:\s*false\b|=>\s*\(\s*\{\s*success\s*:\s*false\b/.test(withoutComments)
+          if (returnsFailure) {
+            const message = where + ': ' + rel(root, mod) + ' возвращает { success: false }; Automations считает шаг завершённым. При ошибке обязательного действия или условия бросайте исключение'
+            if (['test', 'launch'].includes(options['task-stage'])) error(message)
+            else warn(message)
+          }
           const publishedAction = registry?.actions.some(entry => JSON.stringify(entry.routeJson) === JSON.stringify(rj))
           if (step.type === 'action' && !registered.has(String(modulePath).replace(/\.tsx?$/, '')) &&
               !(options['task-stage'] === 'launch' && publishedAction)) {

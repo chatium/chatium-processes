@@ -115,6 +115,9 @@ export const prepareConsultationAction = app
   шага `failed`. Для `continueCondition` возвращай
   `{ success: true, satisfied: false }` лишь когда условие действительно
   ложно; невозможность проверить условие тоже должна бросать исключение.
+  `check --task-stage test` и `launch` блокирует явный
+  `return { success: false }` в локальном модуле шага; это поиск типичного
+  шаблона, поэтому независимое ревью всё равно проверяет обработку ошибок.
 - Поля, на которые ссылается `steps.<id>.<поле>`, объяви в `.result(...)` —
   `check` сверяет их по коду.
 - `getWorkspaceConfig` вызывай с путём процесса: из `chatium exec` ближайший
