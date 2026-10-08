@@ -22,7 +22,7 @@ test('installed skill entry routes complex processes without claiming standalone
   assert.ok(body.trim().split(/\s+/).length <= 800, 'SKILL.md must remain a short task router')
   assert.match(body, /открывай нужный раздел по текущему этапу/)
   assert.match(body, /Если масштаб неясен, задай один короткий вопрос до создания процесса/)
-  assert.match(workflow, /Не достраивай воронку без поручения/)
+  assert.match(workflow, /Не достраивай\s+воронку без поручения/)
   assert.doesNotMatch(entry, /\/Users\/|\.local-context\/|start\.chatium\.ru/i)
 })
 
