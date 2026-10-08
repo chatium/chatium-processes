@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { collectImplementation } from './implementation.mjs'
@@ -15,6 +17,52 @@ export function codeReviewPath(root, slug) {
   if (!canonical.startsWith(base + sep)) throw Error('Путь отчёта выходит за пределы аккаунта.')
   return path
 }
+
+function previousTableFiles(root, slug, files) {
+  const registry = files.find(file => file.path === `${slug}/tables/schema-decisions.json`)
+  if (!registry) return { files: [], errors: [] }
+  const history = [], errors = []
+  let historyBytes = 0
+  let records
+  try { records = JSON.parse(registry.content).changes }
+  catch { return { files: [], errors: ['schema-decisions.json не разбирается для ревью прежних схем.'] } }
+  if (!Array.isArray(records) || records.length > 100)
+    return { files: [], errors: ['schema-decisions.json: нужен список changes до 100 записей.'] }
+  const current = new Set(files.map(file => file.path))
+  for (const record of records) {
+    const path = record?.path, expected = record?.previousSha256
+    if (typeof path !== 'string' || !path.startsWith(`${slug}/tables/`) ||
+        path.split('/').some(part => part === '..' || part === '.') || !path.endsWith('.table.ts') ||
+        !current.has(path) || typeof expected !== 'string' || !/^[a-f0-9]{64}$/.test(expected)) {
+      errors.push('Некорректный путь или SHA прежней таблицы в schema-decisions.json.')
+      continue
+    }
+    const log = spawnSync('git', ['log', '--format=%H', '--max-count=2', '--', path],
+      { cwd: root, encoding: 'utf8', timeout: 5000, maxBuffer: 2 * 1024 * 1024,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+    if (log.status !== 0) { errors.push(`${path}: история Git недоступна для ревью схемы.`); continue }
+    let previous
+    for (const commit of log.stdout.split('\n').filter(Boolean)) {
+      const shown = spawnSync('git', ['show', `${commit}:${path}`],
+        { cwd: root, encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024,
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
+      if (shown.status !== 0 || shown.stdout.length > 1024 * 1024) continue
+      if (createHash('sha256').update(shown.stdout).digest('hex') === expected) {
+        previous = shown.stdout
+        break
+      }
+    }
+    if (previous === undefined) { errors.push(`${path}: прежняя версия ${expected} не найдена в истории Git.`); continue }
+    historyBytes += Buffer.byteLength(previous)
+    if (historyBytes > 4 * 1024 * 1024) {
+      errors.push('Прежние схемы превышают 4 MB; разделите область ревью таблиц.')
+      break
+    }
+    history.push({ path: `history/${expected}/${path}`, content: previous })
+  }
+  return { files: history, errors }
+}
+
 export function makeCodeReviewPacket({ root, slug }) {
   codeReviewPath(root, slug)
   const corpus = collectImplementation({ root, slug })
@@ -27,6 +75,8 @@ export function makeCodeReviewPacket({ root, slug }) {
     .map(file => file.path === planPath ? { ...file, content: reviewPlan(file.content) }
       : file.path === `${slug}/.workspace.json` ? { ...file, content: reviewWorkspace(file.content) }
       : file)
+  const tableHistory = previousTableFiles(root, slug, files)
+  files.push(...tableHistory.files)
   const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
   const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
@@ -49,7 +99,9 @@ export function makeCodeReviewPacket({ root, slug }) {
   const base = { version: 1, process: slug, stage: 'implementation',
     rubricVersion: rubric.version, questions, tasks: corpus.tasks.map(({ markedDone, ...task }) => task), workTasks,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/reviewer.md'), 'utf8'),
-    files, assets: corpus.assets, dependencies: corpus.dependencies, staticChecks: corpus.checks }
+    files, assets: corpus.assets, dependencies: corpus.dependencies,
+    staticChecks: [...corpus.checks, { id: 'table-schema-history', title: 'Прежние схемы заполненных таблиц',
+      ok: !tableHistory.errors.length, errors: tableHistory.errors, warnings: [] }] }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation' }))
 }
 export function recordCodeReview({ root, slug, packet, report, agentReference, packetDirectory }) {

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -41,6 +42,33 @@ function fixture(t) {
 }
 const errors = corpus => corpus.checks.flatMap(check => check.errors)
 const paths = corpus => corpus.files.map(file => file.path)
+
+test('review packet includes previous table source matching schema decision hash', t => {
+  const f = fixture(t)
+  const path = 'demo/tables/leads.table.ts'
+  const previous = "export const table = 'physical-leads-v1'\n"
+  const current = "export const table = 'physical-leads-v1' // optional field added\n"
+  const sha = value => createHash('sha256').update(value).digest('hex')
+  f.put(path, previous)
+  for (const args of [['init', '-q'], ['config', 'user.name', 'Process Test'],
+    ['config', 'user.email', 'process-test@example.invalid'], ['add', '.'], ['commit', '-qm', 'baseline']]) {
+    const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  f.put(path, current)
+  const decision = previousSha256 => ({ version: 1, changes: [{ path,
+    previousSha256, currentSha256: sha(current), occupancy: 'populated',
+    rowsCheckedAt: '2026-10-09T00:00:00Z', rowCheckReference: 'exec:row-count',
+    changeClass: 'additive-or-metadata', reason: 'Optional field only' }] })
+  f.put('demo/tables/schema-decisions.json', JSON.stringify(decision(sha(previous))))
+  const packet = f.packet()
+  assert.equal(packet.files.find(file => file.path === `history/${sha(previous)}/${path}`)?.content, previous)
+  assert.deepEqual(packet.staticChecks.find(check => check.id === 'table-schema-history')?.errors, [])
+  f.put('demo/tables/schema-decisions.json', JSON.stringify(decision('0'.repeat(64))))
+  const tampered = f.packet()
+  assert.match(tampered.staticChecks.find(check => check.id === 'table-schema-history')?.errors.join('\n'),
+    /прежняя версия .* не найдена/)
+})
 
 // Unit-only fabricated answers test schema and invalidation, NOT an actual
 // independent code review. One repeated quote does not establish code safety.
