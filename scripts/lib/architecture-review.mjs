@@ -29,8 +29,11 @@ function collectTaskContracts(root, slug, account) {
     if (`${task?.id}.json` !== name) throw Error(`ID карточки ${name} не совпадает с именем.`)
     const contract = {
       id: task.id, planTask: task.planTask, title: task.title,
-      targetNode: task.targetNode, objective: task.objective, scope: task.scope,
+      targetNode: task.targetNode, executor: task.executor, mode: task.mode,
+      stage: task.stage, objective: task.objective, scope: task.scope,
+      dependsOn: task.dependsOn, inputs: task.inputs,
       expectedOutputs: task.expectedOutputs,
+      steps: (task.steps || []).map(({ id, action }) => ({ id, action })),
       acceptanceCriteria: task.acceptanceCriteria,
       questions: (task.questions || []).map(({ id, question, why, blocking, resolution }) =>
         ({ id, question, why, blocking, ...(resolution ? { resolution } : {}) })),
