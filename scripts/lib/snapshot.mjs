@@ -5,7 +5,7 @@ import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
-import { gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
+import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 function safePath(root, value) {
@@ -113,7 +113,14 @@ export async function startExec(root, sdkCode, expectedCommit) {
   if (expectedCommit) {
     const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
     if (!executed) throw Error('CLI не сообщил SHA исполненного коммита; актуальность результата не подтверждена.')
-    if (executed !== expectedCommit) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+    if (executed !== expectedCommit) {
+      // Source Git can reuse a successful build for a different commit with
+      // exactly the same file tree (for example, after reverting test edits).
+      let sameTree = false
+      try { sameTree = git(root, ['rev-parse', `${executed}^{tree}`]) === git(root, ['rev-parse', `${expectedCommit}^{tree}`]) }
+      catch { /* An unknown executed commit cannot prove equivalence. */ }
+      if (!sameTree) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+    }
   }
   return JSON.parse(r.stdout)
 }

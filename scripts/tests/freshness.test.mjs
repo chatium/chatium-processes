@@ -287,5 +287,22 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(wrongPublish.report.snapshot.verified, false)
   assert.equal(wrongPublish.report.snapshot.saved, false)
   assert.match(wrongPublish.report.snapshot.error, /исполнен|коммит/i)
+  f.run(['commit', '--allow-empty', '-m', 'Same published tree'])
+  f.run(['push', 'origin', 'HEAD'])
+  const reusedCommit = f.run(['rev-parse', 'HEAD'])
+  const reusedBoard = JSON.parse(readFileSync(boardFile, 'utf8'))
+  reusedBoard.snapshot.snapshot.commit = reusedCommit
+  writeFileSync(boardFile, JSON.stringify(reusedBoard))
+  env.TEST_EXECUTED_SHA = publishedCommit
+  const reusedBuild = check(['--verify-snapshot'])
+  assert.equal(reusedBuild.report.snapshot.verified, true, JSON.stringify(reusedBuild.report.snapshot))
+  writeFileSync(join(f.root, 'demo/code.txt'), 'different published tree')
+  f.run(['add', '.']); f.run(['commit', '-m', 'Different tree']); f.run(['push', 'origin', 'HEAD'])
+  const changedBoard = JSON.parse(readFileSync(boardFile, 'utf8'))
+  changedBoard.snapshot.snapshot.commit = f.run(['rev-parse', 'HEAD'])
+  writeFileSync(boardFile, JSON.stringify(changedBoard))
+  const differentBuild = check(['--verify-snapshot'])
+  assert.equal(differentBuild.report.snapshot.verified, false)
+  assert.match(differentBuild.report.snapshot.error, /исполнен|коммит/i)
   delete env.TEST_EXECUTED_SHA
 })
