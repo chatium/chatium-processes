@@ -61,7 +61,14 @@
          contacts: [{ type: 'email', value: row.email }],
          customer: { displayName: row.name, ...(input.utm ? { utm: input.utm } : {}) },
          linkRecords: [row],
-         metricEventData: { action_param1: row.id, action_param2: row.serviceType },
+         metricEventData: {
+           action_param1: row.id, action_param2: row.serviceType,
+           ...(input.utm?.source ? { utm_source: input.utm.source } : {}),
+           ...(input.utm?.medium ? { utm_medium: input.utm.medium } : {}),
+           ...(input.utm?.campaign ? { utm_campaign: input.utm.campaign } : {}),
+           ...(input.utm?.content ? { utm_content: input.utm.content } : {}),
+           ...(input.utm?.term ? { utm_term: input.utm.term } : {}),
+         },
        })
        eventAccepted = captured.success
        if (!captured.success) ctx.account.log('CRM не приняла событие', {
@@ -90,8 +97,13 @@
 5. **Форма** — Vue-компонент страницы, вызывает POST-роут через `.run(ctx, body)`.
    При входе со страницы возьми фактические UTM из URL, проверь длину и
    допустимые значения, передай их в запрос вместе с данными формы. На
-   сервере не подставляй `undefined` вместо известных UTM и не доверяй
+   сервере повтори проверку длины и допустимых значений; известные UTM
+   передай и в выделенные поля `metricEventData`, если по ним нужен отчёт.
+   Не подставляй `undefined` вместо известных UTM и не доверяй
    присланным контактам как доказательству личности клиента.
+   Знание email не даёт права менять согласие или источник существующей
+   заявки и получать её внутренний ID/состояние. Отдельно ограничь частоту
+   публичных запросов и стоимость создания строк и событий.
    Если согласие и ссылка на политику ещё не согласованы, отключи отправку
    формы даже в превью опубликованной ветки; пустой `policyUrl` при активной
    форме недопустим.

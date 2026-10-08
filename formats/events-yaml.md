@@ -122,6 +122,11 @@ const captured = await captureCustomerEvent(ctx, {
   metricEventData: {
     action_param1: row.id,
     action_param2: row.serviceType,
+    ...(input.utmSource ? { utm_source: input.utmSource } : {}),
+    ...(input.utmMedium ? { utm_medium: input.utmMedium } : {}),
+    ...(input.utmCampaign ? { utm_campaign: input.utmCampaign } : {}),
+    ...(input.utmContent ? { utm_content: input.utmContent } : {}),
+    ...(input.utmTerm ? { utm_term: input.utmTerm } : {}),
   },
 })
 if (!captured.success) ctx.account.log('CRM не приняла событие', {
