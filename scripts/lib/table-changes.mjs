@@ -6,6 +6,38 @@ import { isProcessSlug, rel } from './project.mjs'
 
 const sha = body => createHash('sha256').update(body).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
+
+function tableShape(source) {
+  const names = [...source.matchAll(/\bHeap\.Table\s*\(\s*(['"`])([^'"`]+)\1\s*,/g)]
+  const fields = new Map()
+  const pattern = /\b([A-Za-z_$][\w$]*)\s*:\s*(Heap\.[A-Za-z_$][\w$]*\s*\()/g
+  for (const match of source.matchAll(pattern)) {
+    const start = match.index + match[0].lastIndexOf('Heap.')
+    let depth = 0, quote = '', end = start
+    for (; end < source.length; end++) {
+      const char = source[end]
+      if (quote) {
+        if (char === '\\') { end++; continue }
+        if (char === quote) quote = ''
+      } else if (char === '"' || char === "'" || char === '`') quote = char
+      else if (char === '(') depth++
+      else if (char === ')' && --depth === 0) { end++; break }
+    }
+    if (depth !== 0) return null
+    fields.set(match[1], [...source.slice(start, end).matchAll(/\bHeap\.([A-Za-z_$][\w$]*)/g)]
+      .map(item => item[1]).join('>'))
+  }
+  return names.length === 1 && fields.size ? { name: names[0][2], fields } : null
+}
+
+function schemaRisks(previous, current) {
+  const before = tableShape(previous), after = tableShape(current)
+  if (!before || !after) return { unknown: true, nameChanged: false, changedFields: [], addedRequired: [] }
+  const changedFields = [...before.fields].filter(([name, type]) => after.fields.get(name) !== type).map(([name]) => name)
+  const addedRequired = [...after.fields].filter(([name, type]) => !before.fields.has(name) && !type.startsWith('Optional>')).map(([name]) => name)
+  return { unknown: false, nameChanged: before.name !== after.name, changedFields, addedRequired }
+}
+
 function git(root, args) {
   const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000,
     maxBuffer: 2 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
@@ -15,7 +47,7 @@ function git(root, args) {
 /** Conservative source-change gate; the reviewer must still assess schema semantics and real occupancy. */
 export function tableChangeStatus({ root, slug, stage = 'build' }) {
   if (!isProcessSlug(slug)) throw Error('Некорректный процесс.')
-  const changed = [], errors = []
+  const changed = [], errors = [], risks = new Map()
   const files = []
   let entries = 0
   function visit(path) {
@@ -35,8 +67,10 @@ export function tableChangeStatus({ root, slug, stage = 'build' }) {
     const latest = revisions[0] ? git(root, ['show', `${revisions[0]}:${path}`]) : null
     const prior = revisions[1] ? git(root, ['show', `${revisions[1]}:${path}`]) : null
     const previous = latest === current ? prior : latest
-    if (previous !== null && previous !== current)
+    if (previous !== null && previous !== current) {
       changed.push({ path, currentSha256, previousSha256: sha(previous) })
+      risks.set(path, schemaRisks(previous, current))
+    }
   }
   if (!changed.length) return { status: errors.length ? 'unverified' : 'ready', changed, errors }
   const path = join(root, slug, 'tables/schema-decisions.json')
@@ -63,6 +97,15 @@ export function tableChangeStatus({ root, slug, stage = 'build' }) {
       errors.push(`${item.path}: нет проверки фактических строк через Chatium.`)
     if (!['additive-or-metadata', 'confirmation', 'migration'].includes(record.changeClass) || !text(record.reason))
       errors.push(`${item.path}: нужна классификация изменения и её обоснование.`)
+    const risk = risks.get(item.path)
+    if (risk?.nameChanged && record.changeClass !== 'migration')
+      errors.push(`${item.path}: смена физического имени таблицы требует миграции.`)
+    if (risk?.changedFields.length && record.changeClass !== 'migration')
+      errors.push(`${item.path}: удаление или смена типа поля ${risk.changedFields.join(', ')} требует миграции.`)
+    if (risk?.addedRequired.length && record.occupancy !== 'empty' && record.changeClass !== 'migration')
+      errors.push(`${item.path}: новое обязательное поле ${risk.addedRequired.join(', ')} в заполненной таблице требует миграции.`)
+    if (risk?.unknown && record.changeClass === 'additive-or-metadata')
+      errors.push(`${item.path}: структуру таблицы нельзя подтвердить как аддитивную автоматически; нужно отдельное решение.`)
     if (record.occupancy !== 'empty' && ['confirmation', 'migration'].includes(record.changeClass) &&
         (!text(record.ownerResponse) || !text(record.ownerMessageReference)))
       errors.push(`${item.path}: нужно решение владельца для заполненной таблицы.`)
