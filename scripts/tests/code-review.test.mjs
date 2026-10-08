@@ -532,4 +532,10 @@ test('new process check exposes uncovered work and missing page brief and review
   assert.match(checks.find(c => c.id === 'tasks').errors.join(' '), /не назначена рабочая задача/)
   assert.match(checks.find(c => c.id === 'creative').errors.join(' '), /нет creativeRef/)
   assert.match(checks.find(c => c.id === 'creative.review').errors.join(' '), /нет creativeRef/)
+  f.put('demo/index.ts', 'export const page = true\n')
+  const built = spawnSync(process.execPath,
+    [fileURLToPath(new URL('../check.mjs', import.meta.url)), 'demo', '--root', f.root,
+      '--no-snapshot', '--json', '--task-stage', 'build'], { encoding: 'utf8', timeout: 10_000 })
+  assert.match(JSON.parse(built.stdout).checks.find(c => c.id === 'creative.review').errors.join(' '),
+    /исходник demo\/index.ts уже есть при непринятом задании/)
 })

@@ -19,7 +19,7 @@ import { gitState, assertLocalState, SnapshotDrift } from './lib/git-state.mjs'
 import { writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { Script } from 'node:vm'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
@@ -1034,7 +1034,15 @@ check('creative.review', 'Независимое ревью страниц и с
   for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
     for (const stage of taskStage === 'design' ? [] : taskStage === 'build' ? ['spec'] : ['spec', 'result']) {
       const result = creativeReviewStatus({ root, slug, nodeId: node.id, stage })
-      if (result.status !== 'ready') error(`${node.id}/${stage}: ${result.error || result.blocking?.map(a => a.reason).join('; ') || result.status}`)
+      if (result.status !== 'ready') {
+        let existingSource = false
+        if (stage === 'spec' && typeof node.source === 'string') try {
+          const path = safeTaskPath(root, node.source.replace(/\/$/, ''), { mayBeMissing: true })
+          existingSource = isFile(path) || (isDir(path) && readdirSync(path).length > 0)
+        } catch { /* Некорректный путь уже показывает проверка карты. */ }
+        const detail = result.error || result.blocking?.map(a => a.reason).join('; ') || result.status
+        error(`${node.id}/${stage}: ${existingSource ? `исходник ${node.source} уже есть при непринятом задании; ` : ''}${detail}`)
+      }
       for (const gap of result.advisory || []) warn(`${node.id}/${stage}: ${gap.reason}`)
     }
   }
