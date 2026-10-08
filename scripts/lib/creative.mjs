@@ -55,6 +55,32 @@ function sourceFiles(root, spec, errors) {
   return files
 }
 
+function originalPage(root, redesign, errors) {
+  if (text(redesign?.originalUrl)) {
+    try {
+      const url = new URL(redesign.originalUrl)
+      if (url.protocol !== 'https:' || url.username || url.password) throw Error('нужен HTTPS URL без учётных данных')
+      return { url: url.toString(), revision: redesign.originalRevision || null }
+    } catch { errors.push('redesign.originalUrl: нужен корректный HTTPS URL исходной страницы без учётных данных.') }
+  }
+  if (text(redesign?.originalCapture)) {
+    try {
+      const file = safeTaskPath(root, redesign.originalCapture)
+      if (!redesign.originalCapture.toLowerCase().endsWith('.png') || statSync(file).size > 5 * 1024 * 1024)
+        throw Error('нужен PNG до 5 МиБ')
+      const bytes = readFileSync(file)
+      if (bytes.length < 24 || !bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) ||
+          bytes.toString('ascii', 12, 16) !== 'IHDR' || !bytes.readUInt32BE(16) || !bytes.readUInt32BE(20))
+        throw Error('нужен действительный PNG')
+      return { path: redesign.originalCapture, sha256: hash(bytes),
+        width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
+    } catch (error) { errors.push(`redesign.originalCapture: ${error.message}`) }
+  }
+  if (!text(redesign?.originalUrl) && !text(redesign?.originalCapture))
+    errors.push('redesign: нужен originalUrl исходной страницы или originalCapture с PNG-снимком; текстовый пересказ недостаточен.')
+  return null
+}
+
 function validateLanding(spec, errors, references) {
   const types = catalog('landing-types.json'), mechanics = catalog('mechanics.json'), styles = catalog('styles.json')
   const copywriting = catalog('copywriting.json')
@@ -250,6 +276,7 @@ export function creativePacket({ root, slug, nodeId }) {
   }
   const guidance = spec?.kind === 'landing' ? validateLanding(spec, errors, references) :
     spec?.kind === 'series' ? validateSeries(spec, errors, references) : null
+  const original = spec?.landingType === 'redesign' ? originalPage(root, spec.redesign, errors) : null
   if (node.kind === 'series' && Array.isArray(spec?.messages)) {
     const source = node.source?.endsWith('/') ? node.source : `${node.source}/`
     for (const message of spec.messages) if (!text(message.path) || !text(node.source) ||
@@ -277,12 +304,13 @@ export function creativePacket({ root, slug, nodeId }) {
     { node: hash(JSON.stringify(node)) },
     ...sources.map(s => ({ path: s.path, sha256: hash(s.content) })),
     ...copyFiles.map(file => ({ path: file.path, sha256: hash(file.content) })), ...assetFiles,
+    ...(original?.path ? [{ path: original.path, sha256: original.sha256 }] : []),
     ...(automationFile ? [automationFile] : []),
     ...referenceFiles.map(r => ({ path: r.path, sha256: hash(r.content) })),
     { selectedCatalog: hash(JSON.stringify(guidance)) }]
   const inputDigest = hash(JSON.stringify(parts))
   const buildPath = `${slug}/creative/${nodeId}/build.md`
-  return { node, spec, specPath, sources, copyFiles, assetFiles, automationFile, referenceFiles, guidance, errors, inputDigest, buildPath }
+  return { node, spec, specPath, sources, copyFiles, assetFiles, original, automationFile, referenceFiles, guidance, errors, inputDigest, buildPath }
 }
 
 export function compileCreative(packet) {
@@ -293,6 +321,7 @@ export function compileCreative(packet) {
     ...sources.map(s => ({ kind: 'knowledge', path: s.path })),
     ...copyFiles.map(f => ({ kind: 'reference', path: f.path })),
     ...assetFiles.map(f => ({ kind: 'asset', path: f.path })),
+    ...(packet.original?.path ? [{ kind: 'asset', path: packet.original.path }] : []),
     ...(automationFile ? [{ kind: 'code', path: automationFile.path }] : [])]
   const requiredInputs = [...new Map(inputList.map(item => [item.path, item])).values()]
     .sort((a, b) => a.path.localeCompare(b.path))

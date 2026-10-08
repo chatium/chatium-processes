@@ -337,10 +337,43 @@ test('redesign cannot proceed without the original and a preservation/change con
     changes: ['Упростить форму'], verification: ['Сравнить старую и новую форму'] }
   f.spec.sources[0].role = 'original'
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
-  assert.deepEqual(creativePacket(f.args).errors, [])
-  const body = compileCreative(creativePacket(f.args))
+  assert.match(creativePacket(f.args).errors.join('\n'), /originalUrl.*originalCapture/)
+  f.spec.redesign.originalUrl = 'http://example.org/original'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /корректный HTTPS URL/)
+  f.spec.redesign.originalUrl = 'https://example.org/original'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  const urlPacket = creativePacket(f.args)
+  assert.deepEqual(urlPacket.errors, [])
+  const body = compileCreative(urlPacket)
   assert.match(body, /Исходник и границы редизайна/)
   assert.match(body, /Условие выдачи материала/)
+  writeCreativeBuild(f.args)
+  const packet = creativeReviewPacket({ ...f.args, stage: 'spec' })
+  assert.equal(packet.original.url, 'https://example.org/original')
+  assert.ok(packet.questions.some(question => question.id === 'original'))
+  assert.throws(() => recordCreativeReview({ ...f.args, stage: 'spec', packet,
+    report: { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
+      inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path), answers: [] },
+    agentReference: 'unit-test-only' }), /inspectedOriginal/)
+  const specPath = 'demo/creative/lead-page/spec.yaml'
+  const quotes = [...new Set(packet.files.find(file => file.path === specPath).content.split('\n').map(line => line.trim()).filter(line => line.length > 8))]
+  const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'spec',
+    inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
+    inspectedOriginal: packet.original.url,
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass', reason: 'Проверено на исходной странице и по заданию.',
+      evidence: [{ path: specPath, quote: quotes[index] }] })) }
+  assert.equal(recordCreativeReview({ ...f.args, stage: 'spec', packet, report, agentReference: 'unit-test-only' }).status, 'ready')
+  delete f.spec.redesign.originalUrl
+  f.spec.redesign.originalCapture = 'demo/materials/original.png'
+  f.put('demo/materials/original.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64'))
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  const captured = creativePacket(f.args)
+  assert.deepEqual(captured.errors, [])
+  assert.equal(captured.original.path, 'demo/materials/original.png')
+  assert.notEqual(captured.inputDigest, urlPacket.inputDigest)
+  f.put('demo/materials/original.png', 'fake png')
+  assert.match(creativePacket(f.args).errors.join('\n'), /originalCapture: нужен действительный PNG/)
   f.spec.redesign.sourceRef = 'missing'
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.match(creativePacket(f.args).errors.join('\n'), /redesign: нужны исходный материал/)

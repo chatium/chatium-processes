@@ -39,7 +39,7 @@ function adjacentCreativeFiles(root, slug, nodeId) {
   }
   return { files, missing }
 }
-const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email']) => [
+const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email'], original = null) => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
@@ -47,6 +47,7 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png', ima
   ...(kind === 'landing' ? [
     { id: 'structure', question: 'Раскрыты ли нужные смысловые функции, механики и возражения?' },
     { id: 'design', question: 'Конкретны ли композиция, дизайн-система, изображения и мобильная версия?' },
+    ...(original ? [{ id: 'original', question: 'Открыта ли настоящая исходная страница или её PNG-снимок и сохранены ли факты, условия и действия после редизайна?' }] : []),
     ...(images.length ? [{ id: 'image-sources', question: 'Просмотрены ли используемые изображения, подходят ли они задаче и подтверждено ли право их использования по указанному источнику?' }] : []),
   ] : [
     { id: 'series', question: 'Развивается ли мысль между письмами, различаются ли их роли и согласован ли голос?' },
@@ -263,9 +264,9 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats),
+    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats, creative.original),
     files, adjacentMissing: adjacent?.missing || [], assets: creative.assetFiles,
-    visuals, messageFiles, implementation,
+    original: creative.original, visuals, messageFiles, implementation,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
@@ -281,6 +282,8 @@ function validateReport(report, packet) {
   if (!Array.isArray(report.inspectedFiles) || report.inspectedFiles.length !== files.size ||
       new Set(report.inspectedFiles).size !== files.size || report.inspectedFiles.some(path => !files.has(path)))
     throw Error('Reviewer должен перечислить все изученные файлы пакета.')
+  if (packet.original && report.inspectedOriginal !== (packet.original.path || packet.original.url))
+    throw Error('Reviewer должен открыть исходную страницу или PNG и указать её путь/URL в inspectedOriginal.')
   if (!Array.isArray(report.answers) || report.answers.length !== packet.questions.length) throw Error('Нужен ответ на каждый вопрос.')
   const ids = new Set(packet.questions.map(q => q.id)), blocking = [], advisory = []
   for (const answer of report.answers) {
