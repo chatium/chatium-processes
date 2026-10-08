@@ -11,9 +11,9 @@ function validTokenLimit(value) {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       !['const', 'hard', 'soft'].includes(value.kind) ||
-      typeof value.value !== 'number' || !Number.isFinite(value.value)) return false
+      typeof value.value !== 'number' || !Number.isFinite(value.value) || value.value <= 0) return false
   return value.kind === 'const' || (typeof value.periodValue === 'number' &&
-    Number.isFinite(value.periodValue) && TOKEN_PERIODS.has(value.periodUnit))
+    Number.isFinite(value.periodValue) && value.periodValue > 0 && TOKEN_PERIODS.has(value.periodUnit))
 }
 
 function agentFiles(dir, errors) {
@@ -89,8 +89,14 @@ export function validateProcessAgents({ root, slug, map }) {
     byKey.set(agent?.key, agent)
     for (const field of ['role', 'outcome', 'boundary']) if (!agent?.[field]) errors.push(`${where}: нет ${field}`)
     if (!Array.isArray(agent?.inputs) || !agent.inputs.length) errors.push(`${where}: опиши входы в inputs`)
+    else for (const [j, input] of agent.inputs.entries())
+      if (typeof input?.kind !== 'string' || !input.kind.trim() || typeof input?.source !== 'string' || !input.source.trim())
+        errors.push(`${where}.inputs[${j}]: нужны kind и source`)
     if (!Array.isArray(agent?.knowledge)) errors.push(`${where}: knowledge должен быть списком фактически доступных источников`)
     if (!Array.isArray(agent?.tools)) errors.push(`${where}: tools должен быть списком доступных действий`)
+    else for (const [j, tool] of agent.tools.entries())
+      if (typeof tool?.name !== 'string' || !tool.name.trim() || typeof tool?.source !== 'string' || !tool.source.trim())
+        errors.push(`${where}.tools[${j}]: нужны name и source`)
     if (!Array.isArray(agent?.cases) || !agent.cases.length) errors.push(`${where}: нужны связанные сценарии cases`)
     if (opportunities.get(agent?.opportunity)?.decision !== 'accepted') errors.push(`${where}: opportunity должен ссылаться на принятое применение`)
     const configPath = localFile(root, agent?.config)
@@ -120,20 +126,28 @@ export function validateProcessAgents({ root, slug, map }) {
     for (const [j, source] of (Array.isArray(agent?.knowledge) ? agent.knowledge : []).entries()) {
       const file = localFile(root, source)
       if (!file || !existsSync(file)) errors.push(`${where}.knowledge[${j}]: нет локального источника ${source}`)
+      else if (!isFile(file) || !readFileSync(file, 'utf8').trim()) errors.push(`${where}.knowledge[${j}]: источник пуст или не является файлом`)
     }
   }
   for (const node of agentNodes) if (!byNode.has(node.id)) errors.push(`узел ${node.id} не описан в agents/spec.yaml`)
   for (const path of configs) if (!byConfig.has(path)) errors.push(`конфиг ${relative(root, path)} не описан в agents/spec.yaml`)
 
-  const caseIds = new Set()
+  const caseIds = new Set(), caseById = new Map(), linkedCases = new Set()
   for (const [i, item] of (Array.isArray(cases.cases) ? cases.cases : []).entries()) {
     const where = `cases[${i}]`
     if (!KEY.test(item?.id || '') || caseIds.has(item?.id)) errors.push(`${where}: нужен уникальный id`)
     caseIds.add(item?.id)
+    caseById.set(item?.id, item)
     if (!byKey.has(item?.agent)) errors.push(`${where}: неизвестный agent ${item?.agent}`)
     for (const field of ['situation', 'expected', 'evidence']) if (!item?.[field]) errors.push(`${where}: нет ${field}`)
   }
-  for (const agent of byKey.values()) for (const id of (Array.isArray(agent?.cases) ? agent.cases : [])) if (!caseIds.has(id)) errors.push(`агент ${agent.key}: нет сценария ${id}`)
+  for (const agent of byKey.values()) for (const id of (Array.isArray(agent?.cases) ? agent.cases : [])) {
+    if (!caseIds.has(id)) errors.push(`агент ${agent.key}: нет сценария ${id}`)
+    else if (caseById.get(id)?.agent !== agent.key) errors.push(`агент ${agent.key}: сценарий ${id} назначен другому помощнику`)
+    else linkedCases.add(id)
+  }
+  for (const id of caseIds) if (!linkedCases.has(id) && byKey.has(caseById.get(id)?.agent))
+    errors.push(`сценарий ${id} не привязан к своему помощнику`)
 
   const routes = Array.isArray(spec.routes) ? spec.routes : []
   if (spec.routes !== undefined && !Array.isArray(spec.routes)) errors.push('routes должен быть списком')

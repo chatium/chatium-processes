@@ -44,6 +44,38 @@ test('numeric token limit is rejected before Source Git agent synchronization', 
     assert.match(f.run().errors.join('\n'), /tokensLimitPerChain должен быть объектом/)
     writeFileSync(file, JSON.stringify({ ...config, tokensLimitPerChain: { kind: 'const', value: 6000 } }))
     assert.deepEqual(f.run().errors, [])
+    writeFileSync(file, JSON.stringify({ ...config, tokensLimitPerChain: { kind: 'const', value: 0 } }))
+    assert.match(f.run().errors.join('\n'), /tokensLimitPerChain/)
+    writeFileSync(file, JSON.stringify({ ...config, tokensLimitPerChain: { kind: 'hard', value: 6000, periodValue: -1, periodUnit: 'day' } }))
+    assert.match(f.run().errors.join('\n'), /tokensLimitPerChain/)
+  } finally { f.cleanup() }
+})
+
+test('scenarios must belong to and be linked from their own agent', () => {
+  const f = fixture()
+  try {
+    f.spec.agents.push({ ...f.spec.agents[0], key: 'backup', node: 'backup',
+      config: 'demo/agents/backup.agent.json', cases: ['backup-contact'] })
+    f.map.nodes.push({ id: 'backup', kind: 'agent', source: 'demo/agents/backup.agent.json' })
+    writeFileSync(join(f.root, 'demo/agents/backup.agent.json'), JSON.stringify({ title: 'Backup', model: 'model', instructions: ['Help'] }))
+    f.cases.cases.push({ id: 'backup-contact', agent: 'backup', situation: 'Question', expected: 'Answer', evidence: 'Reply' })
+    assert.deepEqual(f.run().errors, [])
+    f.spec.agents[0].cases = ['backup-contact']
+    assert.match(f.run().errors.join('\n'), /сценарий backup-contact назначен другому помощнику/)
+    assert.match(f.run().errors.join('\n'), /сценарий first-contact не привязан к своему помощнику/)
+  } finally { f.cleanup() }
+})
+
+test('agent inputs, tools and referenced knowledge have useful local shape', () => {
+  const f = fixture()
+  try {
+    f.spec.agents[0].inputs = [{ kind: 'sender' }]
+    f.spec.agents[0].tools = [{ name: 'Check time' }]
+    writeFileSync(join(f.root, '.knowledge-base/processes/demo/offer.md'), '   ')
+    const errors = f.run().errors.join('\n')
+    assert.match(errors, /inputs\[0\]: нужны kind и source/)
+    assert.match(errors, /tools\[0\]: нужны name и source/)
+    assert.match(errors, /knowledge\[0\]: источник пуст/)
   } finally { f.cleanup() }
 })
 
@@ -91,7 +123,8 @@ test('a broken agent turns the process check red even when another agent is vali
   const f = fixture()
   try {
     f.spec.agents.push({ ...f.spec.agents[0], key: 'backup', node: 'backup',
-      config: 'demo/agents/backup.agent.json', opportunity: 'help' })
+      config: 'demo/agents/backup.agent.json', opportunity: 'help', cases: ['backup-contact'] })
+    f.cases.cases.push({ id: 'backup-contact', agent: 'backup', situation: 'New lead', expected: 'Help', evidence: 'CRM test record' })
     f.map.nodes.push({ id: 'backup', kind: 'agent', source: 'demo/agents/backup.agent.json' })
     writeFileSync(join(f.root, 'demo/agents/backup.agent.json'), JSON.stringify({ title: 'Backup', model: 'model', instructions: ['Help'], enabledTools: [] }))
     f.run()
