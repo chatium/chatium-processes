@@ -36,7 +36,7 @@ try {
     sha256: createHash('sha256').update(readFileSync(join(root, agent.config))).digest('hex'),
     model: JSON.parse(readFileSync(join(root, agent.config), 'utf8')).model || null }))
   const routes = Array.isArray(spec.routes) ? spec.routes : []
-  const input = { agents: agents.map(({ key, config }) => ({ key, config })),
+  const input = { branch, agents: agents.map(({ key, config }) => ({ key, config })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
       contacts: route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
       startParam: route.testStartParam || undefined,
@@ -44,7 +44,7 @@ try {
   const code = `import { getPublishedAgentBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
     `const input = ${JSON.stringify(input)}\n` +
     `const agents = []\n` +
-    `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentBySourcePath(ctx, item.config) }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
+    `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentBySourcePath(ctx, item.config, input.branch) }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
     `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.value.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
     `const routes = []\n` +
     `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text, startParam: item.startParam }) : null, existingDryRun: item.existingContacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.existingContacts, text: item.text, startParam: item.startParam }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +

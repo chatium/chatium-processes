@@ -331,6 +331,8 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const failed = run()
     assert.equal(failed.report.status, 'unverified')
     const code = readFileSync(inputFile, 'utf8')
+    assert.match(code, /getPublishedAgentBySourcePath\(ctx, item\.config, input\.branch\)/)
+    assert.match(code, /"branch":"process\/demo"/)
     assert.match(code, /contacts: item.contacts/)
     assert.match(code, /"contacts":\[\{"type":"email","value":"test@example.com"\}\]/)
     assert.match(code, /"existingContacts":\[\{"type":"email","value":"existing@example.com"\}\]/)
