@@ -22,9 +22,10 @@ try {
     if (!['help', 'json'].includes(key) && (typeof value !== 'string' || !value.trim() || value.startsWith('--')))
       throw Error(`Нужно значение --${key}.`)
   }
-  const root = findRoot(options.root), kind = options.kind
-  if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
   if (!['prepare', 'record', 'status'].includes(command)) throw Error('Команда: prepare, record или status.')
+  const kind = options.kind
+  if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
+  const root = findRoot(options.root)
   if (command === 'prepare' && options['board-revision'] === undefined)
     throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
   if (command === 'record' && (!options.packet || !options.response))

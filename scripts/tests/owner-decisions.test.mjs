@@ -102,6 +102,14 @@ test('decision CLI reports missing command inputs before inspecting a process', 
   }
 })
 
+test('decision CLI reports an unknown command before requiring a decision kind', () => {
+  const result = spawnSync(process.execPath,
+    [decisionCli, 'not-a-command', 'demo'], { encoding: 'utf8' })
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /Команда: prepare, record или status/)
+  assert.doesNotMatch(result.stderr, /--kind/)
+})
+
 test('launch decision detects changed delivery and board revision', t => {
   const f = fixture(t)
   f.put('.mailings/storage/processes/demo/welcome/01.message.yaml', 'subject: Подтверждение\n')
