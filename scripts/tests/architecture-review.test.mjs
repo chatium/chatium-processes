@@ -37,6 +37,54 @@ test('architecture reviewer receives actual component specifications and notices
   assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, ownerBefore)
 })
 
+test('architecture reviewer checks existing work-card conditions without tracking status bookkeeping', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-architecture-tasks-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const put = (path, content) => {
+    const file = join(root, path)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content)
+  }
+  put('.knowledge-base/.knowledge.yml', 'order: [processes]\n')
+  put('.knowledge-base/processes/.knowledge.yml', 'order: [demo]\n')
+  put('.knowledge-base/processes/demo/.knowledge.yml', 'title: Demo\norder: [overview.md]\n')
+  put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nПовторная заявка выдаёт чек-лист снова.\n')
+  put('demo/PLAN.md', '# План\n\nПовторная заявка выдаёт чек-лист снова.\n')
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  const task = { id: 'W003', planTask: 'T1', title: 'Выдать чек-лист', status: 'queued',
+    revision: 0, objective: 'Обработать повторную заявку', scope: { includes: ['Повтор'] },
+    steps: [{ id: 'P1', action: 'Проверить событие', status: 'todo' }],
+    acceptanceCriteria: [{ id: 'C1', planCriteria: ['T1.A1'],
+      condition: 'Повторная заявка не запускает второе письмо',
+      verification: { kind: 'test', instruction: 'Отправить форму дважды' } }] }
+  put('demo/tasks/index.json', '{"version":1}\n')
+  put('demo/tasks/W003.json', JSON.stringify(task))
+  const before = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  const taskPath = 'demo/tasks/W003.json'
+  assert.ok(before.files.some(file => file.path === taskPath &&
+    file.content.includes('Повторная заявка не запускает второе письмо')))
+  const report = { version: 1, process: 'demo', stage: 'architecture', inputDigest: before.inputDigest,
+    inspectedFiles: before.files.map(file => file.path),
+    inspectedReferences: [...before.referenceLibrary.required],
+    answers: before.questions.map(question => ({ id: question.id, status: 'gap', priority: 'advisory',
+      reason: 'Проверяется отдельно.', evidence: [], nextAction: 'Сверить материалы.' })) }
+  const consistency = report.answers.find(answer => answer.id === 'consistency')
+  Object.assign(consistency, { status: 'covered', reason: 'Условия якобы совпадают.',
+    evidence: [{ path: 'demo/PLAN.md', quote: 'Повторная заявка выдаёт чек-лист снова.' }] })
+  delete consistency.priority
+  delete consistency.nextAction
+  assert.throws(() => validateReview(report, before), /отдельные доказательства/)
+  consistency.evidence.push({ path: taskPath, quote: 'Повторная заявка не запускает второе письмо' })
+  assert.equal(validateReview(report, before).status, 'ready')
+
+  put('demo/tasks/W003.json', JSON.stringify({ ...task, status: 'done', revision: 3,
+    steps: [{ id: 'P1', action: 'Проверить событие', status: 'done' }] }))
+  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
+  put('demo/tasks/W003.json', JSON.stringify({ ...task, acceptanceCriteria: [{ ...task.acceptanceCriteria[0],
+    condition: 'Повторная заявка выдаёт второе письмо' }] }))
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
+})
+
 test('covered data answer requires citations from plan, table, event and analytics', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-architecture-join-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))

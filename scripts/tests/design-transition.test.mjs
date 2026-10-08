@@ -63,7 +63,10 @@ test('implementation starts only after approved plan and accepted design conclus
     inspectedReferences: [...packet.referenceLibrary.required],
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки перехода этапа.',
-      evidence: [{ path: article, quote: quote.slice(index % 3) }] })) })
+      evidence: question.id === 'consistency' && packet.files.some(file => file.path === 'demo/tasks/W001.json')
+        ? [{ path: 'demo/PLAN.md', quote: 'Корректная заявка записана.' },
+          { path: 'demo/tasks/W001.json', quote: 'Заявка записана' }]
+        : [{ path: article, quote: quote.slice(index % 3) }] })) })
   const knowledge = makeReviewPacket({ root, slug: 'demo', stage: 'design' })
   assert.equal(recordReview({ root, slug: 'demo', stage: 'design', packet: knowledge,
     report: reportFor(knowledge), agentReference: 'unit-test-only:methodology' }).status, 'ready')

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget, collectRiskDecisions, validateReview } from './knowledge-review.mjs'
@@ -14,10 +14,37 @@ export function architectureReviewPath(root, slug) {
   return path
 }
 
+function collectTaskContracts(root, slug, account) {
+  const directory = join(root, slug, 'tasks')
+  if (!existsSync(directory)) return []
+  if (!lstatSync(directory).isDirectory() || !realpathSync(directory).startsWith(account + sep))
+    throw Error('Каталог рабочих задач недоступен для ревью архитектуры.')
+  const names = readdirSync(directory).filter(name => /^W\d+\.json$/u.test(name)).sort()
+  if (names.length > 200) throw Error('Слишком много рабочих задач для ревью архитектуры.')
+  return names.map(name => {
+    const path = join(directory, name), file = lstatSync(path)
+    if (!file.isFile() || file.size > 64 * 1024 || !realpathSync(path).startsWith(account + sep))
+      throw Error(`Карточка ${name} недоступна для ревью архитектуры.`)
+    const task = JSON.parse(readFileSync(path, 'utf8'))
+    if (`${task?.id}.json` !== name) throw Error(`ID карточки ${name} не совпадает с именем.`)
+    const contract = {
+      id: task.id, planTask: task.planTask, title: task.title,
+      targetNode: task.targetNode, objective: task.objective, scope: task.scope,
+      expectedOutputs: task.expectedOutputs,
+      acceptanceCriteria: task.acceptanceCriteria,
+      questions: (task.questions || []).map(({ id, question, why, blocking, resolution }) =>
+        ({ id, question, why, blocking, ...(resolution ? { resolution } : {}) })),
+      lifecycle: task.status === 'cancelled' ? 'cancelled' : 'active',
+    }
+    return { path: `${slug}/tasks/${name}`, content: JSON.stringify(contract, null, 2) + '\n' }
+  })
+}
+
 export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR }) {
   architectureReviewPath(root, slug)
   const knowledge = collectKnowledge({ root, slug })
   const account = realpathSync(root)
+  const taskFiles = collectTaskContracts(root, slug, account)
   const specFiles = ['events.yaml', 'analytics.yaml', 'site.yaml', 'services.yaml', 'data.yaml'].flatMap(name => {
     const path = join(root, slug, 'specs', name)
     if (!existsSync(path)) return []
@@ -32,10 +59,15 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
         typeof question.question !== 'string' || !question.question))
     throw Error('Некорректная рубрика архитектуры.')
   const riskDecisions = collectRiskDecisions(root, slug)
-  const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`, ...specFiles.map(file => file.path)]
+  const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`,
+    ...specFiles.map(file => file.path), ...taskFiles.map(file => file.path)]
   const dataEvidence = [`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
     .filter(path => specFiles.some(file => file.path === path))
   const questions = [...rubric.questions.map(question => {
+    if (question.id === 'consistency' && taskFiles.length) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, { paths: taskFiles.map(file => file.path) },
+      ] }
     if (question.id === 'data' && dataEvidence.length) return { ...question,
       allowNotApplicable: false, requiredEvidenceGroups: [
         { paths: [`${slug}/PLAN.md`] }, ...dataEvidence.map(path => ({ paths: [path] })),
@@ -56,7 +88,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const base = { version: 1, process: slug, stage: 'architecture', rubricVersion: rubric.version,
     questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
     files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
-      ? { ...file, content: reviewPlan(file.content) } : file), ...specFiles,
+      ? { ...file, content: reviewPlan(file.content) } : file), ...specFiles, ...taskFiles,
     ...riskDecisions.map(({ path, content }) => ({ path, content }))]
       .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
