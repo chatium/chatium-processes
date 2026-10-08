@@ -59,6 +59,27 @@ test('boolean snapshot option with an equals value is rejected before writing', 
   assert.throws(() => readFileSync(target))
 })
 
+test('a series cannot enter test stage without channels and a real test-only recipient policy', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Follow-up\n    source: .mailings/storage/processes/demo/followup/\nlinks: []\n')
+  const workspace = stage => JSON.parse(f.run('--task-stage', stage).stdout).checks.find(check => check.id === 'workspace')
+  const missing = workspace('test')
+  assert.match(missing.errors.join('\n'), /senderChannels/)
+  assert.match(missing.errors.join('\n'), /mailings\.testOnly/)
+  assert.match(missing.errors.join('\n'), /mailings\.testContacts/)
+
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
+    senderChannels: ['email-1'], mailings: { testOnly: false, testContacts: [{ type: 'email', value: 'owner@example.com' }] },
+  } }))
+  assert.match(workspace('test').errors.join('\n'), /testOnly: true/)
+  assert.equal(workspace('launch').errors.length, 0)
+
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
+    senderChannels: ['email-1'], mailings: { testOnly: true, testContacts: [{ type: 'email', value: 'owner@example.com' }] },
+  } }))
+  assert.equal(workspace('test').errors.length, 0)
+})
+
 test('design gate asks for design review without requiring implementation sources', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: home\n    kind: page\n    stage: Lead\n    title: Home\n    purpose: Capture\n    source: demo/home/\nlinks: []\n')

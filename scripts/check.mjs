@@ -300,8 +300,18 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   const channels = ws.config?.senderChannels
   if (!Array.isArray(channels) || !channels.length || channels.some(id => typeof id !== 'string' || !id.trim())) {
     const message = 'config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Доступность каналов проверяется отдельно.'
-    if (options['task-stage'] === 'launch' && nodes.some(node => node.kind === 'series')) error(message)
+    if (['test', 'launch'].includes(options['task-stage']) && nodes.some(node => node.kind === 'series')) error(message)
     else warn(`${message} Настройка каналов не блокирует сборку.`)
+  }
+  if (nodes.some(node => node.kind === 'series') && ['test', 'launch'].includes(options['task-stage'])) {
+    const policy = ws.config?.mailings
+    if (typeof policy?.testOnly !== 'boolean') error('config.mailings.testOnly должен быть boolean перед тестом или запуском серии.')
+    else if (options['task-stage'] === 'test' && !policy.testOnly)
+      error('Для тестового прогона серии нужен config.mailings.testOnly: true.')
+    if (options['task-stage'] === 'test' && (!Array.isArray(policy?.testContacts) || !policy.testContacts.length ||
+        policy.testContacts.some(contact => !contact || typeof contact.type !== 'string' || !contact.type.trim() ||
+          typeof contact.value !== 'string' || !contact.value.trim())))
+      error('Для тестового прогона серии нужны разрешённые config.mailings.testContacts {type, value}.')
   }
   const vars = ws.config?.variables
   if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
