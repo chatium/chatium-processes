@@ -109,6 +109,19 @@ test('planned automation edge stays on the map during design and requires code d
   assert.equal(implemented.ok, true, implemented.errors.join('\n'))
 })
 
+test('map accepts a matching event in any automation within the linked folder', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\naccountId: 123\nknowledge: .knowledge-base/processes/demo\nstages: [Flow]\nnodes:\n  - {id: a, kind: page, stage: Flow, title: A, purpose: Start, source: demo/a}\n  - {id: b, kind: page, stage: Flow, title: B, purpose: Finish, source: demo/b}\nlinks:\n  - {from: a, to: b, when: after event, signal: "event:finished", via: demo/automations/flow/}\n')
+  f.put('demo/specs/events.yaml', 'events:\n  - {key: finished, type: workspaceEvent, name: Finished}\n  - {key: started, type: workspaceEvent, name: Started}\n')
+  const file = path => `demo/automations/flow/${path}.automationConfig.json`
+  f.put(file('a'), JSON.stringify({ title: 'Other', eventUrls: ['event://account/demo/started'], steps: [] }))
+  f.put(file('b'), JSON.stringify({ title: 'Finish', eventUrls: ['event://account/demo/finished'], steps: [] }))
+  const map = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'map')
+  assert.equal(map().ok, true, map().errors.join('\n'))
+  f.put(file('b'), JSON.stringify({ title: 'Wrong', eventUrls: ['event://account/demo/started'], steps: [] }))
+  assert.match(map().errors.join('\n'), /не слушает event:\/\/account\/demo\/finished/)
+})
+
 test('design accepts a planned letter before its automation, but build requires a sender', t => {
   const f = fixture(t)
   const path = '.mailings/storage/processes/demo/welcome/01.message.yaml'
