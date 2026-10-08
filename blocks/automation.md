@@ -102,17 +102,19 @@ export const prepareConsultationAction = app
     ]).optional(),
   }))
   .handle(async ctx => {
-    try {
-      const config = await getWorkspaceConfig(ctx, 'consult-booking')
-      return { success: true, result: { meetingUrl: config.variables?.meeting_url?.value ?? '', expertName: config.variables?.expert_name?.value ?? '' } }
-    } catch (err) {
-      return { success: false, result: String(err) }
-    }
+    const config = await getWorkspaceConfig(ctx, 'consult-booking')
+    return { success: true, result: { meetingUrl: config.variables?.meeting_url?.value ?? '', expertName: config.variables?.expert_name?.value ?? '' } }
   })
 ```
 
 - `name` — латиница camelCase; у каждого параметра `.meta({ title })`.
-- Возвращай `{ success, result }`: при ошибке `result` — текст ошибки.
+- Возвращай `{ success: true, result }` при успехе. При ошибке, после нужной
+  записи в журнал, **бросай исключение**: Automations считает возвращённое
+  `{ success: false }` завершённым действием с предупреждением, а
+  `settings.continueOnError: false` останавливает цепочку только при статусе
+  шага `failed`. Для `continueCondition` возвращай
+  `{ success: true, satisfied: false }` лишь когда условие действительно
+  ложно; невозможность проверить условие тоже должна бросать исключение.
 - Поля, на которые ссылается `steps.<id>.<поле>`, объяви в `.result(...)` —
   `check` сверяет их по коду.
 - `getWorkspaceConfig` вызывай с путём процесса: из `chatium exec` ближайший
