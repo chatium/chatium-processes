@@ -26,7 +26,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     return [{ path: `${slug}/specs/${name}`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 6 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 7 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
@@ -35,11 +35,17 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`, ...specFiles.map(file => file.path)]
   const dataEvidence = [`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
     .filter(path => specFiles.some(file => file.path === path))
-  const questions = [...rubric.questions.map(question => question.id === 'data' && dataEvidence.length
-    ? { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
-      { paths: [`${slug}/PLAN.md`] }, ...dataEvidence.map(path => ({ paths: [path] })),
-    ] }
-    : question), ...riskDecisions.map(item => ({
+  const questions = [...rubric.questions.map(question => {
+    if (question.id === 'data' && dataEvidence.length) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, ...dataEvidence.map(path => ({ paths: [path] })),
+      ] }
+    if (question.id === 'event-lifecycle' && specFiles.some(file => file.path === `${slug}/specs/events.yaml`))
+      return { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/PLAN.md`] }, { paths: [`${slug}/specs/events.yaml`] },
+      ] }
+    return question
+  }), ...riskDecisions.map(item => ({
     id: `risk.${item.id}`,
     question: `Учтены ли последствия отдельного решения ${item.id} вопреки существенной рекомендации в архитектуре и плане проверки?`,
     lookFor: 'Проверь ответ владельца, область действия, альтернативу, последствия и контроль. Убедись, что выбор не скрывает техническую невозможность, опасный доступ или отсутствие критической ветви.',

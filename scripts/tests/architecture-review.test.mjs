@@ -74,6 +74,17 @@ test('covered data answer requires citations from plan, table, event and analyti
   assert.equal(validateReview(report, packet).status, 'ready')
   dataAnswer.status = 'not-applicable'
   assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)
+  dataAnswer.status = 'covered'
+  const lifecycle = report.answers.find(answer => answer.id === 'event-lifecycle')
+  lifecycle.status = 'not-applicable'
+  assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)
+  Object.assign(lifecycle, { status: 'covered', reason: 'Источник каждого поля якобы существует до события.',
+    evidence: [{ path: 'demo/specs/events.yaml', quote: 'visitorUid: uid' }] })
+  delete lifecycle.priority
+  delete lifecycle.nextAction
+  assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
+  lifecycle.evidence.push({ path: 'demo/PLAN.md', quote: 'Сохраняем visitorUid вместе с заявкой' })
+  assert.equal(validateReview(report, packet).status, 'ready')
 })
 
 test('architecture review tracks each owner risk decision but ignores plan bookkeeping', t => {
