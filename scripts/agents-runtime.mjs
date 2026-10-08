@@ -70,7 +70,7 @@ try {
     if (!value.agentId) errors.push(`${agent.key}: платформа не вернула agentId`)
     else ids.set(agent.key, value.agentId)
     const node = map.nodes.find(node => node.id === spec.agents.find(item => item.key === agent.key)?.node)
-    if (!node?.agentId) errors.push(`${agent.key}: запиши опубликованный agentId в узел карты и обнови снимок`)
+    if (!node?.agentId) errors.push(`${agent.key}: запиши опубликованный agentId в process.yaml, опубликуй ветку и дождись автоматического обновления карты`)
     else if (node.agentId !== value.agentId) errors.push(`${agent.key}: agentId карты отличается от опубликованного`)
     if (row.toolError) warnings.push(`${agent.key}: каталог инструментов не проверен: ${row.toolError}`)
     for (const tool of row.toolChecks || []) {

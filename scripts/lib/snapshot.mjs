@@ -5,7 +5,7 @@ import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
-import { gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
+import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
 function safePath(root, value) {
@@ -82,7 +82,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
       try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
-    return { id: node.id, stage: node.stage, kind: node.kind === 'agent' ? 'external' : node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
+    return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
       reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
@@ -100,7 +100,8 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     }
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }
   })
-  return { version: 1, processPath: slug, title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
+  return { version: 1, processPath: slug, ...(map.knowledge ? { knowledge: map.knowledge } : {}),
+    title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
     checks: checks.map(item => ({ ...item, errors: boundedMessages(item.errors), warnings: boundedMessages(item.warnings) })) }
 }
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {
@@ -113,7 +114,14 @@ export async function startExec(root, sdkCode, expectedCommit) {
   if (expectedCommit) {
     const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
     if (!executed) throw Error('CLI не сообщил SHA исполненного коммита; актуальность результата не подтверждена.')
-    if (executed !== expectedCommit) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+    if (executed !== expectedCommit) {
+      // Source Git can reuse a successful build for a different commit with
+      // exactly the same file tree (for example, after reverting test edits).
+      let sameTree = false
+      try { sameTree = git(root, ['rev-parse', `${executed}^{tree}`]) === git(root, ['rev-parse', `${expectedCommit}^{tree}`]) }
+      catch { /* An unknown executed commit cannot prove equivalence. */ }
+      if (!sameTree) throw new SnapshotDrift(`CLI исполнил коммит ${executed}, ожидался ${expectedCommit}. Повторите проверку на нужной ветке.`)
+    }
   }
   return JSON.parse(r.stdout)
 }

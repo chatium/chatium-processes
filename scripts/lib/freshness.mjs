@@ -19,11 +19,19 @@ function content(snapshot) {
   }))
 }
 
+function visualContent(snapshot) {
+  const { checkedAt, producer, checks, nodes, ...rest } = snapshot
+  return JSON.parse(JSON.stringify({ ...rest, nodes: nodes.map(node => {
+    const { status, reason, ...visible } = node
+    return visible
+  }) }))
+}
+
 export function compareSnapshot(expected, board, expectedRevision) {
   if (!board || !Number.isInteger(board.revision) || board.revision < 0 ||
       !board.elements || !['blocks', 'connections', 'drawings'].every(k => Array.isArray(board.elements[k])) ||
       !Object.hasOwn(board, 'snapshot')) throw Error('Некорректный ответ SDK чтения доски.')
-  if (board.snapshot === null) throw new SnapshotDrift('Снимок карты отсутствует. Выполните check без --verify-snapshot.')
+  if (board.snapshot === null) throw new SnapshotDrift('Снимок карты отсутствует. Дождитесь сборки ветки; при сбое используйте check --publish-snapshot.')
   const stored = board.snapshot
   if (!Number.isInteger(stored.revision) || stored.revision < 1 || !stored.snapshot || !Array.isArray(stored.snapshot.checks))
     throw Error('Некорректный снимок в ответе SDK.')
@@ -31,11 +39,16 @@ export function compareSnapshot(expected, board, expectedRevision) {
   if (actual.processPath !== expected.processPath || actual.branch !== expected.branch)
     throw new SnapshotDrift('Снимок принадлежит другому процессу или ветке.')
   if (actual.commit !== expected.commit)
-    throw new SnapshotDrift(`Карта отстала: снимок ${actual.commit}, HEAD ${expected.commit}. Повторите check после push.`)
+    throw new SnapshotDrift(`Карта отстала: снимок ${actual.commit}, HEAD ${expected.commit}. Дождитесь хука сборки после push.`)
   if (expectedRevision !== undefined && (stored.revision !== expectedRevision || actual.checkedAt !== expected.checkedAt))
     throw new SnapshotDrift('После записи снимок изменился. Прочитайте доску и повторите check.')
-  if (!isDeepStrictEqual(content(expected), content(actual)))
-    throw new SnapshotDrift('Коммит совпал, но содержимое карты или результаты проверок отличаются. Повторите check для обновления снимка.')
+  // A build hook projects the map from published files but has not run the
+  // skill's independent checks. Compare visible structure; check.mjs runs its
+  // own validations and reports N/M separately.
+  if (!isDeepStrictEqual(actual.producer === 'build-hook'
+    ? visualContent(expected) : content(expected),
+  actual.producer === 'build-hook' ? visualContent(actual) : content(actual)))
+    throw new SnapshotDrift('Коммит совпал, но содержимое карты отличается. Проверьте сборку и при необходимости восстановите снимок через check --publish-snapshot.')
 }
 
 export async function verifySnapshot(root, expected, { expectedRevision, reader = readBoard } = {}) {
@@ -46,6 +59,7 @@ export async function verifySnapshot(root, expected, { expectedRevision, reader 
     compareSnapshot(expected, board, expectedRevision)
     assertPublishedState(root, expected)
     return { verified: true, status: 'current', branch: expected.branch, commit: expected.commit,
+      ...(board.snapshot.snapshot.producer ? { producer: board.snapshot.snapshot.producer } : {}),
       revision: board.snapshot.revision, boardRevision: board.revision, elements: board.elements }
   } catch (e) {
     return { verified: false, status: e instanceof SnapshotDrift ? 'stale' : 'unavailable', error: e.message,

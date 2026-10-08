@@ -19,7 +19,7 @@ test('planned automation link survives in the design snapshot before its source 
   assert.deepEqual(link.automationFiles,[])
   assert.deepEqual(link.steps,[])
 })
-test('agent path and explicit runtime ID survive in snapshot',()=>{const agent={id:'helper',stage:'Follow up',kind:'agent',title:'Helper',purpose:'',source:'demo/agents/helper.agent.json',agentId:'agent-42'};const nodes=build({map:{...map,nodes:[...map.nodes,agent]}}).nodes;assert.equal(nodes[2].kind,'external');assert.deepEqual(nodes[2].agent,{path:agent.source,id:'agent-42'});assert.deepEqual(build({map:{...map,nodes:[...map.nodes,{...agent,agentId:undefined}]}}).nodes[2].agent,{path:agent.source})})
+test('agent path and explicit runtime ID survive in snapshot',()=>{const agent={id:'helper',stage:'Follow up',kind:'agent',title:'Helper',purpose:'',source:'demo/agents/helper.agent.json',agentId:'agent-42'};const nodes=build({map:{...map,nodes:[...map.nodes,agent]}}).nodes;assert.equal(nodes[2].kind,'agent');assert.deepEqual(nodes[2].agent,{path:agent.source,id:'agent-42'});assert.deepEqual(build({map:{...map,nodes:[...map.nodes,{...agent,agentId:undefined}]}}).nodes[2].agent,{path:agent.source})})
 test('snapshot bounds long diagnostics to the Start contract without hiding local check output',()=>{const errors=Array.from({length:102},(_,i)=>`Ошибка ${i}: `+'x'.repeat(2100));const snapshot=build({checks:[{id:'long',title:'Большая проверка',ok:false,errors,warnings:[]}]});assert.equal(snapshot.checks[0].errors.length,100);assert.ok(snapshot.checks[0].errors.every(item=>item.length<=2000));assert.equal(errors.length,102)})
 test('oversized snapshot is rejected locally before Git or SDK publication', async () => {
   const snapshot = { ...build(), title: 'x'.repeat(250_000) }
