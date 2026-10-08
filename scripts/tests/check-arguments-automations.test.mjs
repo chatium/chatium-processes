@@ -88,6 +88,21 @@ test('planned automation edge stays on the map during design and requires code d
   assert.equal(implemented.ok, true, implemented.errors.join('\n'))
 })
 
+test('design accepts a planned letter before its automation, but build requires a sender', t => {
+  const f = fixture(t)
+  const path = '.mailings/storage/processes/demo/welcome/01.message.yaml'
+  f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: welcome\n    kind: series\n    stage: Lead\n    title: Welcome\n    source: .mailings/storage/processes/demo/welcome/\n    creativeRef: demo/creative/welcome/spec.yaml\nlinks: []\n')
+  f.put('demo/creative/welcome/spec.yaml', JSON.stringify({ deliveryMode: 'automation', messages: [{ path }] }))
+  f.put(path, 'title: Первый шаг\ndescription: Выдача материала\nsubject: Материал\nplain: Текст\nhtml: <p>Текст</p>\n')
+  const letters = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'letters')
+  const design = letters('--task-stage', 'design')
+  assert.doesNotMatch(design.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+  assert.match(design.warnings.join('\n'), /подключение проверяется на этапе сборки/)
+  assert.match(letters('--task-stage', 'build').errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+  f.put('.mailings/storage/processes/demo/welcome/unplanned.message.yaml', 'title: Лишнее\ndescription: Без задания\nsubject: Лишнее\nplain: Текст\nhtml: <p>Текст</p>\n')
+  assert.match(letters('--task-stage', 'design').errors.join('\n'), /unplanned.*не отправляет ни один шаг автоматизации/)
+})
+
 test('unsupported branches and templated dateExpression fail automations check', t => {
   const f = fixture(t)
   f.put('demo/automations/a.automationConfig.json', JSON.stringify({

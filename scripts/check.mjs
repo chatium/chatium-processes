@@ -946,7 +946,11 @@ check('letters', 'Письма шагов отправки и их переме�
       if (!v?.name || !v?.description) error(`${p}: у переменной нет name или description`)
       else if (!used.has(v.name)) warn(`${p}: переменная ${v.name} объявлена, но не используется`)
     }
-    if (!sent.has(p) && !manuallyInvoked.has(p)) error(`${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`)
+    if (!sent.has(p) && !manuallyInvoked.has(p)) {
+      const message = `${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`
+      if (options['task-stage'] === 'design' && formatsByLetter.has(basePath)) warn(`${message}; подключение проверяется на этапе сборки`)
+      else error(message)
+    }
   }
 })
 
