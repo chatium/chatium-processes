@@ -11,7 +11,8 @@ nodes:
   - {id: migration, stage: Решение, kind: external, title: Перенос заявок, purpose: Сверить и перенести старые записи без потери входа, source: studio/services/migrate.ts, serviceRef: migration}
 links:
   - {from: request-page, to: requests, when: успешная транзакция заявки}
-  - {from: requests, to: staff-notice, when: новая сохранённая заявка с requestId}
+  - {from: requests, to: staff-notice, when: "только новая сохранённая заявка формы с requestId; не строка миграции"}
+  - {from: requests, to: admin-review, when: перенесённая pending строка показана в защищённой ручной очереди без Store}
   - {from: staff-notice, to: admin-review, when: сотрудник открывает уведомление}
   - {from: admin-review, to: requests, when: сохранение confirmed или declined}
   - {from: requests, to: report, when: чтение уникальных requestId и статусов}

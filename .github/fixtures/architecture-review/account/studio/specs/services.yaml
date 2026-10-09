@@ -2,10 +2,13 @@ version: 1
 services:
   - id: staff-notice
     nodeId: staff-notice
-    trigger: новая строка requests после commit
+    trigger: только новая строка формы в requests после commit; миграция не вызывает Store
     input: сохранённый requestId и серверный testStaffUserId с подтверждённой ролью Staff+
-    output: Store dispatchId, state queued или skipped, eligibleCount; noticePending сохраняется до проверки Inbox
+    output: Store dispatchId, state queued или skipped, eligibleCount; noticeState отражает исход, noticePending сохраняется до просмотра сотрудником
     recipient: recipients.userIds содержит один testStaffUserId, а не клиента
+    typeKey: request.created
+    title: Новая заявка на занятие
+    text: Заявка ждёт решения; без имени, email и других данных клиента
     url: /studio/admin?requestId=<requestId>; сервер проверяет Staff+ и доступ к этой заявке
     repeat: один стабильный id request:<requestId>; повтор Store обновляет ту же запись Inbox
     access: только серверный обработчик после записи requests или ограниченная задача повтора
@@ -23,9 +26,9 @@ services:
     nodeId: migration
     trigger: отдельная ручная операция Staff+ до переключения входа
     input: снимок legacy-requests с legacyId, classId, testRecipientKey, status, createdAt и сохранённый checkpoint старого ID
-    output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей
+    output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable; pending получает noticePending=true и noticeState=manual-backlog, confirmed/declined получают false и not-applicable; Store не вызывается; отчёт сверки всех полей
     access: только отдельная операция администратора с серверной проверкой роли и журналом действий
     repeat: перенос по legacyId идемпотентен; перед cutover пауза старого входа, ожидание in-flight и перенос дельты
     errors: [нет classId в каталоге или testRecipientKey в конфиге — строка не переносится и cutover запрещён, расхождение любого поля или числа не переключает вход, отказ записи сохраняет прежний маршрут]
     rollback: под паузой нового входа перенос новых записей обратно по ID и возврат старого маршрута
-    acceptance: дельта и все обязательные поля сверены непосредственно перед атомарным переключением; синтетическая старая pending-заявка проходит ручное confirmed и booking_confirmed с сохранённым контактом, а request_saved повторно не выходит
+    acceptance: дельта и все обязательные поля сверены непосредственно перед атомарным переключением; старая pending-заявка видна в защищённой очереди без лишнего Store-элемента, проходит ручное confirmed и booking_confirmed с сохранённым контактом, а request_saved повторно не выходит; завершённая старая строка не создаёт уведомление

@@ -2,7 +2,7 @@ version: 1
 title: Контрольная запись
 businessModel: Вымышленная ручная запись на занятие
 requiredRoles: [request, admin]
-entityFields: [requestId, classId, status]
+entityFields: [requestId, classId, status, noticePending, noticeState]
 pages:
   - nodeId: request-page
     role: request
@@ -15,7 +15,7 @@ pages:
   - nodeId: admin-review
     role: admin
     route: /studio/admin
-    purpose: Ручное решение по сохранённой заявке
-    filters: []
+    purpose: Защищённый список pending заявок, ошибок Store и ручной очереди перенесённых заявок; решение по записи
+    filters: [status, noticePending, noticeState]
     access: Staff+ с проверкой роли и доступа к заявке на сервере
-    actions: [confirmed, declined]
+    actions: [открыть заявку по requestId, отметить просмотр и noticeState=acknowledged, confirmed, declined, ограниченно повторить Store для новой заявки со skipped или error]
