@@ -1,0 +1,12 @@
+version: 1
+title: Контрольная запись
+pages:
+  - path: /studio/request
+    purpose: Принять синтетический запрос и показать нейтральный ответ
+    access: public-with-test-gate
+    form: [classId, contact, requestKey]
+    errors: [нет места не обещается, ошибка записи не показывает успех]
+  - path: /studio/admin
+    purpose: Ручное решение по сохранённой заявке
+    access: Staff+ с проверкой роли и доступа к заявке на сервере
+    actions: [confirmed, declined]

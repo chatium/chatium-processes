@@ -1,0 +1,31 @@
+version: 1
+services:
+  - id: staff-notice
+    nodeId: staff-notice
+    trigger: новая строка requests после commit
+    input: сохранённый requestId и серверный testStaffUserId с подтверждённой ролью Staff+
+    output: Store dispatchId, state queued или skipped, eligibleCount; noticePending сохраняется до проверки Inbox
+    recipient: recipients.userIds содержит один testStaffUserId, а не клиента
+    url: /studio/admin?requestId=<requestId>; сервер проверяет Staff+ и доступ к этой заявке
+    repeat: один стабильный id request:<requestId>; повтор Store обновляет ту же запись Inbox
+    access: только серверный обработчик после записи requests или ограниченная задача повтора
+    errors: [нет настроенного сотрудника блокирует запуск, skipped или eligibleCount=0 видны в списке, сбой Store сохраняет noticePending]
+    acceptance: одно уведомление на новый requestId, queued не объявляется доставкой, тестовый Staff+ проверяет Inbox
+  - id: report
+    nodeId: report
+    input: период и подтверждённый Staff+ пользователь
+    output: знаменатель distinct requestId и числитель distinct requestId со status confirmed за тот же период
+    access: только серверная проверка Staff+; внешний посетитель не видит данные и не вызывает отчёт
+    repeat: чтение не меняет заявки и события
+    errors: [неверный период, отказ чтения, неполные eventState показаны отдельно]
+    acceptance: повтор и отказ события не меняют долю, выборка ограничена по периоду
+  - id: migration
+    nodeId: migration
+    trigger: отдельная ручная операция Staff+ до переключения входа
+    input: снимок legacy-requests и сохранённый checkpoint старого ID
+    output: requests с соответствием legacyId -> requestId и отчёт сверки
+    access: только отдельная операция администратора с серверной проверкой роли и журналом действий
+    repeat: перенос по legacyId идемпотентен; перед cutover пауза старого входа, ожидание in-flight и перенос дельты
+    errors: [расхождение числа или статусов не переключает вход, отказ записи сохраняет прежний маршрут]
+    rollback: под паузой нового входа перенос новых записей обратно по ID и возврат старого маршрута
+    acceptance: дельта и контрольная сумма сверены непосредственно перед атомарным переключением

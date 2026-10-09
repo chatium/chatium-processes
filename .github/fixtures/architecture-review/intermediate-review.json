@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "process": "studio",
+  "stage": "architecture",
+  "inputDigest": "95acf0bb7a9e8a12f57a886c63f77fb3c9cd8c22765da42346de746bdcf76cb8",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/studio/.knowledge.yml",
+    ".knowledge-base/processes/studio/overview.md",
+    "studio/.workspace.json",
+    "studio/PLAN.md",
+    "studio/process.yaml",
+    "studio/specs/analytics.yaml",
+    "studio/specs/data.yaml",
+    "studio/specs/events.yaml",
+    "studio/specs/services.yaml",
+    "studio/specs/site.yaml"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/formats/plan-md.md",
+    "skills/processes/formats/process-yaml.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/blocks/site-service.md",
+    "skills/processes/formats/events-yaml.md",
+    "skills/processes/blocks/analytics.md",
+    "skills/processes/blocks/form-table-event.md",
+    "skills/chatium-development/store-notifications.md",
+    "skills/chatium-development/jobs.md",
+    "skills/chatium-development/automations-events.md",
+    "skills/processes/blocks/crm.md",
+    "skills/chatium-development/forms.md",
+    "skills/processes/build/architecture-reviewer.md"
+  ],
+  "answers": [
+    {
+      "id": "goals",
+      "status": "covered",
+      "reason": "Для каждой цели теперь есть путь: форма и обработчик сохраняют заявку с requestId; Store уведомляет сотрудника; защищённый экран записывает ручной исход; отчёт считает уникальные сохранённые заявки и confirmed по одному ключу. Ответственные названы. Это покрытие цели на уровне замысла, а не доказательство готовности контрактов и реализации.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Цель: сохранить один запрос\nна занятие, показать посетителю только факт приёма, уведомить ответственного\nсотрудника и посчитать долю запросов с ручным подтверждением места."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "В защищённом экране сотрудник проверяет место и меняет\n`pending` на `confirmed` или `declined`."
+        },
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "denominator: distinct requestId из requests за выбранный период\nnumerator: distinct requestId из тех же requests со status confirmed"
+        }
+      ]
+    },
+    {
+      "id": "journey",
+      "status": "covered",
+      "reason": "Основной и альтернативные исходы описаны: успешная запись даёт нейтральный ответ, повтор не создаёт вторую строку, сотрудник подтверждает либо отказывает вручную; ошибки CRM и Store сохраняют отдельные признаки, ошибка записи не показывается как успех. Клиентские рассылки и оплата явно вне контрольного сценария. Технические пробелы в механизме повторов и доступе оценены отдельно.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Повтор возвращает тот же нейтральный ответ без второй строки и второго\nуведомления."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "В защищённом экране сотрудник проверяет место и меняет\n`pending` на `confirmed` или `declined`."
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "errors: [нет места не обещается, ошибка записи не показывает успех]"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Если мест нет, сотрудник сообщает отказ вручную."
+        }
+      ]
+    },
+    {
+      "id": "contracts",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Контракты частично появились, но для узла report нет записи в specs/services.yaml; у staff-notice нет входа, выхода, повторного вызова и различения queued/skipped, у migration нет поведения при параллельной записи и повтора. В data.yaml не указаны роли чтения и типы полей. Поэтому готовность всех компонентов по входам, выходам, состояниям, ошибкам и доступу проверить нельзя.",
+      "nextAction": "Дополнить контракты report, staff-notice и migration входами, результатами, доступом, повторами и отказами; описать роли чтения и типы ключевых полей таблицы.",
+      "evidence": [
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {id: report, stage: Решение, kind: service, title: Отчёт, purpose: Доля подтверждённых заявок по requestId, source: studio/services/report.ts}"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: staff-notice\n    trigger: новая строка requests после commit\n    recipient: Staff+ через Store SDK"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: migration\n    trigger: отдельная ручная операция Staff+ до переключения входа"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "    fields: [requestId, legacyId, classId, customerId, requestKey, status, eventPending, noticePending, createdAt]"
+        }
+      ]
+    },
+    {
+      "id": "site-and-services",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Две нужные страницы есть и по назначению совпадают с планом, но site.yaml не связывает их через nodeId/route/role и не объявляет requiredRoles. Два сервисных узла карты имеют неподдерживаемый kind: service вместо external/serviceRef; specs/services.yaml описывает staff-notice и migration, но не report, и не содержит полного контракта самостоятельных операций. Это мешает карте однозначно связать сервисы и проверить их.",
+      "nextAction": "Привести страницы к формату site.yaml с nodeId, role и route; сервисы представить external с serviceRef, добавить report и полные вход/выход/доступ/повтор/ошибки.",
+      "evidence": [
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "pages:\n  - path: /studio/request"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "kind: service, title: Уведомление сотрудника"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "kind: service, title: Отчёт"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "services:\n  - id: staff-notice"
+        }
+      ]
+    },
+    {
+      "id": "links",
+      "status": "gap",
+      "reason": "Пять переходов теперь соответствуют названным операциям: форма сохраняет requests, новая строка инициирует Store, экран меняет статус, отчёт читает requests, миграция переносит legacy-requests. Но стрелка staff-notice → admin-review обещает открытие экрана из уведомления, а в контракте Store нет url/маршрута с requestId; наличие /studio/admin само по себе не делает уведомление переходом. Эта связь на карте пока не подтверждена фактическим URL.",
+      "evidence": [
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {from: staff-notice, to: admin-review, when: сотрудник открывает уведомление}"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: staff-notice\n    trigger: новая строка requests после commit\n    recipient: Staff+ через Store SDK\n    payload: [requestId]"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "  - path: /studio/admin\n    purpose: Ручное решение по сохранённой заявке"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Задать для Store уведомления защищённый URL/RouteRef на /studio/admin с requestId либо явно описать открытие списка, проверить доступ при прямом переходе и синхронизировать карту с этим контрактом."
+    },
+    {
+      "id": "data",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "requestId теперь проходит через таблицу, события и отчёт, а контакт вынесен из аналитического payload. Но получение customerId до сохранения не имеет подтверждённого источника: по доступной справке CRM создаёт/связывает клиента при captureCustomerEvent, который план вызывает после записи. В таблице не описаны readers/identity rule. Миграция считает строки и статусы, но при работающем старом входе новые legacy-заявки могут появиться между сверкой и переключением и не попасть в requests. Пустые variables допустимы: изменяемых цены и контакта поддержки здесь нет.",
+      "nextAction": "Указать реальный API/порядок получения customerId и хранения контакта на сбое CRM; задать readers и правило requestKey; закрыть окно миграции паузой входа, двойной записью или повторным переносом дельты перед атомарным переключением.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "CRM\nразрешает его в `customerId`; контакт остаётся в CRM, не в аналитическом\npayload."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Только после успешной записи публикуется `request_saved`"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "identity: CRM хранит контакт; requests хранит только customerId"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "До переключения новый обработчик читает старую таблицу по её прежнему ID;\nодноразовая миграция переносит записи"
+        },
+        {
+          "path": "studio/.workspace.json",
+          "quote": "{\"type\":\"process\",\"config\":{\"variables\":{}}}"
+        }
+      ]
+    },
+    {
+      "id": "event-lifecycle",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Оба события перенесены после сохранения, а requestId/classId доступны из requests; потребитель — операционное наблюдение. Но контакт обоих событий задан только как поиск CRM по customerId, получение которого до request_saved не подтверждено. Для request_saved запланирован «идемпотентный» повтор CRM после eventPending, хотя у captureCustomerEvent нет ключа идемпотентности и после таймаута исход надо сначала сверить. Один eventPending не различает сбой request_saved и booking_confirmed. Реестр не задаёт type и payloadMapping, поэтому фактические слоты и URL публикации не определены.",
+      "nextAction": "Подтвердить источник customerId либо передавать фактически полученный контакт в CRM после сохранения; разделить состояние событий по ключам и описать сверку неизвестного исхода до повтора; оформить оба события как customerEvent с payloadMapping для requestId/classId.",
+      "evidence": [
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: request_saved\n    writer: обработчик формы после успешной транзакции requests\n    contacts: синтетический контакт из CRM по customerId\n    payload: [requestId, classId]\n    failure: eventPending сохраняется для ограниченного идемпотентного повтора"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: booking_confirmed\n    writer: защищённый экран после записи статуса confirmed\n    contacts: синтетический контакт из CRM по customerId\n    payload: [requestId]\n    failure: eventPending и ручная диагностика, без повторного подтверждения"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "fields: [requestId, legacyId, classId, customerId, requestKey, status, eventPending, noticePending, createdAt]"
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Оплата, письма и автоматическое клиентское напоминание исключены, поэтому providerId и mailings.testOnly здесь не требуются. Остаётся реальный внешний эффект Store: план не задаёт синтетического Staff+ получателя и полного теста сохранённой заявки с проверкой queued/skipped, Inbox и ограниченного повтора Jobs. Формулировка «доставка не принята» не различает очередь от фактической доставки. Без этого тестовая отправка может затронуть реальных сотрудников или молча пропустить адресата.",
+      "nextAction": "Назначить отдельного тестового Staff+ получателя и сценарий полного синтетического прогона формы, Store Inbox и повтора; различать queued/skipped/ошибку и проверять фактическое появление уведомления.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/studio/overview.md",
+          "quote": "используются только синтетические контакты и заявки; публичный запуск,\nоплата и реальные отправки не разрешены."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Сотрудник Staff+ получает через Store SDK одно внутреннее уведомление с\n`requestId`. Если доставка уведомления не принята, остаётся `noticePending`"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "recipient: Staff+ через Store SDK"
+        }
+      ]
+    },
+    {
+      "id": "staff-notifications",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Момент, канал, requestId и дедупликация теперь есть. Но «Staff+» не выбирает ответственного получателя: Store SDK требует конкретные userIds либо перечисленные accountRoles, а статус queued не подтверждает получение. Поскольку ответственный должен вручную решить заявку, без маршрутизации и реакции на skipped/нулевой eligibleCount она может остаться без владельца.",
+      "nextAction": "Выбрать сотрудника или конкретные роли Store, задать защищённую ссылку на заявку, обработать skipped/пустую аудиторию и проверить Inbox у адресата.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "уведомить ответственного\nсотрудника"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    recipient: Staff+ через Store SDK\n    payload: [requestId]\n    deduplication: requestId"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {from: staff-notice, to: admin-review, when: сотрудник открывает уведомление}"
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Служебная страница теперь требует Staff+ и серверную проверку доступа к заявке, а клиент не может вызвать сервис уведомления. Но форма названа public-with-test-gate без условия проверки gate на сервере, хотя публичный запуск запрещён. Не описаны роли чтения requests и защита прямого вызова report/migration; ошибка в UI-проверке открыла бы список заявок или операцию переноса. Параметр URL не используется как полномочие, что верно.",
+      "nextAction": "Задать проверяемый серверный тестовый gate для POST и страницы формы; определить роли и серверные проверки чтения requests, отчёта и миграции, независимо от UI.",
+      "evidence": [
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "    access: public-with-test-gate"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "    access: Staff+ с проверкой роли и доступа к заявке на сервере"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    trigger: отдельная ручная операция Staff+ до переключения входа"
+        },
+        {
+          "path": ".knowledge-base/processes/studio/overview.md",
+          "quote": "публичный запуск,\nоплата и реальные отправки не разрешены."
+        }
+      ]
+    },
+    {
+      "id": "reuse",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Самодельный бесконечный опрос убран; заданы Store SDK, ограниченные Jobs и перенос с откатом. Однако одноразовая миграция при ещё работающем старом входе не описывает дельту, блокировку или двойную запись на момент переключения. Поэтому активные заявки могут остаться только в legacy-requests, несмотря на совпадение количества при предыдущей сверке. Доступных typings для CRM/Store в снимке нет; API здесь оценены по справкам, контракт надо подтвердить до реализации.",
+      "nextAction": "Добавить безопасный cutover с фиксацией/повтором дельты и сверкой непосредственно перед переключением; предусмотреть обратный перенос новых записей при откате и проверить SDK по typings перед кодом.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "До переключения новый обработчик читает старую таблицу по её прежнему ID;\nодноразовая миграция переносит записи"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Только после сверки вход переключается на `requests`."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Старую таблицу хранят\nдля отката в течение контрольного периода"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Собственный бесконечный\nопрос и новая копия транспортной телеметрии не создаются"
+        }
+      ]
+    },
+    {
+      "id": "consistency",
+      "status": "gap",
+      "priority": "blocking",
+      "reason": "Смысл метрики теперь согласован: отчёт берёт сохранённые requestId и status, события лишь наблюдают, цена и контакт поддержки не нужны при пустых variables. Остались несостыковки между обещанным потоком и контрактами: плану нужен customerId до записи, тогда как доступный описанный CRM-путь создаёт связь при последующем событии; единый eventPending одновременно обслуживает два разных события; report присутствует в карте, но отсутствует в services.yaml; сервисные узлы используют kind: service, которого нет в формате карты. Карточек tasks/W*, агентов и risk.RD* в этом пакете нет.",
+      "nextAction": "Согласовать порядок CRM и записи, раздельные состояния событий и явный контракт report; привести виды/ссылки сервисных узлов к формату карты и синхронизировать все спецификации до сборки.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "CRM\nразрешает его в `customerId`"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Только после успешной записи публикуется `request_saved`"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "status, eventPending, noticePending, createdAt"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "kind: service, title: Отчёт"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "services:\n  - id: staff-notice"
+        }
+      ]
+    }
+  ]
+}

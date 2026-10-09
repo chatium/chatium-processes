@@ -1,0 +1,11 @@
+version: 1
+tables:
+  - id: requests
+    owner: ответственный сотрудник
+    fields: [requestId, legacyId, classId, customerId, requestKey, status, eventPending, noticePending, createdAt]
+    unique: [requestKey, requestId]
+    retention: синтетические записи удаляются через 30 дней
+  - id: legacy-requests
+    owner: прежний обработчик до сверки
+    migration: соответствие legacyId -> requestId, проверка числа и статусов, откат до удаления
+identity: CRM хранит контакт; requests хранит только customerId

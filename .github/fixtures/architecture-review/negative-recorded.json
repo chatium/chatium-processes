@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "process": "studio",
+  "stage": "architecture",
+  "status": "needs-work",
+  "inputDigest": "49e3b1dfb930298bc296c8dec55f0b341bd790987285c3ca513b039d5acae039",
+  "rubricVersion": 8,
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "architecture_control_review"
+  },
+  "reviewedAt": "2026-10-09T03:21:31.381Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/studio/.knowledge.yml",
+    ".knowledge-base/processes/studio/overview.md",
+    "studio/.workspace.json",
+    "studio/PLAN.md",
+    "studio/process.yaml",
+    "studio/specs/analytics.yaml",
+    "studio/specs/data.yaml",
+    "studio/specs/events.yaml",
+    "studio/specs/site.yaml"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/formats/plan-md.md",
+    "skills/processes/formats/process-yaml.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/formats/events-yaml.md",
+    "skills/processes/blocks/analytics.md",
+    "skills/processes/blocks/form-table-event.md",
+    "skills/processes/blocks/site-service.md",
+    "skills/chatium-development/store-notifications.md",
+    "skills/chatium-development/jobs.md",
+    "skills/chatium-development/forms.md",
+    "skills/processes/build/architecture-reviewer.md",
+    "skills/chatium-development/automations-events.md",
+    "skills/processes/blocks/automation.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/chatium-development/automations-events.md": "015e0ea91868ab5eaa81298a0a196a5d3e7fdda3af6d233b940487dc0bf5d391",
+    "skills/chatium-development/forms.md": "4e1e15ee7b999a65024e8a8da28e412dd41cc69fdc252a44c37a7924ae92d6cd",
+    "skills/chatium-development/jobs.md": "0f8fe74e3304a30cdfb673c5a2eccb320e997af32d41a8ab082626561b371a8b",
+    "skills/chatium-development/store-notifications.md": "94b99fed72458cf987805720d92395942f194dbaf9974089dc6494bb0213635b",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/blocks/analytics.md": "af608040d0dc3971f2a63e24d87f32aeebd7a09f450774e7c010b7c55838c0ef",
+    "skills/processes/blocks/automation.md": "b56e5dfe8e2644488d8219657f7933cc30a0941c4e44caaedf03a5f704eaff2f",
+    "skills/processes/blocks/form-table-event.md": "ce6870ad58710d0e668731f2d8a929092975f4867262b072a4c45acc4a21a187",
+    "skills/processes/blocks/site-service.md": "7847bd9194debc0bdf9d62918a97becc8e532de8505c2f6bfcb3ab7e9113d084",
+    "skills/processes/build/architecture-reviewer.md": "408647231ecf6e45fcf4e0c55d96bc6be5965bf0684e9a49881f984b7b391ddc",
+    "skills/processes/formats/events-yaml.md": "73f1d44659a6542001a8664bbd91c20642cb01b3d45c611ed0c1614ac3f5a4ce",
+    "skills/processes/formats/plan-md.md": "e70593d6daa2142b6937e4222b7c081bb5459e555e823208648879775b90078f",
+    "skills/processes/formats/process-yaml.md": "2e85e0a1eb81e4bdd7a365711fa8707bd37f0900feecb1fc115bbe22caf0914f"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "goals",
+      "status": "gap",
+      "reason": "Цель ручного подтверждения и измерения доли подтверждённых заявок не доведена до исполнителя и корректного измерения: карта содержит только форму, таблицу и опрос; действие администратора и источник booking_confirmed не описаны. Знаменатель page_view считает просмотры, а не заявки, поэтому формула не отвечает на вопрос цели.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Цель: принять синтетическую заявку, дать администратору возможность ответить\nи посчитать долю заявок, которые закончились ручным подтверждением."
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {id: custom-poller, stage: Решение, kind: service, title: Опрос, purpose: Искать заявки без ответа, source: studio/services/poll.ts}"
+        },
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "formula: booking_confirmed / page_view"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить защищённый путь администратора с операцией подтверждения/отказа и источником события; определить воронку по сохранённым уникальным заявкам и подтверждениям одного requestId."
+    },
+    {
+      "id": "journey",
+      "status": "gap",
+      "reason": "Описан только вход формы. Нет подтверждённого перехода от сохранённой заявки к сообщению «получена», ручному ответу, подтверждению/отказу и закрытию заявки. Ошибка сохранения или записи события и повторная отправка формы не имеют исхода; при ошибке можно показать ложное принятие либо создать дубль.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Посетитель\nвидит, что заявка получена, но место пока не подтверждено."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Доступ к экрану заявок и отказ записи события не описаны."
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "pages:\n  - path: /studio/request\n    purpose: Отправить заявку\n    form: [email, classId]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Нарисовать основной, отказной и повторный пути с состояниями заявки, сообщением посетителю после успешного сохранения и действиями администратора; отдельно описать сбой таблицы/CRM и безопасный повтор."
+    },
+    {
+      "id": "contracts",
+      "status": "gap",
+      "reason": "Названия и purpose узлов не задают входы, выходы, состояния, ошибки, роли и критерии готовности. В частности, для формы нет контракта создания и подтверждения приёма, для таблицы — владельца и идентичности, для опроса — периодичности, условия остановки и реакции на ошибки.",
+      "evidence": [
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {id: request-page, stage: Заявка, kind: page, title: Форма, purpose: Принять заявку, source: studio/pages/request/}"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {id: custom-poller, stage: Решение, kind: service, title: Опрос, purpose: Искать заявки без ответа, source: studio/services/poll.ts}"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "    fields: [email, classId, status]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Зафиксировать операционные контракты формы/POST, таблицы и напоминания: поля и валидацию, результат, статусы, повторы, ошибочные исходы, доступ и проверяемые критерии."
+    },
+    {
+      "id": "site-and-services",
+      "status": "gap",
+      "reason": "Одностраничный сайт соответствует заявленному объёму, но самостоятельный custom-poller внесён как kind: service без контракта операции. Для него не определены вход, выход, прямой доступ, повтор и ошибки; по формату карты сервис должен быть external с serviceRef и спецификацией services.yaml. Страница также не задаёт состояние после отправки, обещанное планом.",
+      "evidence": [
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "title: Одностраничная запись"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "kind: service, title: Опрос"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Посетитель\nвидит, что заявка получена, но место пока не подтверждено."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Определить, нужен ли отдельный сервис; если да, описать его в specs/services.yaml и связать узлом external/serviceRef. Дополнить спецификацию страницы результатом отправки и ошибкой."
+    },
+    {
+      "id": "links",
+      "status": "gap",
+      "reason": "Единственная стрелка страницы к таблице не указывает сигнал или реальный вызов. Нет связей от сохранения заявки к уведомлению/решению администратора, опросу и событию подтверждения; обратной связи для обещанных в плане действий нет. При этом request_received задан до сохранения, что противоречит смыслу стрелки к таблице.",
+      "evidence": [
+        {
+          "path": "studio/process.yaml",
+          "quote": "links:\n  - {from: request-page, to: new-requests, when: форма отправлена}"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Администратор должен узнать о заявке и ответить"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "    when: до сохранения заявки"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Указать для каждого перехода фактический POST, событие или операционную передачу и отразить их на карте; связать сохранённую заявку, уведомление, решение и аналитическое событие."
+    },
+    {
+      "id": "data",
+      "status": "gap",
+      "reason": "У new-requests перечислены только три поля: не определены владелец, роли чтения, устойчивый ключ/правило дублей, жизненный цикл и хранение. Замена legacy-requests с активными заявками без переноса и отката теряет незавершённую работу. Email в плане объявлен ключом отчёта, но событие подтверждения его не несёт, а просмотр страницы не имеет подтверждённого email. Пустой config.variables сам по себе допустим: цены и изменяемого контакта в этом контрольном объёме нет.",
+      "evidence": [
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "    fields: [email, classId, status]"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Новый процесс заменит её новой таблицей без переноса и отката."
+        },
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "join: email"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: booking_confirmed\n    when: администратор подтвердил место\n    fields: [requestId]"
+        },
+        {
+          "path": "studio/.workspace.json",
+          "quote": "{\"type\":\"process\",\"config\":{\"variables\":{}}}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать идентичность по requestId, владельца/доступ/хранение и дедупликацию; подготовить перенос активных строк и откат с проверкой в целевом тестовом контуре; заменить несостоятельный email join на один наблюдаемый ключ либо согласовать иную метрику."
+    },
+    {
+      "id": "event-lifecycle",
+      "status": "gap",
+      "reason": "request_received планируется публиковать до сохранения заявки: источник requestId в этот момент не задан, а при отказе таблицы событие ложно заявит о принятии. Email доступен из формы как контакт, но не требуется дублировать его в метрике; получатель/контактный контекст события не определён. Для booking_confirmed не указан писатель после ручного действия, источник requestId и контактов, поведение при повторе/отказе CRM. Его заявленный потребитель — отчёт, но request_received вообще не имеет указанного потребителя. Упрощённые поля реестра не определяют тип события и payloadMapping для обоих переходов.",
+      "evidence": [
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: request_received\n    when: до сохранения заявки\n    fields: [requestId, email]"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: booking_confirmed\n    when: администратор подтвердил место\n    fields: [requestId]"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Доступ к экрану заявок и отказ записи события не описаны."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Публиковать request_received после успешной записи с ID строки и контактом из проверенной формы; описать обработку отказа CRM и повторов. Привязать booking_confirmed к защищённому изменению состояния по ID заявки, определить контакты, payloadMapping и потребителя."
+    },
+    {
+      "id": "delivery",
+      "status": "gap",
+      "reason": "Запланировано напоминание сотруднику через собственный опрос, но не определены исполнитель действия, канал, адресат, расписание и остановка после ответа. Поэтому нельзя проверить даже синтетический полный путь и поздние дубли. Платёж и реальные клиентские отправки в этом офлайн-контроле не входят в объём; отсутствие providerId здесь не дефект.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Для напоминания администратору создадим собственный цикл опроса заявок,\nхотя в платформе есть Automations и Jobs."
+        },
+        {
+          "path": ".knowledge-base/processes/studio/overview.md",
+          "quote": "используются только синтетические контакты и заявки; публичный запуск,\nоплата и реальные отправки не разрешены."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Спроектировать напоминание через поддерживаемый Jobs/Automations или обосновать свой сервис, указать Staff+ адресата и правило повтора/остановки; для fixture описать только безопасный синтетический тест без реальных отправок."
+    },
+    {
+      "id": "staff-notifications",
+      "status": "gap",
+      "reason": "Ручной ответ администратора обязателен, но способ уведомления оставлен открытым. Таблица и клиентская страница не уведомляют Staff+; нет момента после сохранения, адресата, канала, стабильного ID и защиты от дубля. Поэтому заявка может остаться без обработки.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Администратор должен узнать о заявке и ответить, но способ уведомления\nпока не выбран."
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "    fields: [email, classId, status]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Назначить конкретную Staff+ роль/сотрудника, отправлять Store Inbox уведомление после сохранения по стабильному requestId, определить обработку сбоя и повтора."
+    },
+    {
+      "id": "security",
+      "status": "gap",
+      "reason": "План прямо оставляет доступ к экрану заявок неопределённым. Таблица содержит email; не указаны проверки Staff+ для чтения, изменения статуса и просмотра чужих заявок. Публичная форма может принимать синтетические данные, но её обработчик тоже должен задавать валидацию и допустимые действия. Публичных ссылок на оплату или чужие данные здесь нет.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Доступ к экрану заявок и отказ записи события не описаны."
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "    fields: [email, classId, status]"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "  - path: /studio/request"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Определить серверные проверки роли Staff+ для списка, карточки и подтверждения/отказа; ограничить поля ответа и действие формы; документировать границу доступа к данным."
+    },
+    {
+      "id": "reuse",
+      "status": "gap",
+      "reason": "Собственный цикл опроса дублирует доступные Automations/Jobs без названной необходимости. Замена legacy-requests новой таблицей без миграции и отката оставляет активные заявки и возможные внешние входы на старой схеме; неизвестны пользователи старого компонента и переключение чтения/записи. Это архитектурный блокер даже для синтетического контура с активными тестовыми строками.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "В действующем тестовом контуре уже есть таблица `legacy-requests` с активными\nзаявками. Новый процесс заменит её новой таблицей без переноса и отката."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Для напоминания администратору создадим собственный цикл опроса заявок,\nхотя в платформе есть Automations и Jobs."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Выбрать штатный механизм напоминания; описать инвентаризацию зависимостей legacy-requests, перенос и сверку активных заявок, переключение и откат."
+    },
+    {
+      "id": "consistency",
+      "status": "gap",
+      "reason": "План обещает долю подтверждённых заявок, а аналитика делит booking_confirmed на page_view и связывает по email; page_view является просмотром, а не сохранённой заявкой; email отсутствует у booking_confirmed и не подтверждён для просмотра. План требует ручного ответа, но карта не содержит операции решения; request_received до записи расходится с переходом страницы к таблице и наличием requestId. Пустые variables не конфликтуют с планом, поскольку цена и контакт поддержки не заданы. Карточек tasks/W*, агента и решений risk.RD* в пакете нет.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "и посчитать долю заявок, которые закончились ручным подтверждением."
+        },
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "formula: booking_confirmed / page_view\njoin: email"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - id: booking_confirmed\n    when: администратор подтвердил место\n    fields: [requestId]"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "links:\n  - {from: request-page, to: new-requests, when: форма отправлена}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Согласовать один путь и ключ заявки в плане, карте, data/events/analytics; добавить действие администратора и явные исходы. Пересчитать метрику по уникальным сохранённым заявкам и подтверждениям в окне; синхронизировать спецификации до сборки."
+    }
+  ]
+}

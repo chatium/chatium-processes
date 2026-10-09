@@ -1,0 +1,6 @@
+version: 1
+title: Одностраничная запись
+pages:
+  - path: /studio/request
+    purpose: Отправить заявку
+    form: [email, classId]

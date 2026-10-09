@@ -1,0 +1,360 @@
+{
+  "version": 1,
+  "process": "studio",
+  "stage": "architecture",
+  "status": "needs-work",
+  "inputDigest": "3421999cf1b2a88fca966f702fca3d0df1a75a0ac7f0de81389af1d0c20d3613",
+  "rubricVersion": 8,
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "architecture_control_review"
+  },
+  "reviewedAt": "2026-10-09T03:34:12.008Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/studio/.knowledge.yml",
+    ".knowledge-base/processes/studio/overview.md",
+    "studio/.workspace.json",
+    "studio/PLAN.md",
+    "studio/process.yaml",
+    "studio/specs/analytics.yaml",
+    "studio/specs/data.yaml",
+    "studio/specs/events.yaml",
+    "studio/specs/services.yaml",
+    "studio/specs/site.yaml"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/formats/plan-md.md",
+    "skills/processes/formats/process-yaml.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/blocks/site-service.md",
+    "skills/processes/formats/events-yaml.md",
+    "skills/processes/blocks/analytics.md",
+    "skills/chatium-development/store-notifications.md",
+    "skills/processes/blocks/form-table-event.md",
+    "skills/chatium-development/forms.md",
+    "skills/chatium-development/automations-events.md",
+    "skills/processes/build/architecture-reviewer.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/chatium-development/automations-events.md": "015e0ea91868ab5eaa81298a0a196a5d3e7fdda3af6d233b940487dc0bf5d391",
+    "skills/chatium-development/forms.md": "4e1e15ee7b999a65024e8a8da28e412dd41cc69fdc252a44c37a7924ae92d6cd",
+    "skills/chatium-development/store-notifications.md": "94b99fed72458cf987805720d92395942f194dbaf9974089dc6494bb0213635b",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/blocks/analytics.md": "af608040d0dc3971f2a63e24d87f32aeebd7a09f450774e7c010b7c55838c0ef",
+    "skills/processes/blocks/form-table-event.md": "ce6870ad58710d0e668731f2d8a929092975f4867262b072a4c45acc4a21a187",
+    "skills/processes/blocks/site-service.md": "7847bd9194debc0bdf9d62918a97becc8e532de8505c2f6bfcb3ab7e9113d084",
+    "skills/processes/build/architecture-reviewer.md": "408647231ecf6e45fcf4e0c55d96bc6be5965bf0684e9a49881f984b7b391ddc",
+    "skills/processes/formats/events-yaml.md": "73f1d44659a6542001a8664bbd91c20642cb01b3d45c611ed0c1614ac3f5a4ce",
+    "skills/processes/formats/plan-md.md": "e70593d6daa2142b6937e4222b7c081bb5459e555e823208648879775b90078f",
+    "skills/processes/formats/process-yaml.md": "2e85e0a1eb81e4bdd7a365711fa8707bd37f0900feecb1fc115bbe22caf0914f"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "goals",
+      "status": "covered",
+      "reason": "Цель разложена на проверяемый путь: подписанная форма создаёт ровно одну заявку, Store информирует назначенного Staff+, защищённый экран сохраняет ручной исход, отчёт считает долю по уникальному requestId и статусу одной таблицы. Владелец метрики указан. Это архитектурное покрытие; фактический тестовый Staff ID и Inbox оценены отдельно.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Цель: сохранить один запрос\nна занятие, показать посетителю только факт приёма, уведомить ответственного\nсотрудника и посчитать долю запросов с ручным подтверждением места."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "В защищённом экране сотрудник проверяет место и меняет\n`pending` на `confirmed` или `declined`."
+        },
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "denominator: distinct requestId из requests за выбранный период\nnumerator: distinct requestId из тех же requests со status confirmed"
+        }
+      ]
+    },
+    {
+      "id": "journey",
+      "status": "covered",
+      "reason": "Описаны основной, альтернативный и ошибочные пути: подписанный вход, идемпотентное сохранение и нейтральный ответ; подтверждение либо ручной отказ; отказ записи без ложного успеха; отдельные состояния ошибки CRM и Store с разбором неизвестного исхода. Клиентские письма и оплата явно исключены.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Повтор возвращает тот же нейтральный ответ без второй строки и второго\nуведомления."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "При определённом отказе сохраняется\n`requestEventState=failed`, при таймауте — `unknown`"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "`pending` на `confirmed` или `declined`."
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "errors: [ошибка записи не показывает успех]"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Если мест нет, сотрудник сообщает отказ вручную."
+        }
+      ]
+    },
+    {
+      "id": "contracts",
+      "status": "covered",
+      "reason": "Для страниц, таблиц и всех трёх самостоятельных операций теперь указаны входы, результаты, роль/доступ, поведение при повторе, существенные ошибки и критерии приёмки. Статусы заявки и обоих CRM-событий разнесены. Проверка реального SDK и кода остаётся этапом реализации, а не отсутствующим архитектурным контрактом.",
+      "evidence": [
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "status: pending | confirmed | declined\n      requestEventState: pending | accepted | failed | unknown\n      bookingEventState: pending | accepted | failed | unknown | not-applicable"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: staff-notice\n    nodeId: staff-notice"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: report\n    nodeId: report"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: migration\n    nodeId: migration"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "    access: Staff+ с проверкой роли и доступа к заявке на сервере"
+        }
+      ]
+    },
+    {
+      "id": "site-and-services",
+      "status": "covered",
+      "reason": "Обе требуемые страницы имеют nodeId, роль, маршрут, доступ и действие; они совпадают с узлами карты. Уведомление, отчёт и миграция представлены поддерживаемым kind: external с serviceRef и отдельными контрактами input/output/access/repeat/errors/acceptance. Фильтры не требуются для указанного пути.",
+      "evidence": [
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "requiredRoles: [request, admin]"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "  - nodeId: request-page\n    role: request\n    route: /studio/request"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "  - nodeId: admin-review\n    role: admin\n    route: /studio/admin"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "kind: external, title: Отчёт, purpose: Доля подтверждённых заявок по requestId, source: studio/services/report.ts, serviceRef: report"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "  - id: report\n    nodeId: report"
+        }
+      ]
+    },
+    {
+      "id": "links",
+      "status": "covered",
+      "reason": "Все стрелки карты сопоставлены с операцией: форма → транзакция requests; requests → sendNotification Store; уведомление с URL /studio/admin?requestId=… → защищённый экран; экран → запись статуса; таблица → отчёт; legacy → миграция базового снимка/дельты → requests и переключение. События CRM публикуются после соответствующих записей и не выдают себя за маршрут клиента.",
+      "evidence": [
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {from: staff-notice, to: admin-review, when: сотрудник открывает уведомление}"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    url: /studio/admin?requestId=<requestId>; сервер проверяет Staff+ и доступ к этой заявке"
+        },
+        {
+          "path": "studio/process.yaml",
+          "quote": "  - {from: legacy-requests, to: migration, when: перенос базового снимка и дельты под паузой}\n  - {from: migration, to: requests, when: сверка и атомарное переключение}"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Только после успешной записи вызывается CRM `captureCustomerEvent`"
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "status": "gap",
+      "reason": "Ключи requestId/requestKey/testRecipientKey, владельцы и роли таблиц, хранение синтетических строк и безопасный перенос теперь определены; отчёт использует те же requestId/status/createdAt. Но рабочий источник серверного allowlist и настройки testStaffUserId не указан: `.workspace.json` содержит пустые variables, а иной защищённый файл/таблица и срок доступности контакта по testRecipientKey до позднего booking_confirmed не названы. Без этого позднее событие может остаться без контакта, а тестовое уведомление — без получателя. Цены и контакта поддержки в сценарии нет, их отсутствие в variables нормально.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Из серверного списка разрешённых тестовых контактов\nполучается `testRecipientKey`"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Серверная настройка `testStaffUserId` выбирает одного конкретного сотрудника\nStaff+; без неё контроль не запускается."
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "    contacts: тот же серверный allowlist по сохранённому testRecipientKey"
+        },
+        {
+          "path": "studio/.workspace.json",
+          "quote": "{\"type\":\"process\",\"config\":{\"variables\":{}}}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Назвать защищённое место хранения и порядок изменения allowlist и testStaffUserId, обеспечить сохранение соответствия testRecipientKey → синтетический контакт на срок жизни заявки; указать, что настройка получателя заполнена перед прогоном."
+    },
+    {
+      "id": "event-lifecycle",
+      "status": "covered",
+      "reason": "Для request_saved писатель — обработчик после транзакции, requestId/classId уже сохранены, а контакт берётся из серверного allowlist; первый потребитель — операционное наблюдение. Для booking_confirmed писатель — защищённый экран после confirmed, requestId и testRecipientKey находятся в строке, контакт берётся из того же allowlist; потребитель — наблюдение, а отчёт читает статус таблицы. Слоты payloadMapping объявлены, PII не попадают в метрику; unknown сверяется в CRM до ручного повтора, состояния событий разделены. Рабочий срок allowlist отмечен в data.",
+      "evidence": [
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - key: request_saved\n    type: customerEvent"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "    payloadMapping:\n      requestId: {title: ID заявки, fieldName: action_param1, type: string}\n      classId: {title: ID занятия, fieldName: action_param2, type: string}"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - key: booking_confirmed\n    type: customerEvent"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "    failure: bookingEventState=failed или unknown; unknown сверяют по requestId до ручного повтора"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "неизвестный исход\nсверяют в CRM по `requestId` до ручного повтора"
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "gap",
+      "reason": "Платёж, Mailings и клиентские сообщения исключены, а Store-отправка использует поддерживаемые id/userIds/url и различает queued, skipped и eligibleCount. Но пакет не содержит конкретного testStaffUserId в тестовом аккаунте и подтверждения, что Store Inbox доступен этому адресату; сам план признаёт, что без Inbox проверка остаётся открытой. Поэтому безопасный полный прогон уведомления не доказан, и отправка реальным сотрудникам должна оставаться закрытой.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Серверная настройка `testStaffUserId` выбирает одного конкретного сотрудника\nStaff+; без неё контроль не запускается."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Получение проверяется в Store Inbox адресата;\nесли Inbox недоступен в тестовом аккаунте, проверка остаётся открытой и\nреальные адресаты запрещены."
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    acceptance: одно уведомление на новый requestId, queued не объявляется доставкой, тестовый Staff+ проверяет Inbox"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Перед прогоном задать и проверить конкретного тестового Staff+ пользователя, доступность его Store Inbox и настройки SDK; на синтетической заявке проверить dispatch и Inbox по requestId, а также skipped/ошибку/повтор. Если Inbox недоступен, оставить тест и запуск заблокированными."
+    },
+    {
+      "id": "staff-notifications",
+      "status": "gap",
+      "reason": "Архитектура уведомления теперь задаёт момент после commit, Store, стабильный id=request:<requestId>, защищённый URL, одного Staff+ адресата и безопасный повтор. Однако фактический testStaffUserId в пакете не задан, а пригодность Inbox для этого аккаунта не подтверждена. Пока адресат не установлен и получение не проверено, нельзя считать, что ответственный действительно узнает о заявке; план правильно останавливает контроль при отсутствии настройки.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Серверная настройка `testStaffUserId` выбирает одного конкретного сотрудника\nStaff+; без неё контроль не запускается."
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    recipient: recipients.userIds содержит один testStaffUserId, а не клиента"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    url: /studio/admin?requestId=<requestId>; сервер проверяет Staff+ и доступ к этой заявке"
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "если Inbox недоступен в тестовом аккаунте, проверка остаётся открытой"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Зафиксировать тестовый userId сотрудника с проверенной ролью Staff+, включённым Inbox и доступом к /studio/admin; выполнить один синтетический путь до открытого уведомления. До этого держать пункт блокирующим."
+    },
+    {
+      "id": "security",
+      "status": "covered",
+      "reason": "Тестовый GET и POST требуют серверной проверки подписи, срока, account и ключа разрешённого синтетического контакта; браузер не задаёт адрес. Admin, отчёт и миграция ограничены серверными проверками Staff+/доступа; URL уведомления не является полномочием и проверяется при прямом открытии. Публичный запуск и реальные данные запрещены.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "сервер проверяет подпись, срок, account и ключ синтетического получателя и\nдля GET, и для POST."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "посетитель не задаёт чужой адрес."
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    url: /studio/admin?requestId=<requestId>; сервер проверяет Staff+ и доступ к этой заявке"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    access: только отдельная операция администратора с серверной проверкой роли и журналом действий"
+        },
+        {
+          "path": ".knowledge-base/processes/studio/overview.md",
+          "quote": "публичный запуск,\nоплата и реальные отправки не разрешены."
+        }
+      ]
+    },
+    {
+      "id": "reuse",
+      "status": "covered",
+      "reason": "Платформенные Store SDK и ограниченные Jobs используются вместо бесконечного собственного опроса. Замена legacy-requests теперь сохраняет старый вход до базового переноса, останавливает in-flight записи перед дельтой, сверяет сумму и статусы непосредственно до переключения, не переключает при расхождении и описывает обратную дельту при откате. Это достаточный проект перехода; фактическую сверку в целевом аккаунте ещё предстоит выполнить.",
+      "evidence": [
+        {
+          "path": "studio/PLAN.md",
+          "quote": "До переключения старый обработчик продолжает писать только в старую таблицу."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "При cutover служебный вход временно ставят на паузу, ждут\nзавершения уже начатых записей, повторно переносят дельту по старому ID и\nсверяют число, статусы и контрольную сумму непосредственно перед атомарным\nпереключением маршрута на `requests`."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "новые записи при обратном\nпереключении переносят обратно по тому же соответствию ID под паузой входа."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "Собственный бесконечный опрос и копия транспортной телеметрии не создаются"
+        }
+      ]
+    },
+    {
+      "id": "consistency",
+      "status": "gap",
+      "reason": "Основная связка плана, карты, данных, событий и отчёта теперь использует requestId и статусы одной таблицы; цена/контакт поддержки не требуются, поэтому пустые variables не создают расхождения. Но analytics.yaml всё ещё обещает сотруднику `eventPending`, которого нет в новом data.yaml: вместо него определены `requestEventState` и `bookingEventState`, а сервис report обещает показывать неполные eventState отдельно. Это остаток старой версии, который может дать неверный индикатор в отчёте. Также источник testStaffUserId заявлен как серверная настройка, но не привязан к config.variables или защищённой настройке. Карточек tasks/W*, агентов и risk.RD* в пакете нет.",
+      "evidence": [
+        {
+          "path": "studio/specs/analytics.yaml",
+          "quote": "owner: сотрудник сверяет результат со списком заявок и видит eventPending"
+        },
+        {
+          "path": "studio/specs/data.yaml",
+          "quote": "requestEventState: pending | accepted | failed | unknown\n      bookingEventState: pending | accepted | failed | unknown | not-applicable"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "    errors: [неверный период, отказ чтения, неполные eventState показаны отдельно]"
+        },
+        {
+          "path": "studio/.workspace.json",
+          "quote": "{\"type\":\"process\",\"config\":{\"variables\":{}}}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Заменить eventPending в analytics.yaml на два действующих поля и согласовать правило их показа; указать единый рабочий источник testStaffUserId и порядок его изменения перед тестом."
+    }
+  ]
+}

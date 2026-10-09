@@ -1,0 +1,15 @@
+version: 1
+services:
+  - id: staff-notice
+    trigger: новая строка requests после commit
+    recipient: Staff+ через Store SDK
+    payload: [requestId]
+    deduplication: requestId
+    failure: noticePending и ограниченная задача повтора; ошибка видна Staff+
+    access: клиент не может вызвать или прочитать уведомление
+    acceptance: одно уведомление на новый requestId, повтор формы не создаёт второго
+  - id: migration
+    trigger: отдельная ручная операция Staff+ до переключения входа
+    source: legacy-requests
+    destination: requests
+    acceptance: число, ID и статусы совпали; откат возможен до удаления старой таблицы

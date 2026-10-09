@@ -1,0 +1,4 @@
+version: 1
+question: Какая доля заявок подтверждена?
+formula: booking_confirmed / page_view
+join: email

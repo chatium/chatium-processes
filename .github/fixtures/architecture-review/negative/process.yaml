@@ -1,0 +1,9 @@
+title: Контрольная запись на занятие
+knowledge: .knowledge-base/processes/studio
+stages: [Заявка, Решение]
+nodes:
+  - {id: request-page, stage: Заявка, kind: page, title: Форма, purpose: Принять заявку, source: studio/pages/request/}
+  - {id: new-requests, stage: Заявка, kind: table, title: Новые заявки, purpose: Заменить старую таблицу, source: studio/tables/newRequests.table.ts}
+  - {id: custom-poller, stage: Решение, kind: service, title: Опрос, purpose: Искать заявки без ответа, source: studio/services/poll.ts}
+links:
+  - {from: request-page, to: new-requests, when: форма отправлена}

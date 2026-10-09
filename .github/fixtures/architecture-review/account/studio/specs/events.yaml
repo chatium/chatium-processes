@@ -1,0 +1,24 @@
+events:
+  - key: request_saved
+    type: customerEvent
+    name: Тестовая заявка сохранена
+    description: Обработчик формы вызывает captureCustomerEvent только после транзакции requests
+    category: forms
+    writer: обработчик формы после успешной транзакции requests
+    contacts: серверный allowlist по testRecipientKey; не из браузерного поля
+    payloadMapping:
+      requestId: {title: ID заявки, fieldName: action_param1, type: string}
+      classId: {title: ID занятия, fieldName: action_param2, type: string}
+    failure: requestEventState=failed или unknown; unknown сверяют по requestId и журналу CRM до ручного повтора
+    consumer: операционное наблюдение; повторный эффект по requestId запрещён
+  - key: booking_confirmed
+    type: customerEvent
+    name: Место подтверждено сотрудником
+    description: Защищённый экран вызывает captureCustomerEvent после сохранения confirmed
+    category: conversion
+    writer: защищённый экран после записи статуса confirmed
+    contacts: тот же серверный allowlist по сохранённому testRecipientKey
+    payloadMapping:
+      requestId: {title: ID заявки, fieldName: action_param1, type: string}
+    failure: bookingEventState=failed или unknown; unknown сверяют по requestId до ручного повтора
+    consumer: операционное наблюдение; отчёт читает сохранённый статус из requests

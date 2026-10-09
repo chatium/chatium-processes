@@ -1,0 +1,19 @@
+title: Контрольная запись на занятие
+knowledge: .knowledge-base/processes/studio
+stages: [Заявка, Решение]
+nodes:
+  - {id: request-page, stage: Заявка, kind: page, title: Форма, purpose: Принять запрос, source: studio/pages/request/}
+  - {id: requests, stage: Заявка, kind: table, title: Заявки, purpose: Сохранить requestId и статус, source: studio/tables/requests.table.ts}
+  - {id: staff-notice, stage: Заявка, kind: external, title: Уведомление сотрудника, purpose: Сообщить ответственному Staff+ о сохранённом запросе, source: studio/services/staffNotice.ts, serviceRef: staff-notice}
+  - {id: admin-review, stage: Решение, kind: page, title: Решение сотрудника, purpose: Проверить место и сохранить исход, source: studio/pages/admin/}
+  - {id: report, stage: Решение, kind: external, title: Отчёт, purpose: Доля подтверждённых заявок по requestId, source: studio/services/report.ts, serviceRef: report}
+  - {id: legacy-requests, stage: Решение, kind: table, title: Старая таблица, purpose: Сверка и откат миграции, source: studio/tables/legacyRequests.table.ts}
+  - {id: migration, stage: Решение, kind: external, title: Перенос заявок, purpose: Сверить и перенести старые записи без потери входа, source: studio/services/migrate.ts, serviceRef: migration}
+links:
+  - {from: request-page, to: requests, when: успешная транзакция заявки}
+  - {from: requests, to: staff-notice, when: новая сохранённая заявка с requestId}
+  - {from: staff-notice, to: admin-review, when: сотрудник открывает уведомление}
+  - {from: admin-review, to: requests, when: сохранение confirmed или declined}
+  - {from: requests, to: report, when: чтение уникальных requestId и статусов}
+  - {from: legacy-requests, to: migration, when: перенос базового снимка и дельты под паузой}
+  - {from: migration, to: requests, when: сверка и атомарное переключение}

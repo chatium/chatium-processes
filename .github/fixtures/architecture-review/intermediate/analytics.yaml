@@ -1,0 +1,6 @@
+version: 1
+question: Какая доля сохранённых заявок получила ручное подтверждение?
+denominator: distinct requestId из requests за выбранный период
+numerator: distinct requestId из тех же requests со status confirmed
+join: requestId, не email
+owner: сотрудник сверяет результат со списком заявок и видит eventPending

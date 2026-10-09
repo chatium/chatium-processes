@@ -1,0 +1,8 @@
+version: 1
+events:
+  - id: request_received
+    when: до сохранения заявки
+    fields: [requestId, email]
+  - id: booking_confirmed
+    when: администратор подтвердил место
+    fields: [requestId]

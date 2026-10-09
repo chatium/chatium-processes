@@ -1,0 +1,25 @@
+version: 1
+tables:
+  - id: requests
+    owner: ответственный сотрудник
+    fields:
+      requestId: string UUID создан до записи
+      legacyId: string или null для новой строки
+      classId: string из разрешённого каталога
+      testRecipientKey: string из проверенного подписанного приглашения
+      requestKey: string UUID для повтора формы
+      status: pending | confirmed | declined
+      requestEventState: pending | accepted | failed | unknown
+      bookingEventState: pending | accepted | failed | unknown | not-applicable
+      noticePending: boolean
+      createdAt: timestamp
+    unique: [requestKey, requestId]
+    retention: синтетические записи удаляются через 30 дней
+    readers: только Staff+ с доступом к заявкам; отчёт читает только requestId, status и createdAt
+    writers: сервер формы создаёт pending, защищённый экран меняет статус, сервисы меняют только свои состояния
+    identity: testRecipientKey ведёт к серверному списку синтетических контактов, не к пользовательскому параметру
+  - id: legacy-requests
+    owner: прежний обработчик до сверки
+    readers: только миграция и прежний Staff+ экран под серверной проверкой роли
+    migration: базовый снимок, пауза входа, дельта, сверка, атомарное переключение и обратная дельта при откате
+identity: контакт получают только из серверного allowlist по testRecipientKey и передают в contacts CRM; таблица не хранит адрес

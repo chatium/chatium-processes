@@ -1,0 +1,14 @@
+version: 1
+events:
+  - id: request_saved
+    writer: обработчик формы после успешной транзакции requests
+    contacts: синтетический контакт из CRM по customerId
+    payload: [requestId, classId]
+    failure: eventPending сохраняется для ограниченного идемпотентного повтора
+    consumer: операционное наблюдение, не источник знаменателя отчёта
+  - id: booking_confirmed
+    writer: защищённый экран после записи статуса confirmed
+    contacts: синтетический контакт из CRM по customerId
+    payload: [requestId]
+    failure: eventPending и ручная диагностика, без повторного подтверждения
+    consumer: операционное наблюдение, не источник числителя отчёта
