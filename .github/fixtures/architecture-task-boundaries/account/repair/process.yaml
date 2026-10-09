@@ -1,0 +1,10 @@
+title: Вымышленная веломастерская
+knowledge: .knowledge-base/processes/repair
+stages: [Запрос, Решение]
+nodes:
+  - {id: request-page, stage: Запрос, kind: page, title: Запрос осмотра, purpose: Принять обращение без обещания готового ремонта, source: repair/pages/request/}
+  - {id: requests, stage: Запрос, kind: table, title: Заявки, purpose: Сохранить ID и исход обращения, source: repair/tables/requests.table.ts}
+  - {id: estimate, stage: Решение, kind: external, title: Смета мастера, purpose: Предложить работу после осмотра, source: repair/services/estimate.ts}
+links:
+  - {from: request-page, to: requests, when: Заявка сохранена}
+  - {from: requests, to: estimate, when: Мастер осмотрел велосипед и подготовил смету}

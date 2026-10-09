@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "process": "repair",
+  "stage": "architecture",
+  "status": "needs-work",
+  "inputDigest": "7983d2d70fe6aa4c4a2d9280d93824d6ce5ea09a57797db2f8f46e4fda24cc30",
+  "rubricVersion": 9,
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "architecture_task_boundary_reviewer"
+  },
+  "reviewedAt": "2026-10-09T05:24:17.321Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/repair/.knowledge.yml",
+    ".knowledge-base/processes/repair/overview.md",
+    "repair/PLAN.md",
+    "repair/process.yaml",
+    "repair/tasks/W001.json"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/formats/plan-md.md",
+    "skills/processes/formats/process-yaml.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/formats/work-task.md",
+    "skills/processes/specialists/roles/landing.md",
+    "skills/chatium-development/forms.md",
+    "skills/chatium-development/store-notifications.md",
+    "skills/processes/blocks/site-service.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/chatium-development/forms.md": "4e1e15ee7b999a65024e8a8da28e412dd41cc69fdc252a44c37a7924ae92d6cd",
+    "skills/chatium-development/store-notifications.md": "94b99fed72458cf987805720d92395942f194dbaf9974089dc6494bb0213635b",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/blocks/site-service.md": "7847bd9194debc0bdf9d62918a97becc8e532de8505c2f6bfcb3ab7e9113d084",
+    "skills/processes/formats/plan-md.md": "e70593d6daa2142b6937e4222b7c081bb5459e555e823208648879775b90078f",
+    "skills/processes/formats/process-yaml.md": "2e85e0a1eb81e4bdd7a365711fa8707bd37f0900feecb1fc115bbe22caf0914f",
+    "skills/processes/formats/work-task.md": "9235f5b1d819c12882909c8d53801c083e5696a8a9a7bfc9f30959d8fef0081c",
+    "skills/processes/specialists/roles/landing.md": "9f3fa3b5316d7737af51f6a127e9389bbb20aff53a078ff1da83ca9978f3de95"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "goals",
+      "status": "gap",
+      "reason": "План измеряет четыре перехода и обещает выдачу после ремонта, но карта заканчивается сметой; нет ответственных компонентов выдачи и измерения исходов.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Бизнес считает переходы «обращение → осмотр → согласие на ремонт → выдача»"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "stages: [Запрос, Решение]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить владельцев и компоненты осмотра, согласования, ремонта, выдачи и измерения переходов; увязать их с картой."
+    },
+    {
+      "id": "journey",
+      "status": "gap",
+      "reason": "План допускает отказ от ремонта и невыполненный ремонт, но карта не показывает такой исход и обработку отмены записи или ошибки; обещанный путь не замкнут.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "либо\nчестное объяснение, почему ремонт не состоялся."
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "- {id: requests, stage: Запрос, kind: table, title: Заявки, purpose: Сохранить ID и исход обращения, source: repair/tables/requests.table.ts}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Показать основные, альтернативные и ошибочные переходы до выдачи или честного завершения без ремонта."
+    },
+    {
+      "id": "contracts",
+      "status": "gap",
+      "reason": "Узлы имеют назначение и путь к будущему источнику, но не имеют контрактов входа, выхода, статусов, отказов и критериев готовности.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "- {id: estimate, stage: Решение, kind: external, title: Смета мастера, purpose: Предложить работу после осмотра, source: repair/services/estimate.ts}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать контракт формы, заявки и сметы: поля, состояния, отказы, доступ, повтор и проверяемую готовность."
+    },
+    {
+      "id": "site-and-services",
+      "status": "gap",
+      "reason": "Смета оформлена как external-узел сервиса, но нет serviceRef и спецификации операции: вход, выход, права и повторный вызов не определены.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "kind: external, title: Смета мастера"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Мастер подтверждает окно, проводит платный первичный осмотр, сообщает"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Либо оформить смету как ручную операцию с явной передачей и уведомлением, либо добавить serviceRef и specs/services.yaml с контрактом."
+    },
+    {
+      "id": "links",
+      "status": "gap",
+      "reason": "Первая стрелка названа сохранением заявки, вторая ручным действием мастера, но фактические вызовы и передача не указаны; дальнейшие переходы до ремонта и выдачи отсутствуют.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "- {from: request-page, to: requests, when: Заявка сохранена}"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "- {from: requests, to: estimate, when: Мастер осмотрел велосипед и подготовил смету}"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Клиент решает, соглашаться ли"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Назвать для каждой стрелки реальный маршрут, запись, событие либо ручную передачу и добавить недостающие связи до финального исхода."
+    },
+    {
+      "id": "data",
+      "status": "gap",
+      "reason": "Карта только обещает ID заявки; не указаны схема, владелец, срок хранения, идентичность клиента и общие ключи для четырёх переходов. Цена приведена в знаниях и плане, но единый рабочий источник и способ изменения владельцем не выбраны.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "purpose: Сохранить ID и исход обращения"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Действует цена осмотра 500 ₽\nс зачётом при ремонте"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Задать схему и жизненный цикл заявки, ключи связи переходов, правила повторов, а также один рабочий источник цены и его безопасное обновление."
+    },
+    {
+      "id": "event-lifecycle",
+      "status": "gap",
+      "reason": "Измерение четырёх переходов обещано, но в пакете нет events.yaml или иной спецификации публикации. Для каждого перехода пока невозможно назвать писателя, момент, контакты, поля и первого потребителя.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Бизнес считает переходы «обращение → осмотр → согласие на ремонт → выдача»"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "links:"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "До сборки аналитики определить события и для каждого проследить запись, ID, контакты, payload, порядок и повторы."
+    },
+    {
+      "id": "delivery",
+      "status": "gap",
+      "reason": "Осмотр платный, а способ оплаты и безопасный тестовый путь не выбран; план сам запрещает собирать форму и отправки до решений владельца. Нельзя считать внешние эффекты готовыми.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "проводит платный первичный осмотр"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "До сборки формы и отправок спросить владельца о стране, согласиях и\nдокументах"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Согласовать способ оплаты и канал отправок. Если будет Pay, задать явный providerId песочницы; если автоматизация — полный тест сохранённой цепочки при testOnly."
+    },
+    {
+      "id": "staff-notifications",
+      "status": "gap",
+      "reason": "Мастер обязан подтвердить окно и выполнить осмотр, но карта и план не задают Staff+ получателя, канал, момент и устойчивый ID уведомления о новой заявке.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Мастер подтверждает окно, проводит платный первичный осмотр"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "- {from: request-page, to: requests, when: Заявка сохранена}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Назначить ответственного сотрудника и уведомление после сохранения заявки с ID, повтором и обработкой отказа отправки."
+    },
+    {
+      "id": "security",
+      "status": "gap",
+      "reason": "Форма публична по смыслу, смета и заявка содержат данные клиента; нет правила, кто читает или меняет чужую заявку и смету, и как проверяется доступ в серверных маршрутах.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "kind: page, title: Запрос осмотра"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "kind: table, title: Заявки"
+        },
+        {
+          "path": "repair/process.yaml",
+          "quote": "kind: external, title: Смета мастера"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Определить анонимный вход формы и Staff+/владельческий доступ к заявке и смете, включая прямые вызовы маршрутов и пересылку ссылок."
+    },
+    {
+      "id": "reuse",
+      "status": "not-applicable",
+      "reason": "В представленном эскизе нет заявленной замены существующего компонента или собственного аналога SDK. По нему нельзя подтвердить будущий выбор механизмов: это нужно проверить, когда появятся операционные контракты.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "nodes:"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "T1. До кода получить предложение специалиста по странице запроса"
+        }
+      ]
+    },
+    {
+      "id": "consistency",
+      "status": "covered",
+      "reason": "Карточка W001 сохраняет действующую цену, условие зачёта и запрет обещания ремонта до сметы. Специалист создаёт только предложение; код, таблицы, маршруты и канонический план прямо исключены из его scope. Это покрывает границы T1/A1, но не снимает отдельные архитектурные пробелы выше.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "T1. До кода получить предложение специалиста по странице запроса"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "T1.A1 [design] Предложение сохраняет действующие 500 ₽"
+        },
+        {
+          "path": "repair/tasks/W001.json",
+          "quote": "\"objective\": \"Предложить понятный путь записи на осмотр без обещания ремонта до сметы\""
+        },
+        {
+          "path": "repair/tasks/W001.json",
+          "quote": "\"Редактирование канонического плана, таблиц, маршрутов и кода\""
+        },
+        {
+          "path": "repair/tasks/W001.json",
+          "quote": "\"path\": \"repair/creative/request-page/proposals/landing.md\""
+        },
+        {
+          "path": "repair/tasks/W001.json",
+          "quote": "\"condition\": \"Предложение сохраняет цену осмотра 500 ₽ с зачётом при согласованном ремонте и не обещает срок ремонта до осмотра\""
+        }
+      ]
+    }
+  ]
+}

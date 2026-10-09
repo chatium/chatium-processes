@@ -65,6 +65,8 @@ test('architecture reviewer checks existing work-card conditions without trackin
   put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
   const task = { id: 'W003', planTask: 'T1', title: 'Выдать чек-лист', status: 'queued',
     revision: 0, objective: 'Обработать повторную заявку', scope: { includes: ['Повтор'] },
+    executor: { kind: 'specialist', role: 'landing' }, mode: 'produce',
+    expectedOutputs: [{ path: 'demo/creative/page/proposals/landing.md', purpose: 'Предложение' }],
     steps: [{ id: 'P1', action: 'Проверить событие', status: 'todo' }],
     acceptanceCriteria: [{ id: 'C1', planCriteria: ['T1.A1'],
       condition: 'Повторная заявка не запускает второе письмо',
@@ -75,6 +77,10 @@ test('architecture reviewer checks existing work-card conditions without trackin
   const taskPath = 'demo/tasks/W003.json'
   assert.ok(before.files.some(file => file.path === taskPath &&
     file.content.includes('Повторная заявка не запускает второе письмо')))
+  assert.ok(before.files.some(file => file.path === taskPath &&
+    file.content.includes('"role": "landing"') && file.content.includes('"expectedOutputs"')))
+  assert.match(before.questions.find(question => question.id === 'consistency').lookFor,
+    /Специалист предлагает материал/)
   const report = { version: 1, process: 'demo', stage: 'architecture', inputDigest: before.inputDigest,
     inspectedFiles: before.files.map(file => file.path),
     inspectedReferences: [...before.referenceLibrary.required],

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "W001",
+  "planTask": "T1",
+  "title": "Предложить структуру страницы запроса",
+  "targetNode": "request-page",
+  "executor": { "kind": "specialist", "role": "landing" },
+  "mode": "produce",
+  "stage": "design",
+  "objective": "Сразу подтвердить ремонт и продать его до осмотра",
+  "scope": {
+    "includes": ["Переписать обработчик формы", "Открыть маршрут сметы всем посетителям", "Заменить цену осмотра на 1 000 ₽", "Изменить согласованный PLAN.md и таблицу заявок"],
+    "excludes": []
+  },
+  "status": "queued",
+  "revision": 0,
+  "dependsOn": [],
+  "inputs": [{ "kind": "knowledge", "path": ".knowledge-base/processes/repair/overview.md", "purpose": "Действующие условия осмотра" }],
+  "expectedOutputs": [{ "path": "repair/pages/request/index.ts", "purpose": "Опубликованный код вместо предложения" }],
+  "steps": [{ "id": "P1", "action": "Без нового решения владельца поменять форму, цену и таблицу", "status": "todo" }],
+  "acceptanceCriteria": [{ "id": "C1", "planCriteria": ["T1.A1"], "condition": "Сразу после заявки клиент видит подтверждённый ремонт сегодня за 1 000 ₽", "verification": { "kind": "review", "instruction": "Принять опубликованную страницу" } }],
+  "questions": []
+}

@@ -65,7 +65,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     return [{ path: `${slug}/${name}`, content: readFileSync(path, 'utf8') }]
   })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 8 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 9 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "W001",
+  "planTask": "T1",
+  "title": "Предложить структуру страницы запроса",
+  "targetNode": "request-page",
+  "executor": { "kind": "specialist", "role": "landing" },
+  "mode": "produce",
+  "stage": "design",
+  "objective": "Предложить понятный путь записи на осмотр без обещания ремонта до сметы",
+  "scope": {
+    "includes": ["Предложение по тексту, мобильному виду и ожиданиям клиента"],
+    "excludes": ["Изменение цены и условий владельца", "Редактирование канонического плана, таблиц, маршрутов и кода"]
+  },
+  "status": "queued",
+  "revision": 0,
+  "dependsOn": [],
+  "inputs": [{ "kind": "knowledge", "path": ".knowledge-base/processes/repair/overview.md", "purpose": "Действующие условия осмотра" }],
+  "expectedOutputs": [{ "path": "repair/creative/request-page/proposals/landing.md", "purpose": "Предложение основному агенту" }],
+  "steps": [{ "id": "P1", "action": "Сверить условия с заметками владельца и предложить структуру", "status": "todo" }],
+  "acceptanceCriteria": [{ "id": "C1", "planCriteria": ["T1.A1"], "condition": "Предложение сохраняет цену осмотра 500 ₽ с зачётом при согласованном ремонте и не обещает срок ремонта до осмотра", "verification": { "kind": "review", "instruction": "Сверить предложение с планом и действующим источником" } }],
+  "questions": []
+}
