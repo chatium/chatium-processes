@@ -1,0 +1,11 @@
+{
+  "id": "analytics.spec",
+  "title": "Связность аналитической воронки",
+  "ok": false,
+  "errors": [
+    "analytics.funnels[0] (lead_to_booking): поддержана только identity: customer; для другой идентичности нужен явный проверенный механизм связывания.",
+    "analytics.funnels[0] (lead_to_booking): booking_confirmed имеет type workspaceEvent; его нельзя связывать с клиентской конверсией без подтверждённой идентичности.",
+    "analytics.funnels[0] (lead_to_booking): для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого revenue-события."
+  ],
+  "warnings": []
+}

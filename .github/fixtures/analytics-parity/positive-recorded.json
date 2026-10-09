@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "process": "reporting",
+  "stage": "analytics",
+  "status": "needs-work",
+  "inputDigest": "714868d30929123ec4cac4782f1bb79031d5dd3a4b953481ef764eb6d6443786",
+  "rubricVersion": 1,
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "analytics_parity_reviewer"
+  },
+  "reviewedAt": "2026-10-09T04:49:46.896Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/reporting/.knowledge.yml",
+    ".knowledge-base/processes/reporting/overview.md",
+    "reporting/PLAN.md",
+    "reporting/process.yaml",
+    "reporting/specs/analytics.yaml",
+    "reporting/specs/events.yaml"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/blocks/analytics.md",
+    "skills/processes/blocks/form-table-event.md",
+    "skills/chatium-development/analytics-traffic.md",
+    "skills/chatium-development/analytics-attribution.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/formats/events-yaml.md",
+    "skills/processes/WORKFLOW.md#H2:Этапы",
+    "skills/processes/WORKFLOW.md#H2:Жёсткие правила",
+    "skills/processes/WORKFLOW.md#H2:Что читать",
+    "skills/processes/build/analytics-reviewer.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/analytics-attribution.md": "1d0a4547a85bbbc3000eb7dd8ba00bb5180486b72ff334519081b798b37690c0",
+    "skills/chatium-development/analytics-traffic.md": "067cf2e35b8331c76c8d189dae137aff63c287bf8b9636bd943f20352e016b4e",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/WORKFLOW.md#H2:Жёсткие правила": "120625004a3c27d7ddcfb8530ef95bf8c6c9a88dd3853b5612c86b997c6cdb5f",
+    "skills/processes/WORKFLOW.md#H2:Что читать": "cd6b6469264028ea0f5f75193158f1678d5d417bfc6a2025ebb0cb1d61941738",
+    "skills/processes/WORKFLOW.md#H2:Этапы": "60a08e1dad9d4acf2a8067744a7d577d963d845f1553f48a622aeb6709fb95cb",
+    "skills/processes/blocks/analytics.md": "71c2970aa53b77f7e5536141410ae5043d947d7bee6575240f6f89137dd19679",
+    "skills/processes/blocks/form-table-event.md": "60059586881a3fbed78d17653f6307257e0e336f3b5c7e17ec9cf704afa655d9",
+    "skills/processes/build/analytics-reviewer.md": "9173c36defaff05755a25f41c0dadd0624763315d129e11086970a6e5dfe22bd",
+    "skills/processes/formats/events-yaml.md": "d9906555c579ca281aa802eedeca31dbb119abe6d3a16659effd8239fea91c36"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "business-question",
+      "status": "covered",
+      "reason": "Вопрос совпадает с решением владельца: доля заявок, ставших записями за 14 дней по источнику. План честно исключает оплату и окупаемость.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "question: Какая доля сохранённых заявок из каждого источника подтверждена за 14 дней?"
+        },
+        {
+          "path": "reporting/PLAN.md",
+          "quote": "По результату он\nбудет менять приоритет источников обращения и работу с неподтверждёнными\nзаявками."
+        },
+        {
+          "path": "reporting/PLAN.md",
+          "quote": "стоимость заявки и окупаемость в отчёте\n**не показываются**."
+        }
+      ]
+    },
+    {
+      "id": "real-events",
+      "status": "gap",
+      "reason": "Писатели и момент записи описаны словами, но исполняемого кода, опубликованных URL, getAccountEvents(ctx) и сверки фактических записей нет. Это проектный контракт.",
+      "evidence": [
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Обработчик формы пишет событие после сохранения заявки\n    category: forms\n    writer: обработчик формы после сохранения requestId"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Сотрудник пишет событие после сохранения подтверждения\n    category: conversion\n    writer: защищённый экран после сохранения статуса заявки"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Проверить вызовы captureCustomerEvent после сохранения обоих фактов, URL из реестра и urlPath тестовых событий."
+    },
+    {
+      "id": "payload-mapping",
+      "status": "gap",
+      "reason": "requestId и source запланированы без Heap JOIN, но source стоит в action_param2; передача фактических UTM в выделенные utm_* поля не показана. Разрез по источнику не проверен.",
+      "evidence": [
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "requestId: {title: ID заявки, fieldName: action_param1, type: string}\n      source: {title: Источник обращения, fieldName: action_param2, type: string}"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "steps: [lead_created, booking_confirmed]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Уточнить нужные UTM, записывать фактические метки в выделенные поля и сверить код формы и события."
+    },
+    {
+      "id": "identity",
+      "status": "covered",
+      "reason": "На уровне проекта оба шага — customerEvent с requestId, identity — customer; выдуманного JOIN с Heap нет. Фактическую связь ещё нужно проверить по писателям и запросу.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "identity: customer\n    windowDays: 14\n    steps: [lead_created, booking_confirmed]"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "  - key: lead_created\n    type: customerEvent"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "  - key: booking_confirmed\n    type: customerEvent"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "requestId: {title: ID заявки, fieldName: action_param1, type: string}"
+        }
+      ]
+    },
+    {
+      "id": "time-and-dedup",
+      "status": "gap",
+      "reason": "Окно 14 дней и общий requestId запланированы, но нет запроса с когортой, порядком событий и устранением повторных заявок/подтверждений.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "windowDays: 14\n    steps: [lead_created, booking_confirmed]"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "requestId: {title: ID заявки, fieldName: action_param1, type: string}"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Считать когорту по заявке, подтверждение после неё в пределах окна и один переход на requestId; проверить повторы на тестовых событиях."
+    },
+    {
+      "id": "query-load",
+      "status": "gap",
+      "reason": "В спецификации только декларация воронки. SQL/queryAi, фильтра периода и лимита результата нет; нагрузку и источник проверить нельзя.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "funnels:\n  - id: lead_to_booking\n    question: Какая доля сохранённых заявок из каждого источника подтверждена за 14 дней?\n    identity: customer\n    windowDays: 14\n    steps: [lead_created, booking_confirmed]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Предъявить ограниченный запрос к штатному журналу по точным URL: даты, нужные колонки, агрегация и лимит."
+    },
+    {
+      "id": "platform-telemetry",
+      "status": "covered",
+      "reason": "План исключает расходы из отчёта и отсылает технические статусы к Mailings/Pay. Спецификация содержит только два бизнес-события; локальная таблица расходов не заявлена.",
+      "evidence": [
+        {
+          "path": "reporting/PLAN.md",
+          "quote": "стоимость заявки и окупаемость в отчёте\n**не показываются**. Затраты не копируются в Heap вручную или опросом.\nДоставку писем смотрят в Mailings, платёжные статусы — в Pay; процесс не\nсоздаёт дублирующих событий для их технической телеметрии."
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "steps: [lead_created, booking_confirmed]"
+        }
+      ]
+    },
+    {
+      "id": "privacy-and-access",
+      "status": "gap",
+      "reason": "В пакете нет реализации отчёта, разрешённых ролей и серверной проверки доступа. Без этого нельзя исключить раскрытие чужих записей.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "funnels:\n  - id: lead_to_booking\n    question: Какая доля сохранённых заявок из каждого источника подтверждена за 14 дней?\n    identity: customer\n    windowDays: 14\n    steps: [lead_created, booking_confirmed]"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Определить роли и серверную проверку requireAccountRole/checkFilePermissions либо эквивалент; отдавать только нужные агрегаты."
+    }
+  ]
+}

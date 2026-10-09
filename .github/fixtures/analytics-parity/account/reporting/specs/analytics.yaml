@@ -1,0 +1,6 @@
+funnels:
+  - id: lead_to_booking
+    question: Какая доля сохранённых заявок из каждого источника подтверждена за 14 дней?
+    identity: customer
+    windowDays: 14
+    steps: [lead_created, booking_confirmed]

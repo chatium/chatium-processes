@@ -1,0 +1,18 @@
+events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка сохранена
+    description: Обработчик формы пишет событие после сохранения заявки
+    category: forms
+    writer: обработчик формы после сохранения requestId
+    payloadMapping:
+      requestId: {title: ID заявки, fieldName: action_param1, type: string}
+      source: {title: Источник обращения, fieldName: action_param2, type: string}
+  - key: booking_confirmed
+    type: customerEvent
+    name: Запись подтверждена
+    description: Сотрудник пишет событие после сохранения подтверждения
+    category: conversion
+    writer: защищённый экран после сохранения статуса заявки
+    payloadMapping:
+      requestId: {title: ID заявки, fieldName: action_param1, type: string}

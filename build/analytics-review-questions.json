@@ -7,7 +7,7 @@
     { "id": "identity", "question": "Шаги одной воронки связаны с одним клиентом или заказом без выдуманного соединения с Heap?", "evidencePaths": ["/specs/analytics.yaml", "/specs/events.yaml", ".ts", ".tsx", ".js", ".vue"] },
     { "id": "time-and-dedup", "question": "Окно, последовательность по времени, когорта и повторные события определены так, чтобы оплату или заявку не считать дважды?", "evidencePaths": ["/specs/analytics.yaml", "/specs/events.yaml", ".ts", ".tsx", ".js", ".vue"] },
     { "id": "query-load", "question": "Реальный запрос ограничивает период и размер результата, использует подходящее хранилище и не перегружает Heap или базу знаний?", "evidencePaths": ["/specs/analytics.yaml", ".ts", ".tsx", ".js", ".vue"] },
-    { "id": "platform-telemetry", "question": "Не дублирует ли процесс встроенные данные Mailings об отправке, доставке, открытиях и кликах и платёжную телеметрию без бизнес-причины?", "evidencePaths": ["/specs/analytics.yaml", "/specs/events.yaml", ".ts", ".tsx", ".js", ".vue"] },
+    { "id": "platform-telemetry", "question": "Не дублирует ли процесс встроенные данные Mailings об отправке, доставке, открытиях и кликах, платёжную телеметрию или расходы рекламной платформы в локальной Heap-таблице без бизнес-причины и проверенного источника?", "evidencePaths": ["/specs/analytics.yaml", "/specs/events.yaml", "/PLAN.md", ".ts", ".tsx", ".js", ".vue"] },
     { "id": "privacy-and-access", "question": "Отчёт доступен только нужным ролям и не раскрывает контакты или данные другого клиента?", "evidencePaths": ["/specs/analytics.yaml", ".ts", ".tsx", ".js", ".vue"] }
   ]
 }

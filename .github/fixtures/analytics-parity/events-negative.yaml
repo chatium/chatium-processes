@@ -1,0 +1,23 @@
+events:
+  - key: lead_created
+    type: customerEvent
+    name: Заявка сохранена
+    description: Заявка с адресом email
+    category: forms
+    payloadMapping:
+      email: {title: Email, fieldName: action_param1, type: string}
+  - key: booking_confirmed
+    type: workspaceEvent
+    name: Запись подтверждена
+    description: Общий счётчик без личности клиента
+    category: conversion
+  - key: mail_delivered
+    type: customerEvent
+    name: Письмо доставлено
+    description: Копия технического статуса Mailings в локальное событие
+    category: other
+  - key: payment_callback
+    type: customerEvent
+    name: Повтор платёжного callback
+    description: Копия технической телеметрии Pay без бизнес-решения
+    category: revenue

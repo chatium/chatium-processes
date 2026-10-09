@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "process": "reporting",
+  "stage": "analytics",
+  "status": "needs-work",
+  "inputDigest": "f6cfb4712c26854c34c082e5544d97a7c8286df8a151d016279b2f8ff62de8c4",
+  "rubricVersion": 1,
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "analytics_parity_reviewer"
+  },
+  "reviewedAt": "2026-10-09T04:49:46.806Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/reporting/.knowledge.yml",
+    ".knowledge-base/processes/reporting/overview.md",
+    "reporting/PLAN.md",
+    "reporting/process.yaml",
+    "reporting/specs/analytics.yaml",
+    "reporting/specs/events.yaml"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/blocks/analytics.md",
+    "skills/processes/blocks/form-table-event.md",
+    "skills/chatium-development/analytics-traffic.md",
+    "skills/chatium-development/analytics-attribution.md",
+    "skills/chatium-development/auth.md",
+    "skills/processes/formats/events-yaml.md",
+    "skills/processes/WORKFLOW.md#H2:Этапы",
+    "skills/processes/WORKFLOW.md#H2:Жёсткие правила",
+    "skills/processes/WORKFLOW.md#H2:Что читать",
+    "skills/processes/build/analytics-reviewer.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/analytics-attribution.md": "1d0a4547a85bbbc3000eb7dd8ba00bb5180486b72ff334519081b798b37690c0",
+    "skills/chatium-development/analytics-traffic.md": "067cf2e35b8331c76c8d189dae137aff63c287bf8b9636bd943f20352e016b4e",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/WORKFLOW.md#H2:Жёсткие правила": "120625004a3c27d7ddcfb8530ef95bf8c6c9a88dd3853b5612c86b997c6cdb5f",
+    "skills/processes/WORKFLOW.md#H2:Что читать": "cd6b6469264028ea0f5f75193158f1678d5d417bfc6a2025ebb0cb1d61941738",
+    "skills/processes/WORKFLOW.md#H2:Этапы": "60a08e1dad9d4acf2a8067744a7d577d963d845f1553f48a622aeb6709fb95cb",
+    "skills/processes/blocks/analytics.md": "71c2970aa53b77f7e5536141410ae5043d947d7bee6575240f6f89137dd19679",
+    "skills/processes/blocks/form-table-event.md": "60059586881a3fbed78d17653f6307257e0e336f3b5c7e17ec9cf704afa655d9",
+    "skills/processes/build/analytics-reviewer.md": "9173c36defaff05755a25f41c0dadd0624763315d129e11086970a6e5dfe22bd",
+    "skills/processes/formats/events-yaml.md": "d9906555c579ca281aa802eedeca31dbb119abe6d3a16659effd8239fea91c36"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "business-question",
+      "status": "gap",
+      "reason": "Спецификация обещает оплату и расходы, хотя владелец решает вопрос перехода от заявки к записи по источнику. Дополнительные итоги не измеряются.",
+      "evidence": [
+        {
+          "path": "reporting/PLAN.md",
+          "quote": "Владелец хочет понять, какая доля сохранённых заявок из каждого источника\nпревращается в подтверждённую запись в течение 14 дней."
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "question: Какая доля заявок и рекламных затрат дала запись и оплату?"
+        },
+        {
+          "path": ".knowledge-base/processes/reporting/overview.md",
+          "quote": "Удержание клиента, прочтение письма, оплата и\nокупаемость рекламы здесь не измерены."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Оставить воронку заявки → запись; оплату и окупаемость вынести отдельно после проверки источников."
+    },
+    {
+      "id": "real-events",
+      "status": "gap",
+      "reason": "Исполняемых писателей, момента записи в коде, опубликованных URL и сверки фактического urlPath нет. Подтверждение объявлено обезличенным workspaceEvent.",
+      "evidence": [
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "  - key: booking_confirmed\n    type: workspaceEvent\n    name: Запись подтверждена\n    description: Общий счётчик без личности клиента"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Копия технической телеметрии Pay без бизнес-решения"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Проверить обработчики после сохранения заявки и подтверждения, точные URL через getAccountEvents(ctx) и urlPath тестовых событий."
+    },
+    {
+      "id": "payload-mapping",
+      "status": "gap",
+      "reason": "В метрике заявки есть лишь email, у подтверждения нет полей; фактические UTM и requestId отсутствуют. SQL пытается получить срезы соединением с Heap.",
+      "evidence": [
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "email: {title: Email, fieldName: action_param1, type: string}"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Общий счётчик без личности клиента"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "JOIN heap.requests USING (email)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Передавать фактические UTM в выделенные поля, requestId и источник — в метрические слоты; убрать Heap JOIN и сверить писателей."
+    },
+    {
+      "id": "identity",
+      "status": "gap",
+      "reason": "Ключ email и соединение с Heap не связывают обезличенный workspaceEvent подтверждения с той же заявкой.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "identity: email"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "type: workspaceEvent\n    name: Запись подтверждена\n    description: Общий счётчик без личности клиента"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "JOIN heap.requests USING (email)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Сделать подтверждение customerEvent с сохранённым requestId и проверить связь клиента и заявки в запросе."
+    },
+    {
+      "id": "time-and-dedup",
+      "status": "gap",
+      "reason": "Число 14 дней есть, но SELECT * не задаёт когорту, порядок, временное условие и дедупликацию. Повтор платёжного callback включён в шаги.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "windowDays: 14\n    steps: [lead_created, booking_confirmed, mail_delivered, payment_callback]"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "implementation: SELECT * FROM crm_events JOIN heap.requests USING (email) JOIN heap.ad_spend USING (campaign)"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "name: Повтор платёжного callback"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Задать когорту по заявке, подтверждение после неё в пределах 14 дней и один переход на requestId; убрать технические callback."
+    },
+    {
+      "id": "query-load",
+      "status": "gap",
+      "reason": "SELECT * с несколькими JOIN не ограничивает период или результат и использует неподтверждённые таблицы; исполняемого штатного запроса нет.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "implementation: SELECT * FROM crm_events JOIN heap.requests USING (email) JOIN heap.ad_spend USING (campaign)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Проверить запрос к ClickHouse по точным URL событий с датами, агрегацией, нужными колонками и лимитом результата."
+    },
+    {
+      "id": "platform-telemetry",
+      "status": "gap",
+      "reason": "Mailings и Pay дублируются локальными событиями; расходы предлагается ежеминутно копировать в Heap без согласованного API. Это противоречит плану.",
+      "evidence": [
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Копия технического статуса Mailings в локальное событие"
+        },
+        {
+          "path": "reporting/specs/events.yaml",
+          "quote": "description: Копия технической телеметрии Pay без бизнес-решения"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "spendSource: Каждую минуту копируем расходы рекламного кабинета в heap.ad_spend без согласованного API и сверки сумм"
+        },
+        {
+          "path": "reporting/PLAN.md",
+          "quote": "Затраты не копируются в Heap вручную или опросом.\nДоставку писем смотрят в Mailings, платёжные статусы — в Pay; процесс не\nсоздаёт дублирующих событий для их технической телеметрии."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Удалить технические события и локальную таблицу расходов; пользоваться штатными источниками при отдельном обоснованном отчёте."
+    },
+    {
+      "id": "privacy-and-access",
+      "status": "gap",
+      "reason": "Не указаны роли и серверный контроль доступа к отчёту; SELECT * по email рискует вернуть персональные данные сверх цели.",
+      "evidence": [
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "identity: email"
+        },
+        {
+          "path": "reporting/specs/analytics.yaml",
+          "quote": "implementation: SELECT * FROM crm_events JOIN heap.requests USING (email) JOIN heap.ad_spend USING (campaign)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать роли, серверную проверку доступа и агрегированный ответ без контактов и чужих записей."
+    }
+  ]
+}

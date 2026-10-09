@@ -1,0 +1,8 @@
+funnels:
+  - id: lead_to_booking
+    question: Какая доля заявок и рекламных затрат дала запись и оплату?
+    identity: email
+    windowDays: 14
+    steps: [lead_created, booking_confirmed, mail_delivered, payment_callback]
+    implementation: SELECT * FROM crm_events JOIN heap.requests USING (email) JOIN heap.ad_spend USING (campaign)
+    spendSource: Каждую минуту копируем расходы рекламного кабинета в heap.ad_spend без согласованного API и сверки сумм
