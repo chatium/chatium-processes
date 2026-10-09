@@ -100,6 +100,24 @@ test('compiler expands selected landing settings and detects changed inputs or g
   assert.equal(creativeStatus(f.args).status, 'stale')
 })
 
+test('named source section isolates unrelated knowledge edits while preserving reviewed evidence', t => {
+  const f = fixture(t)
+  const source = '.knowledge-base/processes/demo/offer.md'
+  f.spec.sources[0].section = 'Предложение'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  f.put(source, '# Предложение\nМатериал помогает сделать первый шаг.\n# Служебное\nПервая заметка.\n')
+  writeCreativeBuild(f.args)
+  const before = creativeReviewPacket({ ...f.args, stage: 'spec' })
+  const reviewed = before.files.find(file => file.path === source)
+  assert.match(reviewed.content, /Материал помогает/)
+  assert.doesNotMatch(reviewed.content, /Первая заметка/)
+  f.put(source, '# Предложение\nМатериал помогает сделать первый шаг.\n# Служебное\nДругая заметка.\n')
+  assert.equal(creativeStatus(f.args).status, 'ready')
+  assert.equal(creativeReviewPacket({ ...f.args, stage: 'spec' }).inputDigest, before.inputDigest)
+  f.put(source, '# Предложение\nМатериал помогает получить консультацию.\n# Служебное\nДругая заметка.\n')
+  assert.equal(creativeStatus(f.args).status, 'stale')
+})
+
 test('source must contain the named nonempty section', t => {
   const f = fixture(t)
   f.spec.sources[0].section = 'Условия'

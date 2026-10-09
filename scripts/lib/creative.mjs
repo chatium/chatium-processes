@@ -46,9 +46,10 @@ function sourceFiles(root, spec, errors) {
     try {
       const file = safeTaskPath(root, source.path)
       if (statSync(file).size > 80000) throw Error('слишком большой источник')
-      const content = readFileSync(file, 'utf8')
-      requireContent(content, source.section)
-      files.push({ id: source.id, path: source.path, section: source.section || null, content })
+      const raw = readFileSync(file, 'utf8')
+      requireContent(raw, source.section)
+      files.push({ id: source.id, path: source.path, section: source.section || null,
+        content: selectedText(raw, source.section) })
     } catch (error) { errors.push(`Источник ${source.id}: ${error.message}`) }
   }
   if (!files.length) errors.push('Нужен хотя бы один подтверждённый источник.')
@@ -263,9 +264,11 @@ export function creativePacket({ root, slug, nodeId }) {
       try {
         const file = safeTaskPath(root, path)
         if (statSync(file).size > 80000) throw Error('слишком большой файл текста')
-        const content = readFileSync(file, 'utf8')
-        requireContent(content, section.copyRef.includes('#') ? namedSection || '#' : null)
-        if (!copyFiles.some(file => file.path === path)) copyFiles.push({ path, content })
+        const raw = readFileSync(file, 'utf8')
+        const selectedSection = section.copyRef.includes('#') ? namedSection || '#' : null
+        requireContent(raw, selectedSection)
+        if (!copyFiles.some(file => file.path === path))
+          copyFiles.push({ path, content: selectedText(raw, selectedSection) })
       } catch (error) { errors.push(`Текст секции ${section.id}: ${error.message}`) }
     }
     for (const image of spec.images || []) if (text(image.asset)) try {

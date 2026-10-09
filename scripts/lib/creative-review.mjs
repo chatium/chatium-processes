@@ -120,7 +120,12 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const entries = [creative.specPath, creative.buildPath, ...creative.sources.map(s => s.path),
     ...creative.copyFiles.map(f => f.path),
     ...creative.referenceFiles.map(f => f.path)]
-  const files = [...new Set(entries)].map(path => ({ path, content: readFileSync(safeTaskPath(root, path), 'utf8') }))
+  const selected = new Map()
+  for (const entry of [...creative.sources, ...creative.copyFiles])
+    selected.set(entry.path, selected.has(entry.path)
+      ? `${selected.get(entry.path)}\n\n${entry.content}` : entry.content)
+  const files = [...new Set(entries)].map(path => ({ path,
+    content: selected.get(path) ?? readFileSync(safeTaskPath(root, path), 'utf8') }))
   let configuredChannels = []
   const planPath = `${slug}/PLAN.md`
   const planFile = safeTaskPath(root, planPath, { mayBeMissing: true })
