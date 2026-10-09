@@ -3,12 +3,12 @@
   "process": "demo",
   "stage": "implementation",
   "status": "needs-work",
-  "inputDigest": "b898f0a586fd5593cf59b1dcbd16647ca739e892025913c3450edbfac9c98aad",
+  "inputDigest": "3a6464ddee549d2b7dab9a6986ac3797bbac0b2925aab973386ecb569b852b0c",
   "reviewer": {
     "kind": "subagent",
-    "reference": "load_safety_reviewer"
+    "reference": "knowledge_load_reviewer"
   },
-  "reviewedAt": "2026-10-09T05:53:22.614Z",
+  "reviewedAt": "2026-10-09T06:06:22.620Z",
   "inspectedFiles": [
     ".knowledge-base/.knowledge.yml",
     ".knowledge-base/processes/.knowledge.yml",
@@ -16,6 +16,7 @@
     ".knowledge-base/processes/demo/overview.md",
     "demo/PLAN.md",
     "demo/process.yaml",
+    "demo/services/knowledgeAnswer.ts",
     "demo/services/pendingSummary.ts"
   ],
   "inspectedReferences": [
@@ -26,14 +27,14 @@
     "skills/chatium-development/routing.md",
     "skills/chatium-development/heap.md",
     "skills/chatium-development/heap-filter.md",
-    "skills/chatium-development/performance.md"
+    "skills/chatium-development/ai-context-and-knowledge.md"
   ],
   "referenceHashes": {
     "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/ai-context-and-knowledge.md": "6b18222b902ac75759bcffd0ef7ca61a3ba6b6633491cf44b71ac90dd1c5e861",
     "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
     "skills/chatium-development/heap-filter.md": "b7b5963008572a1e1d7a30b56c2bb92fc0cac159dafde9f4ed8ebdbf56056f16",
     "skills/chatium-development/heap.md": "72efbcf128bd465724c38faeddaf0929aea7ce4045ccfc690bc1bd11468992f6",
-    "skills/chatium-development/performance.md": "098d4dd7b10f389cb4cb6b441405d5cbc18de20c94fc2bce109633f5695448b3",
     "skills/chatium-development/routing.md": "a0faf20f548f83a5d1996bdfe19b280e8d9312493ef5991dc3c74bfcaebb9385",
     "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
     "skills/processes/build/review-safety.md": "9c83e99e499c36cd031396826b4c24f9c1a971178ba56998f906dcb69fffa0e0"
@@ -48,97 +49,113 @@
     {
       "id": "scope.complete",
       "status": "gap",
-      "reason": "Пакет содержит только helper и декларацию Repository. Нет Staff+ route/caller, реализации адаптера к Heap и теста репозитория. staticChecks подтверждают лишь собранные файлы, а не полноту исполняемого пути. Нельзя проверить, что caller реально применяет role check и что Repository ограничивает запрос.",
+      "reason": "Пакет содержит только два экспортированных помощника и план. Нет вызывающего Staff+ обработчика, маршрута/регистрации, реальных адаптеров Repository и KnowledgeRepository, таблицы и контракта listAll. Поэтому невозможно проверить все исполняемые пути и права; успешный staticChecks этого не доказывает.",
       "evidence": [
         {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "type Repository = {"
+          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
         },
         {
-          "path": "demo/process.yaml",
-          "quote": "source: demo/services/pendingSummary.ts"
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "export async function knowledgeAnswer(ctx: unknown, kb: KnowledgeRepository, question: string)"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Добавить исходники Staff+ обработчика, таблицы/адаптера Repository и проверку вызовов в новый пакет."
+      "nextAction": "Добавить в пакет вызывающие маршруты, middleware, реализации обоих репозиториев, схему таблицы и доступный контракт поиска KB либо явно подтвердить, что это изолированные тестовые помощники без runtime-вызова."
     },
     {
       "id": "plan.flow",
       "status": "gap",
-      "reason": "План требует одну серверную фильтрованную выборку до 50 и отдельный count; helper обходит все страницы, фильтрует в памяти и вычисляет total из загруженных строк. Нет доказанного Staff+ вызова и теста.",
+      "reason": "План и база знаний требуют первую страницу 50 pending, серверный count и ограниченный поиск. Реальный путь помощников нарушает оба требования; нет вызывающего обработчика, поэтому переход от Staff к результату не прослежен. Это синтетический путь без оплаты, отмены или доставки.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
-          "quote": "одним фильтрованным чтением с `limit: 50`"
+          "quote": "Общее число получаем серверным `count`, а список —\nодним фильтрованным чтением с `limit: 50`."
         },
         {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "const all: Request[] = []"
+          "quote": "const page = await requests.findAll(ctx, { limit: 1000, offset })"
+        },
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "const page = await kb.listAll(ctx, offset, 1000)"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Заменить обход на серверный pending-фильтр, limit 50 и count; представить caller и тест."
+      "nextAction": "Заменить обходы ограниченной выборкой/count и scoped search; приложить вызывающий путь и сценарии заглушек."
     },
     {
       "id": "security.access",
       "status": "gap",
-      "reason": "План ограничивает чтение Staff+, однако в самом helper нет проверки роли, а вызывающий обработчик показан только комментарием. Прямой вызов не позволяет доказать авторизацию до чтения заявок.",
+      "reason": "Сводка предназначена Staff+, а поиск — разрешённым разделам. В обоих помощниках ctx имеет тип unknown, роль и доступ не проверяются; вызывающий серверный обработчик отсутствует. При прямом вызове через неизвестный маршрут нельзя доказать защиту чтений.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
-          "quote": "Ответственному Staff+"
+          "quote": "Ответственному Staff+\nнужны общее число ожидающих заявок"
         },
         {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "listAll(ctx: unknown, offset: number, limit: number): Promise<Document[]>"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Представить Staff+ route/caller с requireAccountRole(ctx, 'Staff') до вызова helper; проверить прямой URL."
+      "nextAction": "Показать серверный вызов с requireAccountRole(ctx, 'Staff') до чтения, account scope и разрешённые разделы в адаптере; добавить его в пакет."
     },
     {
       "id": "security.routes",
       "status": "gap",
-      "reason": "В packet.files нет ни одного route-файла или app.function. Единственная названная точка входа — «экран сотрудника», его URL, реализация и серверная защита отсутствуют. Перечислить и проверить реальные GET/API напрямую нельзя.",
+      "reason": "В packet.files нет страницы или GET/POST API, app.function, callback либо webhook. Известны только demo/services/pendingSummary.ts → Staff+ и demo/services/knowledgeAnswer.ts → Staff+ с доступом к инструкции; место реальной проверки прямого URL/вызова не показано. Списковая сводка чувствительна, защита не доказана; деталей, экспорта и mutations в пакете нет.",
       "evidence": [
         {
           "path": "demo/process.yaml",
           "quote": "source: demo/services/pendingSummary.ts"
         },
         {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "// Вызывает экран сотрудника, но функция сама загружает всю таблицу."
+          "path": "demo/process.yaml",
+          "quote": "source: demo/services/knowledgeAnswer.ts"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Добавить файл/URL Staff+ страницы и любого API, их middleware/проверку роли и отрицательный тест прямого доступа."
+      "nextAction": "Приложить все маршруты/вызовы этих помощников и middleware; для каждого указать URL, аудиторию и серверную проверку Staff+ и account/section scope."
     },
     {
       "id": "security.inputs",
-      "status": "not-applicable",
-      "reason": "Показанный helper не принимает query/body клиента: ему передаются только ctx и Repository. Валидация внешнего запроса остаётся пробелом покрытия security.routes.",
+      "status": "gap",
+      "reason": "Вход question не валидируется и целиком попадает в ответ; неизвестно, кто и с какой частотой может запускать полный обход KB и Heap. Отсутствие маршрута не позволяет проверить схему запроса и ограничения злоупотребления. POST, webhook и защищённые поля в данном пакете не обнаружены.",
       "evidence": [
         {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "return `${question}\\n${all.map(doc => `${doc.title}: ${doc.body}`).join('\\n')}`"
+        },
+        {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
+          "quote": "for (;;) {"
         }
-      ]
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить вызывающий маршрут с валидацией вопроса и серверным допуском; устранить неограниченные обходы и показать предел частоты/стоимости для доступной аудитории."
     },
     {
       "id": "security.boundaries",
-      "status": "not-applicable",
-      "reason": "В пределах показанного helper нет HTML, URL, исходящего запроса, пути файла, логирования или секрета; он возвращает список записей. Сериализация и аудитория ответа требуют отдельной проверки отсутствующего route.",
+      "status": "gap",
+      "reason": "listAll не задаёт базу, разделы или права, а результат включает полные title/body всех найденных документов. Если ответ доступен менее привилегированному сотруднику, закрытые статьи могут уйти в ответ; граница доступа и использование строки в HTML/модели неизвестны без маршрута. Секретов в цитатах нет.",
       "evidence": [
         {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "return { total: rows.length, rows: rows.slice(0, 50) }"
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "const all: Document[] = []"
+        },
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "all.map(doc => `${doc.title}: ${doc.body}`)"
         }
-      ]
+      ],
+      "priority": "blocking",
+      "nextAction": "Ограничить поиск разрешёнными разделами и проверкой доступа до чтения; приложить маршрут/рендерер, чтобы проверить выдачу и экранирование."
     },
     {
       "id": "payments.effects",
       "status": "not-applicable",
-      "reason": "План прямо исключает отправки, а показанный код выполняет только чтения; платежей, выдачи результата и иных неповторяемых эффектов здесь нет.",
+      "reason": "План исключает отправки, а оба исходника лишь читают данные и возвращают результат; платежей, писем и другой неповторяемой выдачи в этом синтетическом контроле нет.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
@@ -149,23 +166,19 @@
     {
       "id": "concurrency.correctness",
       "status": "not-applicable",
-      "reason": "Helper не изменяет записи и не запускает внешних эффектов; lock или транзакция для этого чтения не нужны. При конкурентном изменении очереди count и list могут кратко различаться; план не требует атомарного снимка.",
+      "reason": "Помощники не изменяют состояние и не резервируют ресурс; lock/transaction здесь не нужны. За счёт отсутствия снимка список при конкурентной записи может кратко расходиться с количеством, но план не требует атомарного snapshot.",
       "evidence": [
         {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "const page = await requests.findAll(ctx, { limit: 1000, offset })"
+          "quote": "return { total: rows.length, rows: rows.slice(0, 50) }"
         }
       ]
     },
     {
       "id": "heap.bounds",
       "status": "gap",
-      "reason": "Цикл делает findAll с limit 1000 и offset до короткой страницы, складывает все заявки в all, затем фильтрует и сортирует всю историю. При N строках — ceil(N/1000) или ещё один запрос, O(N) памяти и O(N log N) сортировки; это нарушает бизнес-лимит 50. 1000 — аварийный предел Heap, не размер UI-страницы.",
+      "reason": "Цикл findAll с limit 1000 и offset идёт до конца таблицы, накапливает N строк, фильтрует и сортирует в памяти. Стоимость ceil(N/1000) чтений плюс одно при N кратном 1000, память O(N), сортировка O(N log N), хотя нужен один limit 50 и countBy.",
       "evidence": [
-        {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "for (;;) {"
-        },
         {
           "path": "demo/services/pendingSummary.ts",
           "quote": "all.push(...page)"
@@ -173,40 +186,24 @@
         {
           "path": "demo/services/pendingSummary.ts",
           "quote": "const rows = all.filter(row => row.status === 'pending')"
+        },
+        {
+          "path": "demo/PLAN.md",
+          "quote": "одним фильтрованным чтением с `limit: 50`"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Фильтровать status=pending на сервере, читать limit:50 с устойчивым order, total получать отдельным countBy/адаптером."
+      "nextAction": "Выполнить countBy(ctx, {status:'pending'}) и один findAll с серверным where, limit:50 и устойчивым order по createdAt/id; не собирать batches."
     },
     {
       "id": "storage.analytics",
-      "status": "gap",
-      "reason": "Заявка как изменяемое операционное состояние подходит Heap, но таблица/адаптер и объём поступающих заявок не даны; нельзя оценить прирост строк, хранение и реальную стоимость count по статусу. Это не заявка на историческую аналитику.",
+      "status": "covered",
+      "reason": "Синтетический помощник работает с изменяемым статусом операционной заявки, не пишет визиты или события в Heap и не строит исторический отчёт. Прирост N строк определяется внешним создателем заявок, которого нет в пакете; удержание не описано, поэтому фактический размер и чистку до эксплуатации надо подтвердить в scope, но неподходящей событийной таблицы здесь нет.",
       "evidence": [
         {
-          "path": ".knowledge-base/processes/demo/overview.md",
-          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
-        }
-      ],
-      "priority": "blocking",
-      "nextAction": "Представить .table.ts и адаптер Repository, оценку поступления/удержания заявок; подтвердить фильтр и count на целевом объёме."
-    },
-    {
-      "id": "storage.table-migration",
-      "status": "not-applicable",
-      "reason": "В пакет не включён ни один .table.ts и план не заявляет изменения схемы существующей таблицы; миграционный вердикт к этому helper неприменим. Отсутствующая таблица отмечена в scope.complete.",
-      "evidence": [
-        {
-          "path": "demo/PLAN.md",
-          "quote": "Реализовать ограниченное чтение очереди"
-        }
-      ]
-    },
-    {
-      "id": "events.contract",
-      "status": "not-applicable",
-      "reason": "Пакет описывает только чтение уже открытых заявок для Staff+; новый переход клиента или writer события не реализуется. Реестр событий вне данного контрольного helper.",
-      "evidence": [
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "type Request = { id: string; createdAt: string; status: 'pending' | 'done' }"
+        },
         {
           "path": ".knowledge-base/processes/demo/overview.md",
           "quote": "Публичного отчёта и выгрузки\nвсей истории нет."
@@ -214,92 +211,9 @@
       ]
     },
     {
-      "id": "staff.notifications",
+      "id": "storage.table-migration",
       "status": "not-applicable",
-      "reason": "Здесь не создаётся новая заявка и нет входа, требующего нового уведомления сотруднику: Staff сам открывает сводку существующей очереди. Путь создания заявок не входит в пакет.",
-      "evidence": [
-        {
-          "path": ".knowledge-base/processes/demo/overview.md",
-          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
-        }
-      ]
-    },
-    {
-      "id": "analytics.funnels",
-      "status": "not-applicable",
-      "reason": "Сводка текущей операционной очереди не является отчётом о конверсии; в пакете нет specs/analytics.yaml, событий или ClickHouse-запроса.",
-      "evidence": [
-        {
-          "path": "demo/PLAN.md",
-          "quote": "общее число ожидающих заявок и первая страница из 50 записей"
-        }
-      ]
-    },
-    {
-      "id": "heap.fanout",
-      "status": "gap",
-      "reason": "N+1 по связанным ID нет, но на каждом открытии экрана цикл делает ceil(N/1000) или более последовательных повторных чтений; рост таблицы без ограничения умножает нагрузку и ответ.",
-      "evidence": [
-        {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "if (page.length < 1000) break"
-        },
-        {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "offset += 1000"
-        }
-      ],
-      "priority": "blocking",
-      "nextAction": "Оставить одно ограниченное чтение pending и отдельный count, не обходить всю таблицу."
-    },
-    {
-      "id": "knowledge.cost",
-      "status": "not-applicable",
-      "reason": "Файлы .knowledge-base служат статическим описанием задачи; runtime helper не делает KB-search или model call. Вопрос стоимости KB/модели для этой реализации неприменим.",
-      "evidence": [
-        {
-          "path": ".knowledge-base/processes/demo/overview.md",
-          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
-        }
-      ]
-    },
-    {
-      "id": "loops.events",
-      "status": "not-applicable",
-      "reason": "В показанном коде нет записи события, подписки, автоматизации или job; read-only вызов не порождает следующего события. Цикл чтения в отрицательном варианте оценивается отдельно в heap.bounds и load.budget.",
-      "evidence": [
-        {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": "for (;;) {"
-        }
-      ]
-    },
-    {
-      "id": "jobs.retries",
-      "status": "not-applicable",
-      "reason": "План не предусматривает фоновые jobs; helper — синхронная по смыслу сводка с обычными await чтениями. Пределы повторов jobs неприменимы.",
-      "evidence": [
-        {
-          "path": "demo/PLAN.md",
-          "quote": "Ни клиентская страница, ни\nвыгрузка всех заявок, ни отправки не входят в этот контроль."
-        }
-      ]
-    },
-    {
-      "id": "ui.network",
-      "status": "not-applicable",
-      "reason": "UI-код, polling, reconnect и client fetch в пакете отсутствуют. Нагрузку открытия экрана учли в load.budget, а реальный caller нужен для окончательной проверки.",
-      "evidence": [
-        {
-          "path": "demo/process.yaml",
-          "quote": "kind: external"
-        }
-      ]
-    },
-    {
-      "id": "external.budget",
-      "status": "not-applicable",
-      "reason": "Показанный helper обращается только к интерфейсу Repository; HTTP, внешних API и моделей в его коде нет.",
+      "reason": "В восьми файлах пакета нет .table.ts, schema-decisions.json или изменения схемы; эта фикстура только читает через переданный Repository.",
       "evidence": [
         {
           "path": "demo/services/pendingSummary.ts",
@@ -308,9 +222,42 @@
       ]
     },
     {
-      "id": "load.budget",
+      "id": "events.contract",
+      "status": "not-applicable",
+      "reason": "В фикстуре нет создания заявки или бизнес-перехода, событийного реестра, writer и автоматизаций; лишь чтение очереди и инструкции. Поэтому контракт customer/workspace events здесь не задействован.",
+      "evidence": [
+        {
+          "path": "demo/process.yaml",
+          "quote": "stages: [Работа сотрудника]"
+        }
+      ]
+    },
+    {
+      "id": "staff.notifications",
+      "status": "not-applicable",
+      "reason": "Пакет не содержит входа создания заявки, требующего действия сотрудника: проверяется только чтение уже существующей очереди. Уведомления о создании заявок относятся к отсутствующему внешнему источнику и не могут быть приписаны этому помощнику.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Это вымышленная офлайн-проверка помощника списка."
+        }
+      ]
+    },
+    {
+      "id": "analytics.funnels",
+      "status": "not-applicable",
+      "reason": "Фикстура не создаёт отчёт о конверсии или specs/analytics.yaml; единственный count относится к текущим pending заявкам, без клиентских стадий и когорт.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "нужны общее число ожидающих заявок и первая страница из 50 записей"
+        }
+      ]
+    },
+    {
+      "id": "heap.fanout",
       "status": "gap",
-      "reason": "Горячий путь — одно открытие Staff-экрана. При N заявках, U сотрудниках и f открытия/с: около U·f·(floor(N/1000)+1) Heap чтений/с (последний короткий batch), O(N) строк/памяти на запрос и O(N log N) сортировки. Например, N=100000, U=20, f=0.1/с дают ~202 чтения/с и до 200000 одновременно удерживаемых строк; это спрос, не гарантированная пропускная способность. При росте N нет верхней границы. Реальные N, частота, latency/count/index неизвестны; измерять после исправления ступенями на тестовых данных, без отправок, с метриками latency/errors/операций/памяти и stop-порогом.",
+      "reason": "На один вызов сводки приходится примерно ceil(N/1000) последовательных Heap чтений с повторным обходом при каждом запросе. N+1 по связям и параллельности нет, но fan-out и ответная память не ограничены размером страницы.",
       "evidence": [
         {
           "path": "demo/services/pendingSummary.ts",
@@ -318,56 +265,155 @@
         },
         {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "all.push(...page)"
-        },
-        {
-          "path": "demo/services/pendingSummary.ts",
-          "quote": ".sort((left, right) => right.createdAt.localeCompare(left.createdAt))"
+          "quote": "offset += 1000"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Устранить полный обход: максимум 50 строк + серверный count; затем безопасно измерить p95, ошибки и число DB-операций."
+      "nextAction": "Свести путь к одному findAll(limit:50, where, order) и одному countBy без обхода N строк."
+    },
+    {
+      "id": "knowledge.cost",
+      "status": "gap",
+      "reason": "Каждый вызов читает все D статей порциями 1000, складывает их и передаёт полные body вместе с вопросом. Нет sectionIds, ограничения числа/байтов контекста и пути «нет ответа». Число поисков здесь заменено ceil(D/1000) чтениями, память и возвращаемая строка O(общего размера KB). Модель в пакете не вызывается, её токены неизвестны.",
+      "evidence": [
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "for (let offset = 0; ; offset += 1000) {"
+        },
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "all.push(...page)"
+        },
+        {
+          "path": "demo/PLAN.md",
+          "quote": "не более одного\n    поиска в разрешённых разделах"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Использовать подтверждённый scoped search/индекс по доступным разделам, ограничить результаты, выдержки и вопрос; вернуть явное «информации недостаточно» без повторного поиска."
+    },
+    {
+      "id": "loops.events",
+      "status": "not-applicable",
+      "reason": "Событий, автоматизаций и agent actions нет. Два локальных цикла не создают событийный цикл, но являются неограниченными обходами данных, отмеченными в heap.bounds и knowledge.cost.",
+      "evidence": [
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "if (page.length < 1000) break"
+        }
+      ]
+    },
+    {
+      "id": "jobs.retries",
+      "status": "not-applicable",
+      "reason": "Исходники не планируют и не исполняют jobs, не имеют ретраев или Stop; оба помощника синхронно выполняют чтения.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
+        }
+      ]
+    },
+    {
+      "id": "ui.network",
+      "status": "not-applicable",
+      "reason": "В пакете нет Vue/TSX страницы, polling или socket. Частоту вызовов предполагаемого Staff экрана оценить невозможно из-за пропущенного вызывающего кода.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ни клиентская страница"
+        }
+      ]
+    },
+    {
+      "id": "external.budget",
+      "status": "not-applicable",
+      "reason": "В помощниках нет исходящего HTTP или внешнего SDK; вызовы переданных репозиториев рассматриваются в Heap/KB. Их конкретные реализации остаются пробелом scope.",
+      "evidence": [
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "listAll(ctx: unknown, offset: number, limit: number): Promise<Document[]>"
+        }
+      ]
+    },
+    {
+      "id": "load.budget",
+      "status": "gap",
+      "reason": "Горячие пути — сводка Staff и ответ по KB. При U активных сотрудниках, f запросах/с: Heap ≈U×f×(floor(N/1000)+1) чтений и N строк памяти на запрос; KB ≈U×f×(floor(D/1000)+1) чтений и все байты D статей в ответе. Например, U=10, f=0,1/с, N=100000, D=20000 дают около 101 Heap и 21 KB чтения/с, плюс всплески/повторы; это спрос, не допустимая мощность. Записей, HTTP и model calls нет в коде. Неизвестны реальные N,D, частота, стоимость адаптеров и размер статей.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.findAll(ctx, { limit: 1000, offset })"
+        },
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "kb.listAll(ctx, offset, 1000)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Устранить обходы, затем в тестовом контуре ступенчато измерить latency/error, число чтений и память на фиксированных N,D и U; остановить тест при росте ошибок/очереди, очистить тестовые данные, не запускать реальные эффекты."
     },
     {
       "id": "test.readiness",
       "status": "gap",
-      "reason": "План требует тест-заглушку, фиксирующую число и параметры вызовов; в пакете есть только PLAN и helper. Нет теста, Staff+ route и прямых проверок анонимного/Staff доступа. Безопасность эффекта проста (только чтение), но готовность сценария к прогону не доказана.",
+      "reason": "План называет тесты с заглушками, но пакет не содержит их реализации или вызывающих маршрутов. Проверка параметров/числа чтений, доступа Staff и прямых обращений не подготовлена; фактический smoke пока не требовался. Реальных отправок и платежей нет.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
-          "quote": "Репозиторий-заглушка фиксирует число и параметры вызовов."
+          "quote": "T1.A2 [test] Репозиторий-заглушка фиксирует число и параметры вызовов."
+        },
+        {
+          "path": "demo/PLAN.md",
+          "quote": "T2.A2 [test] Заглушка фиксирует количество поисков, лимит, область\n    доступа и общий размер переданного контекста."
         }
       ],
       "priority": "blocking",
-      "nextAction": "Добавить mock-тест count/findAll и граничного объёма, route и отрицательный прямой тест доступа; затем только тестовый прогон."
+      "nextAction": "Добавить заглушки и сценарии: размер/число запросов Heap и KB, пустая база, большие N/D, прямой анонимный/Staff вызов; выполнять только после отдельной подготовки тестового контура."
     },
     {
       "id": "operations.lifecycle",
       "status": "not-applicable",
-      "reason": "Новые автоматизации, отправки, платежи и долговременные эффекты этот узкий helper не запускает; отдельный план остановки серии или платежей ему не нужен. Эксплуатацию полного процесса этим пакетом подтвердить нельзя.",
+      "reason": "Это офлайн-фрагмент чтения без отправок, платежей, jobs и автоматизаций; запуск и остановка клиентской серии здесь отсутствуют. Для будущего runtime-маршрута частоту и наблюдаемость ещё нужно показать в scope.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
-          "quote": "Ни клиентская страница, ни\nвыгрузка всех заявок, ни отправки не входят в этот контроль."
+          "quote": "Это вымышленная офлайн-проверка помощника списка."
         }
       ]
     },
     {
       "id": "plan.T1",
       "status": "gap",
-      "reason": "T1.A1 не выполнена: вместо одного pending чтения ≤50 и серверного count весь набор читается по 1000, затем фильтруется. T1.A2 не представлен: теста заглушки нет.",
+      "reason": "T1.A1 требует один filtered findAll(limit:50) и count; реализация делает полный обход, локальный filter/sort/length. T1.A2 требует заглушку параметров, которой в пакете нет. Вызов со Staff экрана также не показан.",
       "evidence": [
         {
           "path": "demo/PLAN.md",
-          "quote": "Одна выборка не более 50 pending записей"
+          "quote": "Одна выборка не более 50 pending записей; общее число —\n    отдельный count без загрузки строк."
         },
         {
           "path": "demo/services/pendingSummary.ts",
-          "quote": "const page = await requests.findAll(ctx, { limit: 1000, offset })"
+          "quote": "return { total: rows.length, rows: rows.slice(0, 50) }"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Переделать запрос, реализовать count и приложить mock-тест параметров/числа вызовов."
+      "nextAction": "Реализовать серверные where/countBy/order/limit:50, добавить тестовую заглушку и показать вызывающий Staff маршрут."
+    },
+    {
+      "id": "plan.T2",
+      "status": "gap",
+      "reason": "T2.A1 требует максимум один scoped search и пять коротких выдержек, а реализация читает всю KB и возвращает полные тела. T2.A2 заглушки для числа поисков, прав и объёма контекста нет; реальный вызов не показан.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "На один запрос пользователя выполнить не более одного\n    поиска в разрешённых разделах и передать модели не более пяти коротких\n    выдержек"
+        },
+        {
+          "path": "demo/services/knowledgeAnswer.ts",
+          "quote": "all.map(doc => `${doc.title}: ${doc.body}`)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Перейти на проверенный scoped search с лимитом и усечением текста, добавить заглушку и показать вызывающий Staff маршрут/адаптер."
     }
   ]
 }

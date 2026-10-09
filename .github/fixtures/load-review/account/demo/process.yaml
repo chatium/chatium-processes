@@ -3,3 +3,4 @@ knowledge: .knowledge-base/processes/demo
 stages: [Работа сотрудника]
 nodes:
   - {id: pending-summary, stage: Работа сотрудника, kind: external, title: Сводка очереди, purpose: Показать первые 50 pending и общее число Staff+, source: demo/services/pendingSummary.ts}
+  - {id: knowledge-answer, stage: Работа сотрудника, kind: external, title: Ответ по инструкции, purpose: Найти ограниченное число выдержек для ответа сотруднику, source: demo/services/knowledgeAnswer.ts}
