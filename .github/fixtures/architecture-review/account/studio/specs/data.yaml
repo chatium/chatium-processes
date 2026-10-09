@@ -15,7 +15,7 @@ tables:
       - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}
       - {name: requestKey, type: string, purpose: Защита от повторной формы}
       - {name: status, type: pending | confirmed | declined, purpose: Ручное решение сотрудника}
-      - {name: requestEventState, type: pending | accepted | failed | unknown, purpose: Результат события заявки}
+      - {name: requestEventState, type: pending | accepted | failed | unknown | not-applicable, purpose: Результат события заявки; legacy запись не переиздаёт старое событие}
       - {name: bookingEventState, type: pending | accepted | failed | unknown | not-applicable, purpose: Результат события подтверждения}
       - {name: noticePending, type: boolean, purpose: Непроверенное уведомление сотруднику}
       - {name: createdAt, type: timestamp, purpose: Период отчёта и срок удаления}
@@ -30,9 +30,11 @@ tables:
       rule: Миграция сопоставляет каждый старый ID одному requestId; дельта переносится идемпотентно
     fields:
       - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}
-      - {name: status, type: string, purpose: Исход заявки для сверки}
+      - {name: classId, type: string, purpose: Занятие для сохранения и ручного решения после переноса}
+      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для последующего CRM-события}
+      - {name: status, type: pending | confirmed | declined, purpose: Исход заявки для сверки}
       - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}
-    migration: базовый снимок, пауза входа, дельта, сверка, атомарное переключение и обратная дельта при откате
+    migration: сохранить classId/testRecipientKey/status/createdAt; requestId детерминирован по legacyId; requestKey равен legacy:<legacyId>; оба eventState сначала not-applicable; при пустом занятии или неразрешённом ключе остановить cutover; затем пауза входа, дельта, сверка и переключение
 retention:
   decided: true
   current: Только синтетические записи; удаление через 30 дней после создания с удалением ключей контактов после самой поздней заявки

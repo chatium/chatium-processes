@@ -3,13 +3,13 @@
   "process": "studio",
   "stage": "architecture",
   "status": "needs-work",
-  "inputDigest": "9381ad136b33e437ac8db3588f936df65198b8deb6257513d12138e8a2b4ce46",
+  "inputDigest": "be90087ca2593958745faa970b457794252db3c996bfaf30425d24fc2d1b0f2a",
   "rubricVersion": 8,
   "reviewer": {
     "kind": "subagent",
     "reference": "architecture_control_review"
   },
-  "reviewedAt": "2026-10-09T03:42:44.150Z",
+  "reviewedAt": "2026-10-09T03:49:57.047Z",
   "inspectedFiles": [
     ".knowledge-base/.knowledge.yml",
     ".knowledge-base/processes/.knowledge.yml",
@@ -61,7 +61,7 @@
     {
       "id": "goals",
       "status": "covered",
-      "reason": "Для новой синтетической заявки есть вход, действие, результат и ответственный: подписанная форма сохраняет requestId, Store запланирован для назначенного Staff+, защищённый экран пишет ручной исход, отчёт считает уникальные requestId со статусом confirmed из той же таблицы. Необходимые данные и формула названы. Неполный перенос старых строк и отсутствие реального тестового адресата оценены отдельно и не подтверждают готовность запуска.",
+      "reason": "Цель имеет проектный путь: подписанная форма сохраняет уникальный requestId, Store уведомляет назначаемого Staff+, защищённый экран пишет ручной исход, отчёт считает долю по уникальным заявкам и статусам одной таблицы. Ответственный за метрику указан. Фактический Staff ID и доставка ещё не проверены; план запрещает контроль до их настройки.",
       "evidence": [
         {
           "path": "studio/PLAN.md",
@@ -72,207 +72,203 @@
           "quote": "denominator: distinct requestId из requests за выбранный период\nnumerator: distinct requestId из тех же requests со status confirmed"
         },
         {
-          "path": "studio/specs/services.yaml",
-          "quote": "  - id: report\n    nodeId: report"
+          "path": "studio/PLAN.md",
+          "quote": "Владелец метрики — сотрудник,\nкоторый сверяет отчёт со списком заявок и видит неполные события."
         }
       ]
     },
     {
       "id": "journey",
-      "status": "gap",
-      "reason": "Новый путь и его ошибки описаны, но уже активная заявка после миграции может остаться без необходимых classId и testRecipientKey: старая спецификация содержит только legacyId/status/createdAt. Сотрудник не сможет установить занятие для подтверждения, а booking_confirmed не получит контакт. Поэтому альтернативный путь старого клиента через решение до результата не доказан.",
+      "status": "covered",
+      "reason": "Описаны новое обращение, повтор, сохранение с нейтральным ответом, подтверждение и ручной отказ, отказ записи/CRM/Store. Для активных legacy-заявок теперь заданы перенос всех нужных полей, отказ от cutover при неполной строке и пробное решение pending-заявки; при подтверждении позднее пишется booking_confirmed, старое request_saved не переиздаётся. Это проект пути, не отчёт о его фактическом прогоне.",
       "evidence": [
         {
           "path": "studio/PLAN.md",
-          "quote": "В старой таблице `legacy-requests` уже есть синтетические активные заявки."
+          "quote": "Повтор возвращает тот же нейтральный ответ без второй строки и второго\nуведомления."
         },
         {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}\n      - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}"
+          "path": "studio/PLAN.md",
+          "quote": "Если `classId`\nотсутствует в каталоге или `testRecipientKey` не сопоставлен действующей\nсинтетической переменной контакта, перенос этой строки и cutover запрещены"
         },
         {
-          "path": "studio/specs/events.yaml",
-          "quote": "    contacts: тот же серверный allowlist по сохранённому testRecipientKey"
+          "path": "studio/PLAN.md",
+          "quote": "Для\nперенесённой `pending` заявки сотрудник сможет записать `confirmed` и только\nтогда впервые вызвать `booking_confirmed`"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "errors: [ошибка записи не показывает успех]"
         }
-      ],
-      "priority": "blocking",
-      "nextAction": "Для каждого типа старой строки задать источник classId и testRecipientKey или отдельный ручной путь разрешения неполной записи; проверить подтверждение/отказ мигрированной pending-заявки до переключения."
+      ]
     },
     {
       "id": "contracts",
       "status": "gap",
-      "reason": "Формальные поля requests и операционные контракты сервисов теперь присутствуют. Но контракт migration обещает выход в requests из снимка legacy-requests, не определяя происхождение обязательных для новой строки classId, testRecipientKey, requestKey и состояний двух событий. При таких входе и выходе нельзя проверить критерий «каждый старый ID — одна рабочая новая заявка».",
+      "reason": "Контракт staff-notice не задаёт обязательные для sendNotification поля title и text. Контракт migration перечисляет целевые поля, но не задаёт обязательный для requests noticePending; неясно, создаётся ли уведомление при переносе старой строки. Остальные сервисные и табличные контракты описаны.",
       "evidence": [
         {
           "path": "studio/specs/services.yaml",
-          "quote": "    input: снимок legacy-requests и сохранённый checkpoint старого ID\n    output: requests с соответствием legacyId -> requestId и отчёт сверки"
+          "quote": "input: сохранённый requestId и серверный testStaffUserId с подтверждённой ролью Staff+"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей"
         },
         {
           "path": "studio/specs/data.yaml",
-          "quote": "      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: requestKey, type: string, purpose: Защита от повторной формы}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: requestEventState, type: pending | accepted | failed | unknown, purpose: Результат события заявки}"
+          "quote": "- {name: noticePending, type: boolean, purpose: Непроверенное уведомление сотруднику}"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Дополнить контракт migration явным отображением каждого нового поля, правилами для отсутствующих значений и начальными eventState; отклонять либо отправлять на ручной разбор строки без безопасного отображения."
+      "nextAction": "Задать title/text Store-вызова и явную политику noticePending/уведомлений для перенесённых pending, confirmed и declined; включить поля в контракт миграции."
     },
     {
       "id": "site-and-services",
       "status": "gap",
-      "reason": "Страницы, nodeId/role/route и сервисные узлы external/serviceRef теперь согласованы. Однако самостоятельный сервис migration не имеет полного контракта сущности: входная legacy-requests не несёт classId/testRecipientKey/requestKey, а выход требует requests; не указаны правила заполнения, отказа или карантина для неполных записей. Критерий сверки числа и статусов этого не проверяет.",
+      "reason": "Защищённый список, в котором должны быть видны skipped и сбои Store, обещан планом, но site.yaml описывает только страницу решения по заявке без источника списка и фильтра noticePending. Дополнительно сервис Store не задаёт обязательные title/text.",
       "evidence": [
         {
-          "path": "studio/specs/services.yaml",
-          "quote": "  - id: migration\n    nodeId: migration"
+          "path": "studio/PLAN.md",
+          "quote": "`skipped`, `eligibleCount=0` и ошибка оставляют `noticePending` в таблице\nи показываются в защищённом списке."
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "filters: []"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "actions: [confirmed, declined]"
         },
         {
           "path": "studio/specs/services.yaml",
-          "quote": "    acceptance: дельта и контрольная сумма сверены непосредственно перед атомарным переключением"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: classId, type: string, purpose: ID занятия из разрешённого каталога}\n      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}"
+          "quote": "input: сохранённый requestId и серверный testStaffUserId с подтверждённой ролью Staff+"
         }
       ],
       "priority": "blocking",
-      "nextAction": "В specs/services.yaml описать проверяемое отображение обязательных полей и ошибочные исходы миграции; добавить приёмку выборочной проверки полной заявки и её ручного решения."
+      "nextAction": "Дополнить admin-review контрактом защищённого списка заявок с noticePending/состоянием отправки и действиями повторной проверки; в staff-notice задать title/text."
     },
     {
       "id": "links",
       "status": "gap",
-      "reason": "Переходы формы, Store URL, ручного решения и отчёта имеют реальные операции. Но стрелка migration → requests обещает перенос полноценной новой строки после сверки только числа/статуса/суммы. Не указан вызов или правило, которое переносит classId, testRecipientKey, requestKey и eventState из старой строки с тремя полями. Поэтому связь для активной legacy-заявки не подтверждена содержательно.",
+      "reason": "Связь requests → staff-notice описана для каждой новой строки после commit. Миграция также создаёт строки requests, но ни план, ни карта, ни сервис не определяют, должен ли этот триггер срабатывать для старых pending/confirmed/declined и как избежать повторной обработки.",
       "evidence": [
         {
           "path": "studio/process.yaml",
-          "quote": "  - {from: migration, to: requests, when: сверка и атомарное переключение}"
+          "quote": "- {from: requests, to: staff-notice, when: новая сохранённая заявка с requestId}"
         },
         {
           "path": "studio/specs/services.yaml",
-          "quote": "    output: requests с соответствием legacyId -> requestId и отчёт сверки"
+          "quote": "trigger: новая строка requests после commit"
         },
         {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}"
+          "path": "studio/process.yaml",
+          "quote": "- {from: migration, to: requests, when: сверка и атомарное переключение}"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Уточнить отображение полей в операции миграции и критерий сверки полной строки; затем подтвердить стрелку legacy-requests → migration → requests на одной pending-заявке."
+      "nextAction": "Определить на карте и в сервисе условие уведомления мигрированной строки: какие статусы уведомлять, а какие исключить, и как проставлять noticePending."
     },
     {
       "id": "data",
       "status": "gap",
-      "reason": "Формальная схема теперь задаёт source, purpose, owner, readers, identity, поля и retention. Для новой формы источник синтетического контакта реален в config.variables.testRecipient_qa_studio.value, правило обновления и срок хранения ключа заданы; пустой testStaffUserId является явным стоп-условием. Но миграция требует в requests classId, testRecipientKey и requestKey, которых нет в описанной legacy-requests, и не задаёт их источника/значения. Это нарушает идентичность и позднее получение контакта для старых активных заявок; сверка лишь количества и статусов не обнаружит потерю полей. Цена и контакт поддержки в объём не входят.",
+      "reason": "Формальная таблица requests содержит noticePending:boolean, но выход миграции и правило переноса его не задают. Значение нельзя вывести из старого набора полей; оно определяет, останутся ли перенесённые заявки на контроле уведомления и сможет ли сервис вставить строку с требуемой схемой. Иные legacy-поля теперь отображены явно.",
       "evidence": [
         {
-          "path": "studio/.workspace.json",
-          "quote": "\"testRecipient_qa_studio\":{\"value\":\"qa@example.invalid\""
+          "path": "studio/specs/data.yaml",
+          "quote": "- {name: noticePending, type: boolean, purpose: Непроверенное уведомление сотруднику}"
         },
         {
           "path": "studio/specs/data.yaml",
-          "quote": "identity: Контакты не хранятся в requests; qa-studio сопоставлен с config.variables.testRecipient_qa_studio.value"
+          "quote": "migration: сохранить classId/testRecipientKey/status/createdAt; requestId детерминирован по legacyId; requestKey равен legacy:<legacyId>; оба eventState сначала not-applicable; при пустом занятии или неразрешённом ключе остановить cutover; затем пауза входа, дельта, сверка и переключение"
         },
         {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: requestKey, type: string, purpose: Защита от повторной формы}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}\n      - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}"
+          "path": "studio/specs/services.yaml",
+          "quote": "output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Для legacy строк описать и проверить происхождение classId и testRecipientKey, детерминированный requestKey и начальные состояния событий; сверять эти поля на каждой перенесённой записи или не переключать вход."
+      "nextAction": "Определить начальное noticePending и жизненный цикл Store-уведомления по статусам мигрированных строк, добавить в data.yaml и services.yaml и сверять при cutover."
     },
     {
       "id": "event-lifecycle",
-      "status": "gap",
-      "reason": "Для новой заявки request_saved корректно публикуется после записи: requestId/classId уже есть, контакт берётся по testRecipientKey из config.variables; неизвестный исход CRM сверяется до повтора. booking_confirmed после ручного confirmed тоже имеет requestId и потребителя-наблюдение для новой строки. Для мигрированной pending-заявки источник контакта booking_confirmed не существует в описанной legacy-схеме: testRecipientKey не переносится и не выводится из старых полей. Событие может получить no_contacts или не быть опубликовано, хотя место подтверждено.",
+      "status": "covered",
+      "reason": "request_saved публикует обработчик только после транзакции requests: requestId/classId уже существуют, контакт по сохранённому testRecipientKey есть в config.variables; первый потребитель — операционное наблюдение. booking_confirmed пишет защищённый экран после confirmed, читая requestId и тот же ключ; для legacy pending он проверен при миграции, а старое request_saved не повторяется. Отказы и unknown ведутся раздельно и сверяются до ручного повтора; payloadMapping использует строковые слоты без email. Фактический вызов CRM предстоит проверить при реализации.",
       "evidence": [
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "  - key: request_saved\n    type: customerEvent"
+        },
+        {
+          "path": "studio/specs/events.yaml",
+          "quote": "    payloadMapping:\n      requestId: {title: ID заявки, fieldName: action_param1, type: string}\n      classId: {title: ID занятия, fieldName: action_param2, type: string}"
+        },
         {
           "path": "studio/specs/events.yaml",
           "quote": "  - key: booking_confirmed\n    type: customerEvent"
         },
         {
           "path": "studio/specs/events.yaml",
-          "quote": "    contacts: тот же серверный allowlist по сохранённому testRecipientKey"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}\n      - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}"
+          "quote": "    contacts: тот же серверный allowlist по сохранённому testRecipientKey; для legacy pending ключ обязательно проверен при переносе"
         },
         {
           "path": "studio/PLAN.md",
-          "quote": "В старой таблице `legacy-requests` уже есть синтетические активные заявки."
+          "quote": "оба eventState изначально\n`not-applicable`: старые события не публикуются повторно."
+        },
+        {
+          "path": "studio/PLAN.md",
+          "quote": "неизвестный исход\nсверяют в CRM по `requestId` до ручного повтора"
         }
-      ],
-      "priority": "blocking",
-      "nextAction": "До принятия миграции определить testRecipientKey для каждой старой заявки или запретить её подтверждение с событием до ручного восстановления контакта; проверить один мигрированный сценарий booking_confirmed и раздельные eventState."
+      ]
     },
     {
       "id": "delivery",
       "status": "gap",
-      "reason": "Платежи, Mailings и клиентские отправки исключены; Store контракт на id/userIds/url, queued/skipped и повтор описан. Но config.variables.testStaffUserId отсутствует намеренно, конкретный Staff+ в тестовом аккаунте не подтверждён, Store Inbox адресата не проверен. Следовательно безопасный полный прогон уведомления не состоялся; queued нельзя называть доставкой. Реальные адресаты запрещены самим планом.",
+      "reason": "Store — единственный автоматический внешний эффект. Архитектура правильно различает queued и доставку и блокирует контроль без тестового Staff+ и Inbox, но описанный вызов sendNotification неполон: по справке Store обязательны title и text, в плане и service-контракте они отсутствуют. Фактического адресата и подтверждения Inbox в пакете также нет, поэтому отправка не проверена.",
       "evidence": [
         {
           "path": "studio/PLAN.md",
-          "quote": "Сейчас переменная намеренно не задана:\nдо настройки и проверки роли сотрудника в тестовом аккаунте контроль не\nзапускается."
+          "quote": "`config.variables.testStaffUserId.value` — единственный источник ID конкретного\nтестового сотрудника Staff+ для Store. Сейчас переменная намеренно не задана:"
         },
         {
           "path": "studio/PLAN.md",
-          "quote": "Получение проверяется в Store Inbox адресата;\nесли Inbox недоступен в тестовом аккаунте, проверка остаётся открытой и\nреальные адресаты запрещены."
+          "quote": "Store SDK получает стабильный\n`id=request:<requestId>`, `recipients.userIds` и защищённый URL"
         },
         {
           "path": "studio/specs/services.yaml",
-          "quote": "    output: Store dispatchId, state queued или skipped, eligibleCount; noticePending сохраняется до проверки Inbox"
+          "quote": "acceptance: одно уведомление на новый requestId, queued не объявляется доставкой, тестовый Staff+ проверяет Inbox"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Настроить и проверить testStaffUserId для отдельного Staff+ в тестовом аккаунте; выполнить синтетический путь до появления в его Inbox и проверить skipped/eligibleCount=0, сбой и повтор. Если Inbox недоступен, оставить запуск закрытым."
+      "nextAction": "Указать безопасные title/text в контракте и выполнить в тестовом аккаунте вызов с реальным Staff+ testStaffUserId, затем проверить Inbox и логи до вывода о доставке."
     },
     {
       "id": "staff-notifications",
       "status": "gap",
-      "reason": "Момент после commit, Store, стабильный requestId, URL и правило повтора есть; адресат задан как конкретный testStaffUserId в config.variables. Однако переменная реально отсутствует, а роль и Inbox сотрудника не подтверждены. По заявленному стоп-условию уведомление не может быть отправлено, поэтому утверждать, что сотрудник узнает о заявке, нельзя.",
+      "reason": "Роль Staff+, момент после commit, requestId и правило повтора определены; доставка не заявлена. Но Store-вызов не содержит обязательные title/text, тестовый Staff ID пока отсутствует, а обещанный защищённый список ошибок не указан в site.yaml. Без этого нельзя утверждать, что сотрудник узнает о заявке при skipped/ошибке.",
       "evidence": [
         {
+          "path": "studio/specs/services.yaml",
+          "quote": "trigger: новая строка requests после commit"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "input: сохранённый requestId и серверный testStaffUserId с подтверждённой ролью Staff+"
+        },
+        {
           "path": "studio/PLAN.md",
-          "quote": "`config.variables.testStaffUserId.value` — единственный источник ID конкретного\nтестового сотрудника Staff+ для Store. Сейчас переменная намеренно не задана"
+          "quote": "Сейчас переменная намеренно не задана:"
         },
         {
-          "path": "studio/specs/services.yaml",
-          "quote": "    recipient: recipients.userIds содержит один testStaffUserId, а не клиента"
-        },
-        {
-          "path": "studio/specs/services.yaml",
-          "quote": "    acceptance: одно уведомление на новый requestId, queued не объявляется доставкой, тестовый Staff+ проверяет Inbox"
+          "path": "studio/specs/site.yaml",
+          "quote": "actions: [confirmed, declined]"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Заполнить testStaffUserId проверенным тестовым Staff+ userId, подтвердить доступ к /studio/admin и фактическое получение одного уведомления в Inbox по новой синтетической заявке."
+      "nextAction": "Завершить Store-контракт, настроить и проверить Staff+ получателя, описать список noticePending в admin-review и подтвердить один тестовый Inbox-элемент."
     },
     {
       "id": "security",
       "status": "covered",
-      "reason": "Приглашение проверяется сервером по подписи, сроку, account и разрешённому testRecipientKey как для GET, так и POST; адрес не берётся из браузера. Служебные маршруты экрана, отчёта и миграции требуют серверной проверки Staff+/доступа; URL с requestId сам по себе не даёт полномочий. Реальные данные и публичный запуск явно исключены.",
+      "reason": "Сервер проверяет подписанное краткоживущее приглашение по подписи, сроку, account и разрешённому ключу для GET и POST; браузер не назначает чужой контакт. Admin, отчёт и миграция проверяют Staff+/доступ на сервере, а requestId в URL не считается полномочием. Публичный запуск и реальные данные исключены.",
       "evidence": [
         {
           "path": "studio/PLAN.md",
@@ -299,56 +295,48 @@
     {
       "id": "reuse",
       "status": "gap",
-      "reason": "План отказался от собственного бесконечного опроса и теперь описывает паузу входа, дельту, сверку, атомарное переключение и обратный перенос при откате. Но сверяются только количество, статусы и контрольная сумма; не задано, как сохранить необходимые новые поля classId/testRecipientKey/requestKey для активных legacy-заявок. Формальное сохранение ID без этих полей не сохраняет возможность обслужить прежних пользователей.",
+      "reason": "Миграция теперь сохраняет legacyId, classId, testRecipientKey, status и createdAt, а также допускает откат. Но она не определяет noticePending и поведение Store-триггера для переносимых строк, так что обязательство уведомить сотрудника по активной старой заявке может потеряться либо вызвать лишние уведомления для уже закрытых строк.",
       "evidence": [
         {
-          "path": "studio/PLAN.md",
-          "quote": "Миграция переносит базовый снимок с соответствием старого ID и нового\n`requestId`."
+          "path": "studio/specs/services.yaml",
+          "quote": "output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей"
+        },
+        {
+          "path": "studio/specs/services.yaml",
+          "quote": "trigger: новая строка requests после commit"
         },
         {
           "path": "studio/PLAN.md",
-          "quote": "сверяют число, статусы и контрольную сумму непосредственно перед атомарным\nпереключением маршрута на `requests`."
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: classId, type: string, purpose: ID занятия из разрешённого каталога}\n      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}"
+          "quote": "Для\nперенесённой `pending` заявки сотрудник сможет записать `confirmed`"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Добавить миграционное отображение и сверку всех необходимых полей/связей, тест ручного решения старой pending-заявки и критерий отказа от cutover при невозможности восстановить контакт или занятие."
+      "nextAction": "Добавить политику переноса уведомлений по каждому статусу, соответствующее значение noticePending и пробный cutover, проверяющий отсутствие лишних Store-элементов и видимость pending."
     },
     {
       "id": "consistency",
       "status": "gap",
-      "reason": "План, карта, события и отчёт теперь согласованы по requestId; analytics.yaml показывает действующие requestEventState и bookingEventState. Источник синтетического контакта qa-studio указан и в плане, и в config.variables, а testStaffUserId намеренно отсутствует с явным запретом контроля — это незакрытая зависимость, не противоречие. Но план обещает перенос активных legacy-заявок в requests и затем ручное подтверждение/booking_confirmed; формальная legacy-схема не содержит classId/testRecipientKey/requestKey, обязательных в новой схеме, а services.yaml не даёт их отображения. Это расхождение нужно решить до сборки. Карточек tasks/W*, агентов и risk.RD* в пакете нет.",
+      "reason": "PLAN, data и services согласованы по старым classId/testRecipientKey и состояниям событий. Остаётся расхождение: PLAN обещает noticePending и защищённый список проблем Store, а контракт миграции не инициализирует это поле, site.yaml не описывает список; общий триггер Store охватывает перенос строк без определённой политики. testStaffUserId отсутствует осознанно и не является доказательством доставки.",
       "evidence": [
         {
           "path": "studio/PLAN.md",
-          "quote": "В старой таблице `legacy-requests` уже есть синтетические активные заявки."
-        },
-        {
-          "path": "studio/specs/analytics.yaml",
-          "quote": "отдельно видит requestEventState и bookingEventState"
+          "quote": "`skipped`, `eligibleCount=0` и ошибка оставляют `noticePending` в таблице\nи показываются в защищённом списке."
         },
         {
           "path": "studio/specs/data.yaml",
-          "quote": "      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}"
-        },
-        {
-          "path": "studio/specs/data.yaml",
-          "quote": "      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}\n      - {name: status, type: string, purpose: Исход заявки для сверки}\n      - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}"
+          "quote": "- {name: noticePending, type: boolean, purpose: Непроверенное уведомление сотруднику}"
         },
         {
           "path": "studio/specs/services.yaml",
-          "quote": "    output: requests с соответствием legacyId -> requestId и отчёт сверки"
+          "quote": "output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей"
+        },
+        {
+          "path": "studio/specs/site.yaml",
+          "quote": "filters: []"
         }
       ],
       "priority": "blocking",
-      "nextAction": "Согласовать старую и новую схемы с планом миграции: определить происхождение недостающих полей, начальные eventState, проверку полного переноса и исход для строк без контакта/занятия."
+      "nextAction": "Согласовать начальный noticePending, триггер Store для legacy по статусам и контракт списка ошибок во всех PLAN/process/data/services/site, затем проверить на синтетической pending-заявке."
     }
   ]
 }

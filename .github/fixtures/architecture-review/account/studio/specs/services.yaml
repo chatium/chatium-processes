@@ -22,10 +22,10 @@ services:
   - id: migration
     nodeId: migration
     trigger: отдельная ручная операция Staff+ до переключения входа
-    input: снимок legacy-requests и сохранённый checkpoint старого ID
-    output: requests с соответствием legacyId -> requestId и отчёт сверки
+    input: снимок legacy-requests с legacyId, classId, testRecipientKey, status, createdAt и сохранённый checkpoint старого ID
+    output: requests с classId/testRecipientKey/status/createdAt без подстановки, requestId из legacyId, requestKey=legacy:<legacyId>, оба eventState=not-applicable и отчёт сверки всех полей
     access: только отдельная операция администратора с серверной проверкой роли и журналом действий
     repeat: перенос по legacyId идемпотентен; перед cutover пауза старого входа, ожидание in-flight и перенос дельты
-    errors: [расхождение числа или статусов не переключает вход, отказ записи сохраняет прежний маршрут]
+    errors: [нет classId в каталоге или testRecipientKey в конфиге — строка не переносится и cutover запрещён, расхождение любого поля или числа не переключает вход, отказ записи сохраняет прежний маршрут]
     rollback: под паузой нового входа перенос новых записей обратно по ID и возврат старого маршрута
-    acceptance: дельта и контрольная сумма сверены непосредственно перед атомарным переключением
+    acceptance: дельта и все обязательные поля сверены непосредственно перед атомарным переключением; синтетическая старая pending-заявка проходит ручное confirmed и booking_confirmed с сохранённым контактом, а request_saved повторно не выходит

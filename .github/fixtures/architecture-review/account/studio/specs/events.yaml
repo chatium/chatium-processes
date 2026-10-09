@@ -17,7 +17,7 @@ events:
     description: Защищённый экран вызывает captureCustomerEvent после сохранения confirmed
     category: conversion
     writer: защищённый экран после записи статуса confirmed
-    contacts: тот же серверный allowlist по сохранённому testRecipientKey
+    contacts: тот же серверный allowlist по сохранённому testRecipientKey; для legacy pending ключ обязательно проверен при переносе
     payloadMapping:
       requestId: {title: ID заявки, fieldName: action_param1, type: string}
     failure: bookingEventState=failed или unknown; unknown сверяют по requestId до ручного повтора
