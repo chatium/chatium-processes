@@ -35,7 +35,7 @@ tables:
       - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для последующего CRM-события}
       - {name: status, type: pending | confirmed | declined, purpose: Исход заявки для сверки}
       - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}
-    migration: сохранить classId/testRecipientKey/status/createdAt; requestId детерминирован по legacyId; requestKey равен legacy:<legacyId>; оба eventState сначала not-applicable; pending получает noticePending=true и noticeState=manual-backlog без Store, completed получает false и not-applicable; при пустом занятии или неразрешённом ключе остановить cutover; затем пауза входа, дельта, сверка и переключение
+    migration: сохранить classId/testRecipientKey/status/createdAt; requestId детерминирован по legacyId; requestKey равен legacy:<legacyId>; оба eventState сначала not-applicable; pending получает noticePending=true и noticeState=manual-backlog без Store, completed получает false и not-applicable; сухой прогон до cutover только на изолированной копии без CRM и Store; при пустом занятии или неразрешённом ключе остановить cutover; затем пауза входа, дельта, сверка, переключение и тест confirmed на рабочей синтетической pending строке с откатом при ошибке
 retention:
   decided: true
   current: Только синтетические записи; удаление через 30 дней после создания с удалением ключей контактов после самой поздней заявки
