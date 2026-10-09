@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "process": "repair",
+  "stage": "design",
+  "status": "needs-work",
+  "inputDigest": "fc61d1564740a50773c1022fdd1c8ebcadae5cfcbe36756cb3feed59b6817283",
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "method_decisions_reviewer"
+  },
+  "reviewedAt": "2026-10-09T05:01:42.658Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/repair/.knowledge.yml",
+    ".knowledge-base/processes/repair/overview.md",
+    "repair/PLAN.md",
+    "repair/process.yaml",
+    "repair/decisions/risk/RD1.json"
+  ],
+  "sourceDisposition": [
+    {
+      "path": "repair/materials/owner-brief.md",
+      "status": "inspected"
+    }
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/method/README.md",
+    "skills/processes/method/readiness.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/method/README.md": "f1ece7a18d4ded0b7c5fc5892a692ae17da0cebb0227b372e6111b3242c65f1d",
+    "skills/processes/method/readiness.md": "ab0d8df76276e3780c64e2cdde92e166fba08adf30364693fcdcb3ce0039bb4c"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "rubricVersion": 4,
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "ai.opportunities",
+      "status": "gap",
+      "reason": "Не рассмотрена полезность ИИ на пути клиента и не сохранено решение владельца; ручной ответ допустим.",
+      "evidence": [],
+      "priority": "advisory",
+      "nextAction": "Кратко оценить пользу ИИ для заявок и записать решение владельца."
+    },
+    {
+      "id": "operations.consent",
+      "status": "gap",
+      "reason": "Страна и согласия объявлены неизвестными, но план сразу публикует форму и запускает рекламу. Оригинал repair/materials/owner-brief.md устанавливает Россию, запрет публикации до политики и согласия и отдельное решение об opt-in/отказе для рекламы. Конструкция противоречит владельцу; юридическая готовность не доказана.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Форма собирает имя, email и описание поломки. Страна работы и решение"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Публикуем форму для имени, email и описания поломки; сразу запускаем"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Исправить страну и поля; держать форму закрытой до документов, рекламную серию — до отдельного согласия и механизма отказа."
+    },
+    {
+      "id": "purpose.result",
+      "status": "gap",
+      "reason": "Не определены клиентский результат, бизнес-цель и граница процесса: заявка, осмотр, ремонт или выдача. Нельзя определить успех.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "title: Вымышленная мастерская ремонта"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Спросить владельца о целевом результате и границах процесса."
+    },
+    {
+      "id": "purpose.mechanism",
+      "status": "gap",
+      "reason": "Нет объяснения, почему форма, письма и ответ через 48 часов приведут клиента к ремонту; письма противоречат оригиналу.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "рекламные письма. Страну, документы и согласие уточним позже."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать логику от потребности до осмотра, согласования и результата."
+    },
+    {
+      "id": "audience.context",
+      "status": "gap",
+      "reason": "Нет основного клиента, ситуации обращения и основания сегментации. Оригинал упоминает срочных клиентов и велосипед, но это не перенесено.",
+      "evidence": [],
+      "priority": "blocking",
+      "nextAction": "Уточнить целевых клиентов, срочность и виды поломок."
+    },
+    {
+      "id": "audience.entry",
+      "status": "gap",
+      "reason": "Не указан канал входа и обещание до формы; ожидания клиента проверить нельзя.",
+      "evidence": [],
+      "priority": "blocking",
+      "nextAction": "Записать фактические источники заявок и обещание до формы."
+    },
+    {
+      "id": "audience.objections",
+      "status": "gap",
+      "reason": "Не разобраны сомнения о цене, сроках и доверии. Обещание «быстрого ответа» расходится с риском 48 часов.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "ответом. Дальнейшие правила не нужны."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Спросить о типовых возражениях и убрать необоснованное обещание скорости."
+    },
+    {
+      "id": "offer.value",
+      "status": "gap",
+      "reason": "Не определены состав ремонтной услуги, пригодность клиента и ограничения.",
+      "evidence": [],
+      "priority": "blocking",
+      "nextAction": "Уточнить виды работ, результат осмотра и границы обещания."
+    },
+    {
+      "id": "offer.exchange",
+      "status": "gap",
+      "reason": "Цена 1 000 ₽ названа текущей, хотя оригинал фиксирует отказ от неё и подтверждённые 500 ₽. Неясны условия оплаты осмотра и дальнейшего ремонта.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Осмотр стоит 1 000 ₽ — цена взята с найденной страницы."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Исправить цену на 500 ₽ и описать согласование и оплату ремонта."
+    },
+    {
+      "id": "journey.complete",
+      "status": "gap",
+      "reason": "После заявки нет осмотра, согласования цены, ремонта и выдачи; карта пуста.",
+      "evidence": [
+        {
+          "path": "repair/process.yaml",
+          "quote": "nodes: []"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать путь от источника заявки до выдачи либо отказа."
+    },
+    {
+      "id": "journey.alternatives",
+      "status": "gap",
+      "reason": "Нет правил для неответившей заявки, отказа после осмотра, просрочки ответа и повторного обращения.",
+      "evidence": [],
+      "priority": "blocking",
+      "nextAction": "Определить значимые развилки, завершение контакта и ответственного."
+    },
+    {
+      "id": "pages.intent",
+      "status": "gap",
+      "reason": "У формы нет объяснённого следующего шага; публикация противоречит запрету владельца до документов.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Публикуем форму для имени, email и описания поломки; сразу запускаем"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Описать задачу формы и ответ после неё; закрыть публикацию до выполнения условий."
+    },
+    {
+      "id": "messages.intent",
+      "status": "gap",
+      "reason": "Рекламная серия после каждой заявки не имеет отдельного согласия, цели касаний и отказа. Владелец разрешил пока лишь ответ на обращение.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Пока собираем рекламную серию после каждого обращения."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Убрать рекламную серию из текущего проекта; описать операционный ответ."
+    },
+    {
+      "id": "operations.delivery",
+      "status": "gap",
+      "reason": "Нет ответственного за осмотр, ремонт, согласование цены и выдачу. Заявка не гарантирует результат.",
+      "evidence": [],
+      "priority": "blocking",
+      "nextAction": "Уточнить исполнителей, расписание и маршрут оказания услуги."
+    },
+    {
+      "id": "evidence.research",
+      "status": "gap",
+      "reason": "Архивная страница от 15.03.2025 объявлена текущей ценой без сверки, хотя оригинал фиксирует её отказ владельцем 09.10.2026. Это учебная имитация, реального веб-поиска не было.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "что осмотр стоит 1 000 ₽. Это текущая цена; так и напишем клиенту."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Указать URL, дату и статус «отвергнута»; принять 500 ₽ только как подтверждение владельца и не утверждать реальный поиск."
+    },
+    {
+      "id": "evidence.materials",
+      "status": "gap",
+      "reason": "Оригинал repair/materials/owner-brief.md доступен и проверен по хешу, но не связан с знаниями и теряет три критичных фрагмента: Россия/согласия, отказ от 1 000 ₽ в пользу 500 ₽, риск и контроль RD1. Полнота переноса не подтверждена.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Форма собирает имя, email и описание поломки. Страна работы и решение"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Осмотр стоит 1 000 ₽ — цена взята с найденной страницы."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Связать короткий оригинал и перенести три решения с датой; сверить план."
+    },
+    {
+      "id": "business.specific",
+      "status": "gap",
+      "reason": "Из оригинала следуют отдельные вопросы: какие велосипеды/работы принимаются (фрагмент «выдачи велосипеда»), как действует цена осмотра 500 ₽, как контролируется 48-часовой первый ответ. В знаниях тип услуги не определён, цена и срок искажены; меняются допуск, обещание и исполнение.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Осмотр стоит 1 000 ₽ — цена взята с найденной страницы."
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "ответом. Дальнейшие правила не нужны."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Уточнить виды работ и приём/выдачу; исправить цену; записать границу RD1 и ежедневный контроль."
+    },
+    {
+      "id": "evidence.decisions",
+      "status": "gap",
+      "reason": "Архивная цена принята как факт, согласия отложены без отражения запрета, RD1 теряет альтернативу, риск, границу и контроль. Ответ владельца не разрешает публикацию и не устраняет эти пробелы.",
+      "evidence": [
+        {
+          "path": "repair/decisions/risk/RD1.json",
+          "quote": "  \"recommendation\": \"Быть быстрее\","
+        },
+        {
+          "path": "repair/decisions/risk/RD1.json",
+          "quote": "  \"consequence\": \"Приемлемо\","
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Разделить факты, отвергнутую находку, открытые условия и решение RD1 во всех трёх местах."
+    },
+    {
+      "id": "scope.fitness",
+      "status": "gap",
+      "reason": "Добавлена рекламная серия вопреки желанию владельца отвечать только на заявку. Это лишний компонент с неучтённым согласием.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "рекламные письма. Страну, документы и согласие уточним позже."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Убрать серию из текущего пути и отдельно обсуждать будущую рекламу."
+    },
+    {
+      "id": "risk.RD1",
+      "status": "gap",
+      "reason": "RD1 присутствует в записи, плане и статье, но альтернатива «тот же рабочий день» заменена на «быть быстрее», потеря срочных клиентов — на «приемлемо», контроль очереди — на «проверять», первый ответ — на «вся воронка». План и статья обещают быстрый ответ вопреки владельцу. Квалифицированный проект этого риска невозможен.",
+      "evidence": [
+        {
+          "path": "repair/decisions/risk/RD1.json",
+          "quote": "  \"scope\": \"Вся воронка\","
+        },
+        {
+          "path": "repair/decisions/risk/RD1.json",
+          "quote": "  \"control\": \"Проверять\","
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "RD1: будем отвечать в течение 48 часов. В сообщениях назовём это быстрым"
+        },
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "RD1: владелец выбрал ответить в течение 48 часов. Можно обещать быстрый"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Синхронизировать три места с дословным ответом, альтернативой, последствием, границей и ежедневным контролем; убрать обещание быстрого ответа."
+    }
+  ]
+}
