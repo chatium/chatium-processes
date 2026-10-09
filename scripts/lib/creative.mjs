@@ -13,6 +13,22 @@ const unique = values => new Set(values).size === values.length
 const catalog = name => JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog', name), 'utf8'))
 const json = value => JSON.stringify(value, null, 2)
 
+function malformedFlowFields(spec) {
+  const errors = [], seen = new Set(), pending = [{ value: spec, path: 'spec' }]
+  while (pending.length && errors.length < 20) {
+    const { value, path } = pending.pop()
+    if (!value || typeof value !== 'object' || seen.has(value)) continue
+    seen.add(value)
+    for (const [key, child] of Object.entries(value)) {
+      const field = Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`
+      if (child === null && !/^spec\.messages\[\d+\]\.cta$/.test(field))
+        errors.push(`${field}: пустое поле; проверьте запятые и кавычки в YAML.`)
+      else if (child && typeof child === 'object') pending.push({ value: child, path: field })
+    }
+  }
+  return errors
+}
+
 function selectedText(content, section) {
   if (!section) return content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '')
   const expected = String(section).replace(/^#+\s*/, '').trim()
@@ -248,6 +264,7 @@ export function creativePacket({ root, slug, nodeId }) {
     mechanics: 40, images: 40, messages: 60, openQuestions: 50 }))
     if (Array.isArray(spec?.[key]) && spec[key].length > maximum) throw Error(`Слишком много ${key} (максимум ${maximum}).`)
   const errors = [], references = []
+  errors.push(...malformedFlowFields(spec))
   if (spec?.version !== 1 || spec.targetNode !== nodeId || !['landing', 'series'].includes(spec.kind) ||
       spec.kind !== (node.kind === 'page' ? 'landing' : 'series')) errors.push('spec.yaml не соответствует узлу или версии схемы.')
   if (!text(spec?.objective) || !text(spec?.audience) || !Array.isArray(spec?.acceptance) || !spec.acceptance.length)

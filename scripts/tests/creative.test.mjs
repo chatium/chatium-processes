@@ -155,6 +155,25 @@ test('page catalog keeps the V4 scenario coverage with review guidance', () => {
     assert.ok(item, `missing ${key}`)
     assert.ok(item.purpose && item.guidance && item.reviewQuestions?.length, `incomplete ${key}`)
   }
+  assert.match(catalog.types.interest.purpose, /без обещания регистрации/)
+})
+
+test('split YAML flow values cannot silently lose section text or design adaptation', t => {
+  const f = fixture(t)
+  f.spec.sections[0].points[0]['утраченная часть тезиса'] = null
+  f.spec.sections[0].presentation['утраченная часть mobile'] = null
+  f.spec.design['утраченная часть стиля'] = null
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  const errors = creativePacket(f.args).errors.join('\n')
+  for (const part of ['утраченная часть тезиса', 'утраченная часть mobile', 'утраченная часть стиля'])
+    assert.match(errors, new RegExp(part))
+  delete f.spec.sections[0].points[0]['утраченная часть тезиса']
+  delete f.spec.sections[0].presentation['утраченная часть mobile']
+  delete f.spec.design['утраченная часть стиля']
+  f.spec.landingType = 'interest'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  assert.match(compileCreative(creativePacket(f.args)), /интерес.*регистрац/si)
 })
 
 test('curated page styles retain the established design range without internal references', () => {
