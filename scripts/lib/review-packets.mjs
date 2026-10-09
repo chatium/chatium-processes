@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, rmSync,
 import { basename, join } from 'node:path'
 
 const sha = value => createHash('sha256').update(value).digest('hex')
-const ROLES = new Set(['kb-review', 'code-review', 'creative-review', 'agent-review', 'architecture-review'])
+const ROLES = new Set(['kb-review', 'code-review', 'creative-review', 'agent-review', 'architecture-review', 'analytics-review'])
 
 export function markReviewPacket({ directory, root, slug, role, managed }) {
   if (!managed) return
