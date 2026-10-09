@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +10,16 @@ const workflow = readFileSync(fileURLToPath(new URL('../../WORKFLOW.md', import.
 const environment = readFileSync(fileURLToPath(new URL('../../build/environment.md', import.meta.url)), 'utf8')
 const packageInfo = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'))
 const skillRoot = fileURLToPath(new URL('../../', import.meta.url))
+
+function installedMarkdown(directory, relative = '') {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    if (['.git', '.github', 'node_modules', 'README.md'].includes(entry.name) ||
+        relative === 'scripts/' && entry.name === 'tests') return []
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return installedMarkdown(path, `${relative}${entry.name}/`)
+    return entry.isFile() && entry.name.endsWith('.md') ? [`${relative}${entry.name}`] : []
+  })
+}
 
 test('installed skill entry routes complex processes without claiming standalone work', () => {
   const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(entry)?.[1]
@@ -41,9 +51,11 @@ test('platform reference paths in process guidance exist in the pinned developme
   if (!developmentSkill) return t.skip('Full npm test supplies the pinned development skill')
   const missing = []
   const legacy = []
-  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: skillRoot })
-    .toString().split('\0').filter(path => path.endsWith('.md') &&
-      !['.github', 'node_modules'].includes(path.split('/')[0]))
+  const files = existsSync(join(skillRoot, '.git'))
+    ? execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: skillRoot })
+      .toString().split('\0').filter(path => path.endsWith('.md') &&
+        !['.github', 'node_modules'].includes(path.split('/')[0]))
+    : installedMarkdown(skillRoot)
   for (const relative of files) {
     const path = join(skillRoot, relative)
     const source = readFileSync(path, 'utf8')

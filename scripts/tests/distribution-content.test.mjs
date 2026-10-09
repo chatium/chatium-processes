@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -19,7 +19,7 @@ function installedSources(directory) {
 }
 
 function leakedFiles(directory) {
-  const sources = directory === root
+  const sources = directory === root && existsSync(join(root, '.git'))
     ? execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root })
       .toString().split('\0').filter(Boolean)
       .filter(path => !ignored.has(path.split('/')[0]) && !path.startsWith('scripts/tests/'))
