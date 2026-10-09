@@ -55,9 +55,12 @@ handoffs: []
 
 Для `inputs: [{kind: manual, ...}]` добавь к агенту `delivery: {kind: direct-output, handler: <process>/tools/captureAnswer.ts}` и реально передай этот `app.function` как `directOutputTool.handler` при ручном `pushMessageToChain`. Допустим и проверенный `delivery.kind: send-tool` с локальным обработчиком, когда ответ должен уходить в согласованный канал. Локальный `check` проверяет существование приёмника; независимое ревью и живой trace подтверждают, что он передан в вызов и ответ принят. Без этого агент может зациклиться на отсутствующем `sendMessageToChat`.
 
-`agents-runtime.mjs` передаёт текущую Git-ветку в SDK AI Agents при чтении
-опубликованного файла: у `chatium exec` может не быть preview-контекста.
-Проверка ветки требует версию SDK с параметром `branch`.
+`agents-runtime.mjs` передаёт текущую Git-ветку в `getPublishedAgentVersionBySourcePath`:
+SDK читает запись, созданную хуком сборки именно этой ветки, а скрипт сверяет её
+отпечаток с локальным файлом и ближайшим `.workspace.json`. `chatium exec`
+может исполнять нужный коммит без preview-контекста, поэтому читать через него
+«текущий» файл агента другой ветки нельзя. Для этой проверки нужна версия SDK
+с методом `getPublishedAgentVersionBySourcePath`.
 
 ```yaml
 # <process>/agents/cases.yaml
