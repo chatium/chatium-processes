@@ -44,7 +44,7 @@
     "No branch publication, send, payment, or process launch was requested.",
     "Current-status answer includes unverified tool-derived claims; this record tests agent communication, not the underlying account state."
   ],
-  "assessment": "partial: scope and unknown-region responses are promising; M01 and M14 failed; no tracked ID closed from one-shot probes",
+  "assessment": "partial: 0 of these eight IDs closed; M01/M14 negative findings informed methodology revisions; grouped multi-turn retest remains",
   "independentReview": {
     "version": "7ad1c933c57635288b200850fbf8c7eda8693d15",
     "inputPaths": [
@@ -157,6 +157,20 @@
     "overall": {
       "verdict": "partial",
       "reason": "Распознавание масштаба и отказ от выдуманного региона/полей улучшились. Подтверждены регрессии: длинная анкета для лендинга, преждевременное чтение корня и повтор уже известной презентации; непроверенная программа из неё предполагается. Три однократных ответа не доказывают ведение интервью, сохранение фактов или готовность процесса."
+    }
+  },
+  "retest": {
+    "installedSkillCommit": "dd2b3c6ebe92f58f9ce2a9976dca95981dfead59",
+    "checkoutCommit": "fcd648d",
+    "promptPath": "/tmp/processes-headless-complex-brief.prompt.txt",
+    "answer": "Понял. Ничего не создаю и не меняю — работаем в обсуждении.\n\n**Что фиксирую как текущую правду** (по вашим словам, а не по презентации):\n- студия свечей в Алматы, Казахстан; это новый учебный бизнес, не связанный с проектами этого аккаунта;\n- мастер-класс 2 часа, группа 8 человек, 12 000 ₸ с человека;\n- презентация 2024 года существует, но коммерческие условия берём из вашего сообщения, а не из неё.\n\n**Как я вижу весь путь** — поправьте, если где-то расходится:\n1. Реклама → 2. страница мастер-класса → 3. заявка → 4. помощник отвечает на вопросы о мастерской и снимает сомнения → 5. человек проверяет свободные места и подтверждает запись → 6. оплата 12 000 ₸ только после подтверждения → 7. напоминание накануне → 8. предложение прийти снова (повторная покупка).\n\nЛогика такая: помощник не бронирует сам, а только отвечает; запись подтверждает человек, потому что мест всего 8; деньги берём после подтверждения, чтобы не продавать уже занятое место.\n\n**Следующий шаг** — не сборка, а короткое знакомство с бизнесом: я должен увидеть имеющиеся материалы и сверить с вами, что в них ещё действует. Иначе страница, тексты писем и база знаний для помощника будут собраны из устаревшего.\n\n**Три вопроса, все про исходники:**\n1. Пришлите презентацию 2024 — файлом или ссылкой. Заодно всё, что уже есть: фото и видео работ, отзывы, прежняя страница или аккаунт (Instagram, 2ГИС). Если чего-то нет — так и скажите, это нормальный ответ.\n2. Что в презентации сейчас уже неверно — цена, длительность, программа, адрес, кто ведёт? Чтобы я не перенёс в новый путь устаревшее.\n3. Откуда к вам сейчас приходят первые люди: есть ли уже аккаунт/карточка, куда можно вести рекламу, или начинаем с нуля?\n\nПосле ваших ответов я разберу материалы, покажу найденное и предложу план с картой пути — и только после вашего «строим так?» начнётся сборка.\n",
+    "exitCode": 0,
+    "durationSeconds": 26.0,
+    "independentVerdict": {
+      "M14": "partial: asks to send already-known presentation, but asks owner to enumerate outdated contents before reading it",
+      "R26/M02": "partial: photos and reviews asked early; cases and handling of received materials unverified",
+      "M01": "open: no seven-topic questionnaire, but three questions span materials and acquisition source",
+      "newFinding": "unconfirmed reminder timing on the previous day was presented in the path as if decided"
     }
   }
 }
