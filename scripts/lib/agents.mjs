@@ -92,6 +92,12 @@ export function validateProcessAgents({ root, slug, map }) {
     else for (const [j, input] of agent.inputs.entries())
       if (typeof input?.kind !== 'string' || !input.kind.trim() || typeof input?.source !== 'string' || !input.source.trim())
         errors.push(`${where}.inputs[${j}]: нужны kind и source`)
+    if (Array.isArray(agent?.inputs) && agent.inputs.some(input => input?.kind === 'manual')) {
+      const delivery = agent.delivery
+      const handler = localFile(root, delivery?.handler)
+      if (!['direct-output', 'send-tool'].includes(delivery?.kind) || !handler || !isFile(handler))
+        errors.push(`${where}: ручной вход требует delivery.kind (direct-output или send-tool) и существующий delivery.handler; без приёмника ответа агент может зациклиться на отсутствующей отправке`)
+    }
     if (!Array.isArray(agent?.knowledge)) errors.push(`${where}: knowledge должен быть списком фактически доступных источников`)
     if (!Array.isArray(agent?.tools)) errors.push(`${where}: tools должен быть списком доступных действий`)
     else for (const [j, tool] of agent.tools.entries())

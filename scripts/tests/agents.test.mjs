@@ -51,6 +51,21 @@ test('numeric token limit is rejected before Source Git agent synchronization', 
   } finally { f.cleanup() }
 })
 
+test('manual agent needs a real answer sink before a live dialogue', () => {
+  const f = fixture()
+  try {
+    f.spec.agents[0].inputs = [{ kind: 'manual', source: 'Isolated pilot chain' }]
+    f.spec.routes = []
+    assert.match(f.run().errors.join('\n'), /ручной вход требует delivery.kind/)
+    f.spec.agents[0].delivery = { kind: 'direct-output', handler: 'demo/tools/missing.ts' }
+    assert.match(f.run().errors.join('\n'), /ручной вход требует delivery.kind/)
+    mkdirSync(join(f.root, 'demo/tools'), { recursive: true })
+    writeFileSync(join(f.root, 'demo/tools/capture.ts'), 'export const capture = app.function("/capture")')
+    f.spec.agents[0].delivery.handler = 'demo/tools/capture.ts'
+    assert.deepEqual(f.run().errors, [])
+  } finally { f.cleanup() }
+})
+
 test('scenarios must belong to and be linked from their own agent', () => {
   const f = fixture()
   try {

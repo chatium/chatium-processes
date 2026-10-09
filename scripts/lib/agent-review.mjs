@@ -27,7 +27,7 @@ export function makeAgentReviewPacket({ root, slug }) {
   const validation = validateProcessAgents({ root, slug, map })
   if (!validation.enabled) throw Error('В процессе нет помощников для отдельного ревью.')
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/agent-review-questions.json'), 'utf8'))
-  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 2 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question) ||
       new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length)
     throw Error('Некорректная рубрика ревью помощников.')
