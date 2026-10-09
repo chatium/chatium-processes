@@ -1,0 +1,6 @@
+title: Получили запрос на осмотр
+description: Короткое сообщение после собственной заявки
+order: 1
+short: "Запрос на осмотр получен. Осмотр — 1 000 ₽. Чтобы выбрать время, ответьте до"
+processDeliveryChannelIds: [test-sms-channel]
+variables: []

@@ -1,0 +1,36 @@
+version: 1
+kind: series
+targetNode: notice
+seriesType: follow_up
+formats: [sms]
+channelIdsByFormat: {sms: [test-sms-channel]}
+objective: Подтвердить получение собственного запроса без обещания записи
+audience: Человек, который сам оставил заявку на осмотр
+sources:
+  - {id: owner, path: repair/materials/owner-brief.md}
+  - {id: knowledge, path: .knowledge-base/processes/repair/overview.md}
+references: []
+voice:
+  addressing: вы
+  character: спокойный и точный мастер
+  emotionality: уважительно, без давления
+  example: Запрос получен; осмотр стоит 500 ₽; время согласуем в ответе.
+messages:
+  - id: received
+    path: .mailings/storage/processes/repair/notice/01-received.message.yaml
+    goal: Подтвердить получение запроса
+    mainIdea: Запрос получен; осмотр стоит 500 ₽; время ещё не подтверждено
+    blocks:
+      - {type: confirmation, text: "Запрос на осмотр получен, но время ещё не назначено", sourceRef: owner}
+      - {type: condition, text: Первичный осмотр стоит 500 ₽; цена ремонта будет после осмотра, sourceRef: knowledge}
+    cta: {label: Ответить на SMS, target: ответ на это же сообщение}
+deliveryMode: manual
+manualInvocation:
+  caller: Сотрудник мастерской
+  trigger: После запроса клиента на осмотр
+  recipient: Только контакт собственной заявки
+  stop: Отказ клиента или подтверждение времени
+openQuestions: []
+acceptance:
+  - SMS самостоятельно сообщает подтверждённый факт, цену и следующий шаг
+  - Старая цена и незавершённая фраза не попадают в итоговый текст

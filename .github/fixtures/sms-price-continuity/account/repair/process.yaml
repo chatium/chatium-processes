@@ -1,0 +1,11 @@
+title: Ручное подтверждение запроса на осмотр
+knowledge: .knowledge-base/processes/repair
+stages: [Запрос]
+nodes:
+  - id: notice
+    stage: Запрос
+    kind: series
+    title: Одно короткое сообщение после запроса
+    purpose: Подтвердить получение запроса и дать способ выбрать время
+    source: .mailings/storage/processes/repair/notice/
+    creativeRef: repair/creative/notice/spec.yaml

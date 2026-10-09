@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "process": "repair",
+  "nodeId": "notice",
+  "stage": "result",
+  "inputDigest": "2f4a297bf5c24841547ac0bbffed4f9b6ed8ec213761c4ee1aaf9e818d39d881",
+  "inspectedFiles": [
+    "repair/creative/notice/spec.yaml",
+    "repair/creative/notice/build.md",
+    "repair/materials/owner-brief.md",
+    ".knowledge-base/processes/repair/overview.md",
+    ".agents/skills/processes/creative/catalog/email-design.md",
+    ".agents/skills/processes/creative/catalog/email-quality.md",
+    "repair/PLAN.md",
+    "repair/.workspace.json",
+    "repair/process.yaml#related:notice",
+    ".mailings/storage/processes/repair/notice/01-received.message.yaml"
+  ],
+  "inspectedOriginal": "",
+  "inspectedVisuals": [],
+  "answers": [
+    {
+      "id": "task",
+      "status": "pass",
+      "reason": "Задача — одно служебное SMS человеку после его собственного запроса на осмотр; формат и аудитория выбраны верно.",
+      "evidence": [
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "formats: [sms]"
+        },
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "audience: Человек, который сам оставил заявку на осмотр"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Сообщение отправляем только человеку, который"
+        }
+      ]
+    },
+    {
+      "id": "truth",
+      "status": "blocking",
+      "reason": "В итоговом тексте 1 000 ₽, хотя владелец отменил эту цену и установил 500 ₽. Заменить цену на 500 ₽; не добавлять неподтверждённые сроки.",
+      "evidence": [
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Осмотр — 1 000 ₽"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "но теперь осмотр стоит 500 ₽."
+        },
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Старая цена 1 000 ₽ отменена."
+        }
+      ]
+    },
+    {
+      "id": "depth",
+      "status": "blocking",
+      "reason": "Получение запроса названо, но старый тариф вводит в заблуждение, а оборванный следующий шаг лишает короткое сообщение самостоятельной пользы. Указать 500 ₽ и закончить инструкцию ответить на это SMS для выбора времени.",
+      "evidence": [
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Запрос на осмотр получен."
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Чтобы выбрать время, ответьте до"
+        },
+        {
+          "path": ".agents/skills/processes/creative/catalog/email-quality.md",
+          "quote": "Не превращай `short` в обрезанный первый абзац."
+        }
+      ]
+    },
+    {
+      "id": "action",
+      "status": "blocking",
+      "reason": "Фраза «ответьте до» обрывается и выглядит как неподтверждённый срок; клиент не получает ясной инструкции. Закончить её как «Ответьте на это SMS, чтобы выбрать время».",
+      "evidence": [
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Чтобы выбрать время, ответьте до"
+        },
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "cta: {label: Ответить на SMS, target: ответ на это же сообщение}"
+        }
+      ]
+    },
+    {
+      "id": "series",
+      "status": "advisory",
+      "reason": "Серия состоит из одного сообщения, поэтому развитие между письмами не требуется. Оборванная фраза нарушает заданный спокойный и точный голос; закончить её ясным предложением без срока.",
+      "evidence": [
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "character: спокойный и точный мастер"
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "ответьте до"
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "blocking",
+      "reason": "Формат SMS и test-sms-channel совпадают с настройкой Sender, ручной запуск задан после запроса. Но текст не воспроизводит предусмотренный ответ на это же SMS: «ответьте до» обрывается. Закончить CTA; затем отдельно проверить обратный ответ и тестовую доставку. Отправки в пакете не было.",
+      "evidence": [
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "channelIdsByFormat: {sms: [test-sms-channel]}"
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "processDeliveryChannelIds: [test-sms-channel]"
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Чтобы выбрать время, ответьте до"
+        },
+        {
+          "path": "repair/.workspace.json",
+          "quote": "\"testOnly\":true,\"testContacts\":[]"
+        }
+      ]
+    },
+    {
+      "id": "series-consistency",
+      "status": "blocking",
+      "reason": "Итоговое SMS противоречит PLAN, источникам и спецификации по цене, а следующий шаг обрывается. Поставить 500 ₽ и полный ответ на это SMS; других соседних узлов в выдержке карты нет.",
+      "evidence": [
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Новый\nтариф действует во всех сообщениях"
+        },
+        {
+          "path": "repair/creative/notice/spec.yaml",
+          "quote": "mainIdea: Запрос получен; осмотр стоит 500 ₽; время ещё не подтверждено"
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Осмотр — 1 000 ₽"
+        },
+        {
+          "path": "repair/process.yaml#related:notice",
+          "quote": "\"links\": []"
+        }
+      ]
+    },
+    {
+      "id": "message.received.short",
+      "status": "blocking",
+      "reason": "short сообщает о получении, но содержит отменённые 1 000 ₽ и механически обрывается на «ответьте до»; действие не завершено. Переписать короткую версию с 500 ₽ и полным ответом на это SMS.",
+      "evidence": [
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "short: \"Запрос на осмотр получен. Осмотр — 1 000 ₽. Чтобы выбрать время, ответьте до\""
+        },
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Первичный осмотр стоит 500 ₽."
+        }
+      ]
+    },
+    {
+      "id": "implemented",
+      "status": "blocking",
+      "reason": "Реальный YAML расходится с заданием: в нём старая цена и незавершённая фраза, хотя критерий требует новый тариф и законченный следующий шаг. Исправить short по spec; фактическая отправка не проверялась.",
+      "evidence": [
+        {
+          "path": "repair/creative/notice/build.md",
+          "quote": "Старая цена и незавершённая фраза не попадают в итоговый текст"
+        },
+        {
+          "path": ".mailings/storage/processes/repair/notice/01-received.message.yaml",
+          "quote": "Осмотр — 1 000 ₽. Чтобы выбрать время, ответьте до"
+        }
+      ]
+    }
+  ],
+  "status": "needs-work",
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "sms_price_reviewer"
+  },
+  "reviewedAt": "2026-10-09T06:29:44.208Z"
+}
