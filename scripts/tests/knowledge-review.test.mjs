@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,6 +41,7 @@ function syntheticReport(packet) {
   return {
     version: 1, process: packet.process, stage: packet.stage, inputDigest: packet.inputDigest,
     inspectedFiles: packet.files.map(file => file.path),
+    sourceDisposition: (packet.sourceMaterials || []).map(file => ({ path: file.path, status: 'inspected' })),
     inspectedReferences: [...packet.referenceLibrary.required],
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки формата валидатора.',
@@ -127,6 +128,39 @@ test('a business-specific gap blocks design despite covered generic topics', t =
   const result = validateReview(report, packet)
   assert.equal(result.status, 'needs-work')
   assert.deepEqual(result.blocking.map(item => item.id), ['business.specific'])
+})
+
+test('linked originals are versioned and unavailable originals cannot receive a green materials answer', t => {
+  const f = fixture(t)
+  f.put('demo/materials/brief.txt', 'Раздел 1: цена 900 рублей. Раздел 2: только взрослые.\n')
+  f.put(articlePath, article(`${quote}\n\n[Оригинал](../../../demo/materials/brief.txt)\n`))
+  const packet = f.packet('design')
+  assert.equal(packet.sourceMaterials.length, 1)
+  assert.equal(packet.sourceMaterials[0].path, 'demo/materials/brief.txt')
+  assert.match(packet.sourceMaterials[0].sha256, /^[0-9a-f]{64}$/)
+  const report = syntheticReport(packet)
+  assert.equal(validateReview(report, packet).status, 'ready')
+  report.sourceDisposition = []
+  assert.throws(() => validateReview(report, packet), /sourceDisposition/)
+  report.sourceDisposition = [{ path: 'demo/materials/brief.txt', status: 'unavailable' }]
+  assert.throws(() => validateReview(report, packet), /Недоступный оригинал/)
+  report.answers.find(answer => answer.id === 'evidence.materials').status = 'not-applicable'
+  assert.throws(() => validateReview(report, packet), /Недоступный оригинал/)
+  f.put('demo/materials/brief.txt', 'Раздел 1: цена 1200 рублей. Раздел 2: только взрослые.\n')
+  assert.notEqual(f.packet('design').inputDigest, packet.inputDigest)
+  assert.throws(() => save(f, packet), /изменились после подготовки/)
+})
+
+test('every saved original must be linked and remain inside the process materials directory', t => {
+  const f = fixture(t)
+  f.put('demo/materials/brief.txt', 'Цена 900 рублей.\n')
+  const unlinked = f.packet('design')
+  assert.ok(unlinked.staticChecks.flatMap(check => check.errors).some(error => /оригинал не указан ссылкой/.test(error)))
+  const outside = join(f.base, 'outside.txt')
+  writeFileSync(outside, 'Не относящийся к процессу файл.')
+  symlinkSync(outside, join(f.root, 'demo/materials/escape.txt'))
+  const escaped = f.packet('design')
+  assert.ok(escaped.staticChecks.flatMap(check => check.errors).some(error => /символическая ссылка выходит/.test(error)))
 })
 
 test('an undocumented owner choice against a material recommendation blocks design', t => {
@@ -385,6 +419,7 @@ test('CLI prepare emits readable immutable packet and prompt and refuses output 
   assert.equal(packet.inputDigest, f.packet().inputDigest)
   const prompt = readFileSync(result.prompt, 'utf8')
   assert.ok(prompt.includes(result.packet))
+  assert.ok(prompt.includes(`корню аккаунта ${realpathSync(f.root)}`))
   assert.ok(prompt.includes('\n'), 'prompt must contain real line breaks')
   assert.equal(f.run('prepare', ['--out', output]).status, 2)
   assert.equal(readFileSync(result.packet, 'utf8'), packetText)

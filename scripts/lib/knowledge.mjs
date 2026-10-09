@@ -1,12 +1,14 @@
 // Read-only corpus and structural checks shared by kb-check and agent review.
 // Scope: this process's KB subtree, plus explicitly linked KB articles and metadata.
 import { lstatSync, realpathSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { isProcessSlug, rel } from './project.mjs'
 import { reviewPlan } from './review-normalization.mjs'
 import { parseYaml, requireYaml } from './yaml.mjs'
 
 export const KNOWLEDGE_LIMITS = Object.freeze({ files: 300, bytes: 5 * 1024 * 1024, fileBytes: 1024 * 1024, entries: 10000 })
+export const MATERIAL_LIMITS = Object.freeze({ files: 30, bytes: 40 * 1024 * 1024, fileBytes: 20 * 1024 * 1024 })
 const inside = (parent, path) => { const r = relative(parent, path); return r === '' || (!r.startsWith(`..${sep}`) && r !== '..' && !isAbsolute(r)) }
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const nonempty = value => typeof value === 'string' && value.trim().length > 0
@@ -149,7 +151,10 @@ export function collectKnowledge({ root, slug }) {
   ]
   const [scope, metadata, content, links] = checks
   const files = new Map(), articleQueue = [], inspectedArticles = new Set(), directories = new Set(), metadataDirs = new Set()
-  let bytes = 0, entries = 0, exhausted = false, kbPath
+  const linkedMaterials = new Set(), sourceMaterials = []
+  const materialDirs = new Set()
+  const materialsPath = join(root, slug, 'materials')
+  let bytes = 0, entries = 0, materialBytes = 0, exhausted = false, kbPath
   const name = path => rel(root, path)
   const report = (check, field, message) => { if (!check[field].includes(message)) check[field].push(message) }
   const fail = (check, message) => report(check, 'errors', message)
@@ -299,6 +304,7 @@ export function collectKnowledge({ root, slug }) {
         if (file.path.startsWith('.knowledge-base/') && !url.startsWith('/app/knowledge/~/')) warn(links, `${file.path}: ссылка ${target} существует, но reader требует /app/knowledge/~/…`)
         addArticle(item.path)
       }
+      if (inside(materialsPath, item.path) && item.stat.isFile()) linkedMaterials.add(item.path)
     }
   }
 
@@ -337,6 +343,42 @@ export function collectKnowledge({ root, slug }) {
     }
     followLinks(file, parsed.body)
   }
+  function scanMaterials(dir) {
+    const selected = safe(dir, scope, false)
+    if (!selected) return
+    if (!selected.stat.isDirectory() || !inside(materialsPath, selected.path)) {
+      fail(scope, `${name(dir)}: каталог оригиналов недоступен или выходит за пределы процесса`); return
+    }
+    if (materialDirs.has(selected.path)) return
+    materialDirs.add(selected.path)
+    let names
+    try { names = readdirSync(selected.path).sort() }
+    catch (error) { fail(scope, `${name(dir)}: обход оригиналов не удался (${error.code || error.message})`); return }
+    for (const entry of names) {
+      if (++entries > KNOWLEDGE_LIMITS.entries) { limit(`${KNOWLEDGE_LIMITS.entries} записей каталогов`); return }
+      const path = join(selected.path, entry), item = safe(path)
+      if (!item) continue
+      if (!inside(materialsPath, item.path)) { fail(scope, `${name(path)}: оригинал выходит за каталог процесса`); continue }
+      if (item.stat.isDirectory()) { scanMaterials(item.path); continue }
+      if (!item.stat.isFile()) { fail(scope, `${name(path)}: ожидается обычный файл`); continue }
+      if (sourceMaterials.length >= MATERIAL_LIMITS.files || item.stat.size > MATERIAL_LIMITS.fileBytes ||
+          materialBytes + item.stat.size > MATERIAL_LIMITS.bytes) {
+        fail(scope, `${name(path)}: превышен лимит оригиналов; полнота материалов не подтверждена`); continue
+      }
+      let content
+      try { content = readFileSync(item.path) }
+      catch (error) { fail(scope, `${name(path)}: чтение оригинала не удалось (${error.code || error.message})`); continue }
+      if (content.length > MATERIAL_LIMITS.fileBytes || materialBytes + content.length > MATERIAL_LIMITS.bytes) {
+        fail(scope, `${name(path)}: размер оригинала изменился при чтении и превысил лимит`); continue
+      }
+      sourceMaterials.push({ path: name(item.path), sha256: createHash('sha256').update(content).digest('hex'), bytes: content.length })
+      materialBytes += content.length
+      if (!linkedMaterials.has(item.path)) fail(links, `${name(path)}: оригинал не указан ссылкой в знаниях или плане`)
+    }
+  }
+  const materialDir = safe(materialsPath, scope, true)
+  if (materialDir) scanMaterials(materialsPath)
   for (const check of checks) check.ok = check.errors.length === 0
-  return { files: [...files.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0), checks, passed: checks.filter(check => check.ok).length, total: checks.length, processPath: slug }
+  return { files: [...files.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+    sourceMaterials, checks, passed: checks.filter(check => check.ok).length, total: checks.length, processPath: slug }
 }

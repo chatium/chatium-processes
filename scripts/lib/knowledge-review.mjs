@@ -70,7 +70,7 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
   const knowledge = collectKnowledge({ root, slug })
   const method = join(SKILL_DIR, 'method')
   const rubric = JSON.parse(readFileSync(join(method, 'review-questions.json'), 'utf8'))
-  if (rubric.version !== 3 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 4 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length ||
       rubric.questions.some(q => !text(q.id) || !text(q.question) || !REVIEW_STAGES.includes(q.fromStage)))
     throw Error('Некорректная рубрика ревью знаний.')
@@ -90,7 +90,8 @@ export function makeReviewPacket({ root, slug, stage = 'build' }) {
   const base = { version: 1, process: slug, stage, rubricVersion: rubric.version, questions,
     reviewerInstructions, files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
       ? { ...file, content: reviewPlan(file.content) } : file),
-    ...riskDecisions.map(({ path, content }) => ({ path, content }))], staticChecks: knowledge.checks }
+    ...riskDecisions.map(({ path, content }) => ({ path, content }))],
+    sourceMaterials: knowledge.sourceMaterials, staticChecks: knowledge.checks }
   // Reports themselves, Git SHA, timestamps and unrelated processes are excluded.
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage }))
 }
@@ -107,6 +108,15 @@ export function validateReview(report, packet) {
   if (!Array.isArray(report.inspectedFiles) || report.inspectedFiles.length !== files.size ||
       new Set(report.inspectedFiles).size !== files.size || report.inspectedFiles.some(p => !files.has(p)))
     throw Error('inspectedFiles должен перечислять все файлы пакета ровно один раз.')
+  const sources = new Map((packet.sourceMaterials || []).map(item => [item.path, item]))
+  if (sources.size) {
+    if (!Array.isArray(report.sourceDisposition) || report.sourceDisposition.length !== sources.size ||
+        new Set(report.sourceDisposition.map(item => item?.path)).size !== sources.size ||
+        report.sourceDisposition.some(item => !sources.has(item?.path) ||
+          !['inspected', 'unavailable'].includes(item.status)))
+      throw Error('sourceDisposition должен отметить каждый оригинал как inspected или unavailable ровно один раз.')
+  } else if (report.sourceDisposition !== undefined && (!Array.isArray(report.sourceDisposition) || report.sourceDisposition.length))
+    throw Error('sourceDisposition содержит оригинал, которого нет в пакете.')
   inspectedReferenceHashes(packet.referenceLibrary, report.inspectedReferences)
   const ids = new Set(packet.questions.map(q => q.id))
   const questionById = new Map(packet.questions.map(question => [question.id, question]))
@@ -158,6 +168,9 @@ export function validateReview(report, packet) {
   }
   const blocking = answers.filter(a => a.status === 'gap' && a.priority === 'blocking')
   const advisory = answers.filter(a => a.status === 'gap' && a.priority === 'advisory')
+  if (report.sourceDisposition?.some(item => item.status === 'unavailable') &&
+      answers.find(item => item.id === 'evidence.materials')?.status !== 'gap')
+    throw Error('Недоступный оригинал требует пробела в evidence.materials.')
   const structuralErrors = packet.staticChecks.flatMap(c => c.errors)
   return { answers, blocking, advisory, structuralErrors,
     status: blocking.length || structuralErrors.length ? 'needs-work' : 'ready' }
@@ -175,7 +188,8 @@ export function recordReview({ root, slug, stage, packet, report, agentReference
   const result = validateReview(report, current)
   const saved = { version: 1, process: slug, stage, status: result.status, inputDigest: current.inputDigest,
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
-    inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
+    inspectedFiles: report.inspectedFiles, sourceDisposition: report.sourceDisposition || [],
+    inspectedReferences: report.inspectedReferences,
     referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests, rubricVersion: current.rubricVersion,
     skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
     answers: result.answers }
