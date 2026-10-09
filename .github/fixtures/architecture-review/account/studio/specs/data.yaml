@@ -1,25 +1,39 @@
 version: 1
 tables:
   - id: requests
+    source: studio/tables/requests.table.ts
+    purpose: Сохранить синтетическую заявку, исход решения и состояние публикации событий
     owner: ответственный сотрудник
+    readers: [Staff+ с доступом к заявкам, сервер формы, сервис отчёта]
+    identity:
+      key: requestId
+      rule: Одинаковый requestKey возвращает существующий requestId без второй записи и уведомления
     fields:
-      requestId: string UUID создан до записи
-      legacyId: string или null для новой строки
-      classId: string из разрешённого каталога
-      testRecipientKey: string из проверенного подписанного приглашения
-      requestKey: string UUID для повтора формы
-      status: pending | confirmed | declined
-      requestEventState: pending | accepted | failed | unknown
-      bookingEventState: pending | accepted | failed | unknown | not-applicable
-      noticePending: boolean
-      createdAt: timestamp
-    unique: [requestKey, requestId]
-    retention: синтетические записи удаляются через 30 дней
-    readers: только Staff+ с доступом к заявкам; отчёт читает только requestId, status и createdAt
-    writers: сервер формы создаёт pending, защищённый экран меняет статус, сервисы меняют только свои состояния
-    identity: testRecipientKey ведёт к серверному списку синтетических контактов, не к пользовательскому параметру
+      - {name: requestId, type: string, purpose: Устойчивый ID заявки}
+      - {name: legacyId, type: string | null, purpose: Связь со старой заявкой при переносе}
+      - {name: classId, type: string, purpose: ID занятия из разрешённого каталога}
+      - {name: testRecipientKey, type: string, purpose: Ключ синтетического контакта для обоих событий CRM}
+      - {name: requestKey, type: string, purpose: Защита от повторной формы}
+      - {name: status, type: pending | confirmed | declined, purpose: Ручное решение сотрудника}
+      - {name: requestEventState, type: pending | accepted | failed | unknown, purpose: Результат события заявки}
+      - {name: bookingEventState, type: pending | accepted | failed | unknown | not-applicable, purpose: Результат события подтверждения}
+      - {name: noticePending, type: boolean, purpose: Непроверенное уведомление сотруднику}
+      - {name: createdAt, type: timestamp, purpose: Период отчёта и срок удаления}
+    writers: сервер формы создаёт pending; защищённый экран меняет статус; сервисы меняют только свои состояния
   - id: legacy-requests
-    owner: прежний обработчик до сверки
-    readers: только миграция и прежний Staff+ экран под серверной проверкой роли
+    source: studio/tables/legacyRequests.table.ts
+    purpose: Сохранить действующий старый вход до сверки и возможность отката
+    owner: прежний обработчик до согласованного переключения
+    readers: [оператор миграции с правами администратора, прежний Staff+ экран]
+    identity:
+      key: legacyId
+      rule: Миграция сопоставляет каждый старый ID одному requestId; дельта переносится идемпотентно
+    fields:
+      - {name: legacyId, type: string, purpose: Устойчивый ID старой заявки}
+      - {name: status, type: string, purpose: Исход заявки для сверки}
+      - {name: createdAt, type: timestamp, purpose: Контроль дельты и срок хранения}
     migration: базовый снимок, пауза входа, дельта, сверка, атомарное переключение и обратная дельта при откате
-identity: контакт получают только из серверного allowlist по testRecipientKey и передают в contacts CRM; таблица не хранит адрес
+retention:
+  decided: true
+  current: Только синтетические записи; удаление через 30 дней после создания с удалением ключей контактов после самой поздней заявки
+identity: Контакты не хранятся в requests; qa-studio сопоставлен с config.variables.testRecipient_qa_studio.value, а соответствие сохраняется до удаления последней заявки с этим ключом

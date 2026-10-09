@@ -3,4 +3,4 @@ question: Какая доля сохранённых заявок получил
 denominator: distinct requestId из requests за выбранный период
 numerator: distinct requestId из тех же requests со status confirmed
 join: requestId, не email
-owner: сотрудник сверяет результат со списком заявок и видит eventPending
+owner: сотрудник сверяет результат со списком заявок; отдельно видит requestEventState и bookingEventState, но они не меняют числитель и знаменатель

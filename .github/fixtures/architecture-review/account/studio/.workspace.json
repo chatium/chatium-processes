@@ -1,1 +1,1 @@
-{"type":"process","config":{"variables":{}}}
+{"type":"process","processEngine":"processes-v2","config":{"variables":{"testRecipient_qa_studio":{"value":"qa@example.invalid","description":"Синтетический email для ключа qa-studio. Сохранять переменную до удаления последней заявки с этим ключом."}}}}
