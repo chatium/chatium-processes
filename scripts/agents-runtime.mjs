@@ -2,13 +2,21 @@
 // Compares published state without sending messages or changing routing. Agent lookup requires completed build sync; dry-run emits a metric.
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, lstatSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 import { writeAgentRuntimeEvidence } from './lib/agent-runtime-evidence.mjs'
+
+function closestWorkspacePath(root, sourcePath) {
+  for (let dir = dirname(sourcePath); ; dir = dirname(dir)) {
+    const marker = join(root, dir, '.workspace.json')
+    if (existsSync(marker) && lstatSync(marker).isFile()) return dir === '.' ? '' : dir
+    if (dir === '.') return null
+  }
+}
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['help', 'json', 'record'], ['help', 'json', 'record', 'root']) }
@@ -32,20 +40,24 @@ try {
   const branch = execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   const dirty = execFileSync('git', ['status', '--porcelain=v1', '--', slug], { cwd: root, encoding: 'utf8' }).trim()
-  const agents = spec.agents.map(agent => ({ key: agent.key, config: agent.config,
-    sha256: createHash('sha256').update(readFileSync(join(root, agent.config))).digest('hex'),
-    model: JSON.parse(readFileSync(join(root, agent.config), 'utf8')).model || null }))
+  const agents = spec.agents.map(agent => {
+    const source = readFileSync(join(root, agent.config), 'utf8')
+    const workspacePath = closestWorkspacePath(root, agent.config)
+    return { key: agent.key, config: agent.config, workspacePath,
+      revision: createHash('sha256').update(JSON.stringify([source, workspacePath])).digest('hex'),
+      enabledTools: JSON.parse(source).enabledTools || [] }
+  })
   const routes = Array.isArray(spec.routes) ? spec.routes : []
-  const input = { branch, agents: agents.map(({ key, config }) => ({ key, config })),
+  const input = { branch, agents: agents.map(({ key, config, enabledTools }) => ({ key, config, enabledTools })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
       contacts: route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
       startParam: route.testStartParam || undefined,
       existingContacts: route.testExistingContacts || null })) }
-  const code = `import { getPublishedAgentBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
+  const code = `import { getPublishedAgentVersionBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
     `const input = ${JSON.stringify(input)}\n` +
     `const agents = []\n` +
-    `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentBySourcePath(ctx, item.config, input.branch) }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
-    `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.value.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
+    `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentVersionBySourcePath(ctx, item.config, input.branch), enabledTools: item.enabledTools }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
+    `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
     `const routes = []\n` +
     `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text, startParam: item.startParam }) : null, existingDryRun: item.existingContacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.existingContacts, text: item.text, startParam: item.startParam }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
     `return { accountId: ctx.account.id, agents, routes }`
@@ -65,8 +77,8 @@ try {
     if (!row || row.error) { errors.push(`${agent.key}: ${row?.error || 'нет опубликованного ответа'}`); continue }
     const value = row.value
     if (value.branch !== branch) errors.push(`${agent.key}: проверен ${value.branch}, нужна ветка ${branch}; CLI не подменяет preview`)
-    if (value.sourceSha256 !== agent.sha256) errors.push(`${agent.key}: опубликованный файл отличается от локального`)
-    if (value.model !== agent.model) errors.push(`${agent.key}: опубликованная модель отличается от локальной`)
+    if (value.revision !== agent.revision || value.workspacePath !== agent.workspacePath)
+      errors.push(`${agent.key}: опубликованный файл или workspace отличается от локального`)
     if (!value.agentId) errors.push(`${agent.key}: платформа не вернула agentId`)
     else ids.set(agent.key, value.agentId)
     const node = map.nodes.find(node => node.id === spec.agents.find(item => item.key === agent.key)?.node)

@@ -11,6 +11,12 @@ import { validateProcessAgents } from '../lib/agents.mjs'
 import { makeAgentReviewPacket, agentReviewStatus } from '../lib/agent-review.mjs'
 import { agentRuntimeEvidenceStatus, writeAgentRuntimeEvidence } from '../lib/agent-runtime-evidence.mjs'
 
+function publishedAgentVersion(root) {
+  const source = readFileSync(join(root, 'demo/agents/helper.agent.json'), 'utf8')
+  return { branch: 'process/demo', revision: createHash('sha256').update(JSON.stringify([source, 'demo'])).digest('hex'),
+    workspacePath: 'demo', agentId: 'a-1' }
+}
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'process-agents-'))
   const dir = join(root, 'demo/agents')
@@ -303,9 +309,8 @@ test('standalone agent without a shared Sender channel can record published runt
     const chatium = join(bin, 'chatium')
     writeFileSync(chatium, '#!/bin/sh\ncat >/dev/null\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
     chmodSync(chatium, 0o755)
-    const sha256 = createHash('sha256').update(readFileSync(join(f.root, 'demo/agents/helper.agent.json'))).digest('hex')
     writeFileSync(responseFile, JSON.stringify({ accountId: 1, agents: [{ key: 'helper', value: {
-      branch: 'process/demo', sourceSha256: sha256, agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }], routes: [] }))
+      ...publishedAgentVersion(f.root) }, toolChecks: [] }], routes: [] }))
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
       'demo', '--root', f.root, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
         PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
@@ -332,8 +337,7 @@ test('published-state check stays partial with extra channel rules and rejects a
     const chatium = join(bin, 'chatium')
     writeFileSync(chatium, '#!/bin/sh\ncat >/dev/null\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
     chmodSync(chatium, 0o755)
-    const sha256 = createHash('sha256').update(readFileSync(join(f.root, 'demo/agents/helper.agent.json'))).digest('hex')
-    const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: sha256, agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }], routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 1 }, linkedAgentIds: ['a-1'] }, dryRun: { mode: 'selected', agentId: 'a-1', reason: 'default-agent' } }] }
+    const response = { accountId: 1, agents: [{ key: 'helper', value: publishedAgentVersion(f.root), toolChecks: [] }], routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 1 }, linkedAgentIds: ['a-1'] }, dryRun: { mode: 'selected', agentId: 'a-1', reason: 'default-agent' } }] }
     const cli = fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url))
     const run = (record = false) => {
       writeFileSync(responseFile, JSON.stringify(response))
@@ -370,6 +374,11 @@ test('published-state check stays partial with extra channel rules and rejects a
     assert.equal(wrong.exit, 1)
     assert.equal(wrong.report.status, 'unverified')
     assert.match(wrong.report.errors.join('\n'), /нужна ветка process\/demo/)
+    response.agents[0].value.branch = 'process/demo'
+    response.agents[0].value.revision = '0'.repeat(64)
+    const wrongRevision = run()
+    assert.equal(wrongRevision.report.status, 'unverified')
+    assert.match(wrongRevision.report.errors.join('\n'), /опубликованный файл или workspace отличается/)
   } finally { f.cleanup() }
 })
 
@@ -392,8 +401,7 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const chatium = join(bin, 'chatium')
     writeFileSync(chatium, '#!/bin/sh\ncat >"$FAKE_RUNTIME_INPUT"\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
     chmodSync(chatium, 0o755)
-    const config = readFileSync(join(f.root, 'demo/agents/helper.agent.json'))
-    const response = { accountId: 1, agents: [{ key: 'helper', value: { branch: 'process/demo', sourceSha256: createHash('sha256').update(config).digest('hex'), agentId: 'a-1', model: 'model', enabledTools: [] }, toolChecks: [] }],
+    const response = { accountId: 1, agents: [{ key: 'helper', value: publishedAgentVersion(f.root), toolChecks: [] }],
       routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] },
         dryRun: { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }, existingDryRun: null }] }
     const run = () => {
@@ -406,7 +414,7 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const failed = run()
     assert.equal(failed.report.status, 'unverified')
     const code = readFileSync(inputFile, 'utf8')
-    assert.match(code, /getPublishedAgentBySourcePath\(ctx, item\.config, input\.branch\)/)
+    assert.match(code, /getPublishedAgentVersionBySourcePath\(ctx, item\.config, input\.branch\)/)
     assert.match(code, /"branch":"process\/demo"/)
     assert.match(code, /contacts: item.contacts/)
     assert.match(code, /"contacts":\[\{"type":"email","value":"test@example.com"\}\]/)
