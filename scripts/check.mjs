@@ -951,6 +951,15 @@ check('letters', 'Письма шагов отправки и их переме�
       requirements: requirementsByLetter.get(basePath) || [],
       configuredChannels: deliveryChannels || configuredChannels,
     })) error(`${p}: ${issue}`)
+    if (formats.has('email') && typeof letter.html === 'string') {
+      const formatById = channelFormatsByLetter.get(basePath) || {}
+      for (const item of Array.isArray(letter.media) ? letter.media : []) {
+        const emailReceivesMedia = !Array.isArray(item?.only_channel_ids) || !item.only_channel_ids.length ||
+          item.only_channel_ids.some(id => formatById[id] === 'email')
+        if (typeof item?.url === 'string' && letter.html.includes(item.url) && emailReceivesMedia)
+          warn(`${p}: изображение ${item.key || item.url} есть и в html, и в media для email; оно может прийти повторно отдельным вложением. Оставьте media только для нужных других каналов или уберите дублирование.`)
+      }
+    }
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
       warn(`${p}: короткая версия выглядит обрезанной (многоточие в конце); проверьте законченность мысли и ссылку`)
     for (const field of LETTER_FORBIDDEN) if (field in letter) error(`${p}: поля ${field} нет в схеме письма`)
