@@ -151,11 +151,13 @@ test('linked originals are versioned and unavailable originals cannot receive a 
   assert.throws(() => save(f, packet), /изменились после подготовки/)
 })
 
-test('every saved original must be linked and remain inside the process materials directory', t => {
+test('unlinked originals warn but remain available, and cannot escape the materials directory', t => {
   const f = fixture(t)
   f.put('demo/materials/brief.txt', 'Цена 900 рублей.\n')
   const unlinked = f.packet('design')
-  assert.ok(unlinked.staticChecks.flatMap(check => check.errors).some(error => /оригинал не указан ссылкой/.test(error)))
+  assert.equal(unlinked.sourceMaterials.length, 1)
+  assert.ok(unlinked.staticChecks.flatMap(check => check.warnings).some(warning => /оригинал не указан ссылкой/.test(warning)))
+  assert.equal(unlinked.staticChecks.flatMap(check => check.errors).length, 0)
   const outside = join(f.base, 'outside.txt')
   writeFileSync(outside, 'Не относящийся к процессу файл.')
   symlinkSync(outside, join(f.root, 'demo/materials/escape.txt'))

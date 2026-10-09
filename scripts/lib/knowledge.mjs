@@ -373,7 +373,7 @@ export function collectKnowledge({ root, slug }) {
       }
       sourceMaterials.push({ path: name(item.path), sha256: createHash('sha256').update(content).digest('hex'), bytes: content.length })
       materialBytes += content.length
-      if (!linkedMaterials.has(item.path)) fail(links, `${name(path)}: оригинал не указан ссылкой в знаниях или плане`)
+      if (!linkedMaterials.has(item.path)) warn(links, `${name(path)}: оригинал не указан ссылкой в знаниях или плане; reviewer всё равно получит его путь`)
     }
   }
   const materialDir = safe(materialsPath, scope, true)
