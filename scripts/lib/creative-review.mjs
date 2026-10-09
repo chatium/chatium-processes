@@ -200,7 +200,8 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     if (sourceErrors.length) throw Error(`Неполный набор исходников результата: ${sourceErrors.join('; ')}`)
     const code = corpus.files.filter(f => /\.(?:[cm]?[jt]sx?|vue|css|scss|sass|less|html?|json|ya?ml|svg)$/i.test(f.path) &&
       !f.path.startsWith(`${slug}/tasks/`) && !f.path.startsWith(`${slug}/reviews/`) &&
-      !f.path.startsWith(`${slug}/creative/`) && !f.path.startsWith('.knowledge-base/'))
+      !f.path.startsWith(`${slug}/creative/`) && !f.path.startsWith(`${slug}/tests/`) &&
+      !f.path.startsWith('.knowledge-base/'))
       .map(f => ({ path: f.path, sha256: sha(f.content) }))
     implementation = [...new Map([...code, ...corpus.assets,
       ...creative.assetFiles, ...(creative.automationFile ? [creative.automationFile] : [])]

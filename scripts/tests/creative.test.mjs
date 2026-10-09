@@ -715,7 +715,13 @@ test('result screenshots are tied to a committed, unchanged implementation', t =
   })) }
   f.put('demo/reviews/creative/lead-page-visual.json', visual)
   const args = { ...f.args, stage: 'result' }
-  assert.equal(creativeReviewPacket(args).visuals.length, 2)
+  const initial = creativeReviewPacket(args)
+  assert.equal(initial.visuals.length, 2)
+  f.put('demo/tests/run.json', { status: 'passed' })
+  assert.equal(creativeReviewPacket(args).inputDigest, initial.inputDigest)
+  assert.equal(git('add', 'demo/tests/run.json').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'test journal').status, 0)
+  assert.equal(creativeReviewPacket(args).inputDigest, initial.inputDigest)
   f.put('demo/reviews/creative/desktop.png', 'not-an-image')
   assert.throws(() => creativeReviewPacket(args), /PNG-изображением/)
   f.put('demo/reviews/creative/desktop.png', png)
