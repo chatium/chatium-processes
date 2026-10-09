@@ -393,7 +393,7 @@ R04, C07, C09 закрыты; F06 остаётся открытым до про�
 account3: `s.string().optional().nullable()` бросает ошибку о модификаторе
 Optional для union, а `s.string().nullable().optional()` принимает
 отсутствие поля, `null` и строку. Локальная ветка Mailings
-`codex/fix-template-segment-schema@0acd6f4` исправляет порядок и типизацию;
+`codex/fix-template-segment-schema@a44afb2` исправляет порядок и типизацию;
 точечный typecheck и девять SDK-тестов прошли. Source Git Mailings запросил
 OAuth; ветка и исправление пока не опубликованы. `main` Mailings не менялся,
 разрешение владельца на публикацию запрошено отдельно.
