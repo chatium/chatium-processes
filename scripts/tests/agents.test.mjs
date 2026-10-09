@@ -189,6 +189,33 @@ test('independent review packet binds role instructions and reference snapshot',
   } finally { f.cleanup() }
 })
 
+test('agent review ignores unrelated creative work but tracks tool dependencies', () => {
+  const f = fixture()
+  try {
+    mkdirSync(join(f.root, 'demo/tools'), { recursive: true })
+    mkdirSync(join(f.root, 'demo/creative/home'), { recursive: true })
+    mkdirSync(join(f.root, 'demo/pages/other'), { recursive: true })
+    writeFileSync(join(f.root, 'demo/tools/lookup.ts'), "import './helper'\nexport const lookup = true\n")
+    writeFileSync(join(f.root, 'demo/tools/helper.ts'), 'export const answer = 1\n')
+    writeFileSync(join(f.root, 'demo/creative/home/build.md'), 'First brief\n')
+    writeFileSync(join(f.root, 'demo/pages/other/index.tsx'), 'export const unrelated = 1\n')
+    f.spec.agents[0].tools = [{ name: 'Lookup', source: 'demo/tools/lookup.ts' }]
+    const configPath = join(f.root, 'demo/agents/helper.agent.json')
+    const config = JSON.parse(readFileSync(configPath, 'utf8'))
+    writeFileSync(configPath, JSON.stringify({ ...config, enabledTools: [{ isWorkspaceTool: true, path: 'tools/lookup', pattern: '/lookup' }] }))
+    assert.deepEqual(f.run().errors, [])
+    const before = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
+    assert.ok(before.files.some(file => file.path === 'demo/tools/helper.ts'))
+    assert.ok(!before.files.some(file => file.path === 'demo/creative/home/build.md'))
+    assert.ok(!before.files.some(file => file.path === 'demo/pages/other/index.tsx'))
+    writeFileSync(join(f.root, 'demo/creative/home/build.md'), 'Rebuilt brief\n')
+    writeFileSync(join(f.root, 'demo/pages/other/index.tsx'), 'export const unrelated = 2\n')
+    assert.equal(makeAgentReviewPacket({ root: f.root, slug: 'demo' }).inputDigest, before.inputDigest)
+    writeFileSync(join(f.root, 'demo/tools/helper.ts'), 'export const answer = 2\n')
+    assert.notEqual(makeAgentReviewPacket({ root: f.root, slug: 'demo' }).inputDigest, before.inputDigest)
+  } finally { f.cleanup() }
+})
+
 test('test stage requires a published runtime result for every AI process', () => {
   const f = fixture()
   try {

@@ -15,6 +15,52 @@ export function agentReviewPath(root, slug) {
   return path
 }
 
+function agentSubject(corpus, slug, agents) {
+  const all = [...corpus.files, ...corpus.assets], known = new Set(all.map(file => file.path))
+  const selected = new Set(), errors = []
+  const include = (path, required = false) => {
+    if (typeof path !== 'string' || !path || path.startsWith('/') || path.includes('\\') ||
+        path.split('/').some(part => !part || part === '.' || part === '..')) {
+      if (required) errors.push(`Некорректный путь источника помощника: ${path}`)
+      return
+    }
+    const matches = all.filter(file => file.path === path || file.path.startsWith(`${path}/`) ||
+      /^\.(?:[cm]?[jt]sx?|vue|json|ya?ml)$/.test(file.path.slice(path.length)) && file.path.startsWith(path))
+    if (!matches.length && required) errors.push(`Нет источника помощника в пакете: ${path}`)
+    for (const file of matches) selected.add(file.path)
+  }
+  for (const path of ['package.json', 'tsconfig.json', '.dir.json', `${slug}/.dir.json`,
+    `${slug}/.workspace.json`, `${slug}/PLAN.md`, `${slug}/process.yaml`,
+    `${slug}/agents`, `${slug}/specs/services.yaml`, `${slug}/review-scope.json`,
+    `.knowledge-base/processes/${slug}/overview.md`]) include(path)
+  for (const file of corpus.files) if (file.path.startsWith(`${slug}/tests/`) &&
+      /\/(?:ai|agent)[^/]*\.(?:json|ya?ml|md)$/i.test(file.path)) selected.add(file.path)
+  for (const agent of agents.filter(value => value && typeof value === 'object')) {
+    include(agent.config, true)
+    for (const source of (Array.isArray(agent.knowledge) ? agent.knowledge : [])) include(source, true)
+    for (const tool of (Array.isArray(agent.tools) ? agent.tools : []))
+      if (typeof tool?.source === 'string' && !/^(?:@|[a-z][a-z0-9+.-]*:)/i.test(tool.source)) include(tool.source, true)
+    if (agent.delivery?.handler) include(agent.delivery.handler, true)
+    const config = corpus.files.find(file => file.path === agent.config)
+    if (!config) continue
+    try {
+      for (const tool of JSON.parse(config.content).enabledTools || [])
+        if (tool?.isWorkspaceTool && typeof tool.path === 'string') include(`${slug}/${tool.path}`, true)
+    } catch { /* validateProcessAgents reports malformed configuration */ }
+  }
+  const local = corpus.dependencies.filter(dep => dep.kind === 'local' || dep.kind === 'configured-local')
+  for (const path of selected) {
+    for (const dep of local) if (dep.source === path && dep.target && !selected.has(dep.target))
+      include(dep.target, true)
+  }
+  const scopedErrors = corpus.checks.flatMap(check => check.errors).filter(error =>
+    /Превышен лимит/.test(error) || [...selected].some(path => error.includes(path)))
+  return { files: corpus.files.filter(file => selected.has(file.path)),
+    assets: corpus.assets.filter(file => selected.has(file.path)),
+    dependencies: corpus.dependencies.filter(dep => selected.has(dep.source)),
+    errors: [...new Set([...errors, ...scopedErrors])] }
+}
+
 export function makeAgentReviewPacket({ root, slug }) {
   agentReviewPath(root, slug)
   const corpus = collectImplementation({ root, slug })
@@ -45,11 +91,13 @@ export function makeAgentReviewPacket({ root, slug }) {
     lookFor: 'Фактический конфиг, инструкции, знания, вход, инструменты, сценарии, полномочия, эффект и передача. Укажи конкретные источники и пробелы.',
   }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются ID вопросов ревью помощников.')
-  const staticChecks = [...corpus.checks, { id: 'agents', title: 'Агенты процесса', ok: !validation.errors.length,
+  const subject = agentSubject(corpus, slug, agents)
+  const staticChecks = [{ id: 'agent-source-scope', title: 'Полнота исходников помощника', ok: !subject.errors.length,
+    errors: subject.errors, warnings: [] }, { id: 'agents', title: 'Агенты процесса', ok: !validation.errors.length,
     errors: validation.errors, warnings: validation.warnings }]
   const base = { version: 1, process: slug, stage: 'agents', rubricVersion: rubric.version, questions,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/agent-reviewer.md'), 'utf8'),
-    files: corpus.files, assets: corpus.assets, dependencies: corpus.dependencies, staticChecks }
+    files: subject.files, assets: subject.assets, dependencies: subject.dependencies, staticChecks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'agents' }))
 }
 
