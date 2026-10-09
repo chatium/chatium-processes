@@ -106,16 +106,17 @@ test('missing or invalid sender channels warn without adding failures to the che
   assert.match(text.stdout, /! config\.senderChannels/)
 })
 
-test('checker warns when the same email image is inline and also sent as media', t => {
+test('checker blocks an inline email image duplicated as email media', t => {
   const f = fixture(t)
   const path = '.mailings/storage/processes/demo/series/image.message.yaml'
   const image = 'https://example.com/cup.png'
   const letter = (onlyChannels = '') => `title: Image\ndescription: Test\nsubject: Image\nplain: Image\nhtml: '<img src="${image}">'\nmedia:\n  - key: cup\n    type: image\n    url: ${image}\n    mime_type: image/png\n${onlyChannels}`
   f.put(path, letter())
-  const warnings = () => JSON.parse(f.run('check', ['--no-snapshot', '--json']).stdout).checks.find(c => c.id === 'letters').warnings
-  assert.ok(warnings().some(w => w.includes('отдельным вложением')))
+  const letters = () => JSON.parse(f.run('check', ['--no-snapshot', '--json']).stdout).checks.find(c => c.id === 'letters')
+  assert.equal(letters().ok, false)
+  assert.ok(letters().errors.some(e => e.includes('отдельным вложением')))
   f.put(path, letter('    only_channel_ids: [messenger-1]\n'))
-  assert.ok(!warnings().some(w => w.includes('отдельным вложением')))
+  assert.ok(!letters().errors.some(e => e.includes('отдельным вложением')))
 })
 
 test('local message action may prepare variables while template and variant checks remain active', t => {

@@ -957,7 +957,7 @@ check('letters', 'Письма шагов отправки и их переме�
         const emailReceivesMedia = !Array.isArray(item?.only_channel_ids) || !item.only_channel_ids.length ||
           item.only_channel_ids.some(id => formatById[id] === 'email')
         if (typeof item?.url === 'string' && letter.html.includes(item.url) && emailReceivesMedia)
-          warn(`${p}: изображение ${item.key || item.url} есть и в html, и в media для email; оно может прийти повторно отдельным вложением. Оставьте media только для нужных других каналов или уберите дублирование.`)
+          error(`${p}: изображение ${item.key || item.url} есть и в html, и в media для email; оно может прийти повторно отдельным вложением. Оставьте media только для нужных других каналов или уберите дублирование.`)
       }
     }
     if (typeof letter.short === 'string' && /(?:\.{3}|…)\s*$/.test(letter.short))
