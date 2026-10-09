@@ -1,0 +1,291 @@
+{
+  "version": 1,
+  "process": "repair",
+  "nodeId": "followup",
+  "stage": "spec",
+  "inputDigest": "42715c5a43179a5f2e9409f68b9fb1f17542a69ce71e5d23a2fece82f4d6581c",
+  "inspectedFiles": [
+    "repair/creative/followup/spec.yaml",
+    "repair/creative/followup/build.md",
+    "repair/materials/owner-brief.md",
+    ".knowledge-base/processes/repair/overview.md",
+    ".agents/skills/processes/creative/catalog/email-design.md",
+    ".agents/skills/processes/creative/catalog/email-quality.md",
+    "repair/PLAN.md",
+    "repair/.workspace.json",
+    "repair/process.yaml#related:followup",
+    "repair/creative/next/spec.yaml"
+  ],
+  "inspectedOriginal": "",
+  "inspectedVisuals": [],
+  "answers": [
+    {
+      "id": "task",
+      "status": "pass",
+      "reason": "Тип follow_up, адресат и три ручных момента соответствуют рассказу владельца и карте процесса. Спецификация не предполагает массовой рассылки.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "seriesType: follow_up"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "audience: Человек с собственной заявкой на осмотр, затем с выданной ему сметой"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Я хочу три ручных шаблона для разных моментов: приняли запрос, отправили\nсмету после осмотра, один раз уточнили решение по смете. Это не рассылка\nвсем подписчикам."
+        },
+        {
+          "path": "repair/process.yaml#related:followup",
+          "quote": "\"purpose\": \"Помочь клиенту понять следующий шаг и принять решение\""
+        }
+      ]
+    },
+    {
+      "id": "truth",
+      "status": "pass",
+      "reason": "Цена осмотра и зачёт после согласия подтверждены; итоговая цена и срок берутся только из индивидуальной сметы после осмотра. Отменённая цена 1 000 ₽ и готовность сегодня отсутствуют. Проверка реальных значений перед отправкой предусмотрена в brief, но их фактическая подстановка ещё не проверена.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия на работы"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Подставить из сохранённой сметы по ID заявки состав работ, итоговую сумму и срок в html и plain; сотрудник сверяет все три поля и адрес, при пустом значении не отправляет"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Точную цену и срок ремонта мастер называет только после осмотра."
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Старый слайд про 1 000 ₽ и ремонт\nв тот же день отменён."
+        }
+      ]
+    },
+    {
+      "id": "depth",
+      "status": "pass",
+      "reason": "Каждое письмо добавляет нужную для своего момента информацию: факт получения и цену осмотра, индивидуальные состав/сумму/срок и выбор по смете, затем помощь без повторного нажима. Повтор отменённого общего оффера устранён.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Подтвердить получение запроса"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия на работы"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Подставить из сохранённой сметы по ID заявки состав работ, итоговую сумму и срок в html и plain"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Если по смете остались вопросы, мастер пояснит предложенные работы"
+        },
+        {
+          "path": ".agents/skills/processes/creative/catalog/email-quality.md",
+          "quote": "Если письмо\nничего не добавляет, объедини или убери его."
+        }
+      ]
+    },
+    {
+      "id": "action",
+      "status": "pass",
+      "reason": "На уровне spec шаг клиента ясен: в received можно ответить, чтобы выбрать время осмотра или уточнить проблему; после сметы — согласовать работы либо задать вопрос, после одного уточнения — отказаться. Все CTA ведут к ответу на письмо с указанным тестовым Reply-To. Работу реального адреса и доставку это не доказывает.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "cta: {label: \"Ответить, чтобы выбрать время или уточнить проблему\", target: ответ на это письмо}"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "cta: {label: Ответить мастеру по смете, target: ответ на это письмо}"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "cta: {label: Ответить мастеру, target: ответ на это письмо}"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "replyTo: repair@example.invalid"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "stop: Отказ, согласие на работы или отсутствие ответа после одного уточнения"
+        }
+      ]
+    },
+    {
+      "id": "series",
+      "status": "pass",
+      "reason": "Три сообщения имеют разные события и роли: подтверждение заявки, передача сметы после осмотра, однократный вопрос при нерешённой смете. «Вы» и спокойный тон выдержаны в заданных тезисах; нет утверждения, что читатель прочитал предыдущее письмо. Это оценка brief, не готовых subject/html/plain.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Подтвердить получение запроса"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Передать смету после осмотра"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Один раз уточнить решение по смете"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "emotionality: уважительно, без давления"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Если по смете остались вопросы, мастер пояснит предложенные работы"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "trigger: \"После собственной заявки, после осмотра или однократно после сметы\""
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "advisory",
+      "reason": "В spec выбран только email, его ID совпадает с тестовым каналом в workspace; указан Reply-To и ручной запуск по заявке. PLAN говорит, что канал лишь планируется, а не показывает фактическую настройку Sender или доставку. Перед запуском подтвердить существование и разрешённость канала, реальный адрес ответа и тестовую отправку; не считать spec доказательством доставки.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "formats: [email]"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "channelIdsByFormat: {email: [test-email-channel]}"
+        },
+        {
+          "path": "repair/.workspace.json",
+          "quote": "\"senderChannels\":[\"test-email-channel\"]"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "replyTo: repair@example.invalid"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "В\nсинтетическом аккаунте планируется email-канал `test-email-channel` и\nадрес ответа `repair@example.invalid`; фактическая доставка остаётся\nотдельной проверкой."
+        }
+      ]
+    },
+    {
+      "id": "series-consistency",
+      "status": "pass",
+      "reason": "Серии согласованы по адресату сохранённой заявки, цене 500 ₽ с зачётом, определению итоговой цены и срока после осмотра и тестовому каналу. Исправленная mainIdea received теперь предлагает клиенту ответить о выборе времени, что соответствует условию перехода и trigger соседнего сообщения. Реальную отправку это не подтверждает.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "mainIdea: Запрос принят; клиент может ответить, чтобы выбрать время осмотра"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Запрос получен; если хотите выбрать время осмотра, ответьте мастеру"
+        },
+        {
+          "path": "repair/creative/next/spec.yaml",
+          "quote": "trigger: Клиент попросил выбрать время"
+        },
+        {
+          "path": "repair/creative/next/spec.yaml",
+          "quote": "Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия; итоговую цену и срок мастер назовёт после осмотра"
+        },
+        {
+          "path": "repair/creative/next/spec.yaml",
+          "quote": "recipient: Клиент той же заявки"
+        },
+        {
+          "path": "repair/process.yaml#related:followup",
+          "quote": "\"when\": \"клиент хочет выбрать время осмотра\""
+        }
+      ]
+    },
+    {
+      "id": "message.received.brief",
+      "status": "pass",
+      "reason": "Brief даёт подтверждение заявки, стоимость и зачёт осмотра, возможность ответить мастеру для выбора времени или уточнения проблемы. Тема, тезисы и CTA согласованы; это конкретная основа для email subject/html/plain, которые ещё предстоит создать.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Ваш запрос на осмотр получен"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Запрос получен; если хотите выбрать время осмотра, ответьте мастеру"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия на работы"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "cta: {label: \"Ответить, чтобы выбрать время или уточнить проблему\", target: ответ на это письмо}"
+        },
+        {
+          "path": "repair/creative/followup/build.md",
+          "quote": "Создай содержательные представления для выбранных форматов: email — subject/html/plain"
+        }
+      ]
+    },
+    {
+      "id": "message.estimate.brief",
+      "status": "pass",
+      "reason": "После фактического осмотра brief требует индивидуальные состав работ, итоговую сумму и срок из сохранённой сметы в html и plain; сотрудник сверяет поля и адрес и не отправляет пустой шаблон. Получатель может принять предложение или задать вопрос. Значения конкретного клиента на стадии spec ещё отсутствуют по природе ручного шаблона.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Смета по вашему велосипеду"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Подставить из сохранённой сметы по ID заявки состав работ, итоговую сумму и срок в html и plain; сотрудник сверяет все три поля и адрес, при пустом значении не отправляет"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Можно согласовать предложенные работы или задать вопрос по смете"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Для каждого осмотра мастер сохраняет индивидуальную смету с составом\nработ, итоговой ценой и сроком, привязанную к заявке."
+        }
+      ]
+    },
+    {
+      "id": "message.decision.brief",
+      "status": "pass",
+      "reason": "Однократное уточнение предлагает помощь по смете без ложного утверждения, что её прочитали, и прекращает напоминания при отказе или отсутствии ответа после одного уточнения. Для email-brief роль, польза и действие конкретны.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Один раз уточнить решение по смете"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Если по смете остались вопросы, мастер пояснит предложенные работы"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Если ремонт не нужен, достаточно сообщить об этом; новых напоминаний не будет"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "stop: Отказ, согласие на работы или отсутствие ответа после одного уточнения"
+        }
+      ]
+    }
+  ],
+  "status": "ready",
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "series_quality_reviewer"
+  },
+  "reviewedAt": "2026-10-09T05:14:56.694Z"
+}

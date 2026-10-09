@@ -1,0 +1,29 @@
+version: 1
+kind: series
+targetNode: next
+seriesType: follow_up
+formats: [email]
+channelIdsByFormat: {email: [test-email-channel]}
+objective: Договориться о времени осмотра по заявке клиента
+audience: Клиент сохранённой заявки, который попросил выбрать время
+sources: [{id: owner, path: repair/materials/owner-brief.md}]
+references: []
+voice: {addressing: вы, character: спокойный мастер, emotionality: без давления,
+  example: Выберем время осмотра; срок ремонта обсудим после него.}
+emailDesign: {layout: Одна колонка, components: Короткий текст и один шаг,
+  colors: Тёмный текст, mobile: Без широких блоков}
+replyTo: repair@example.invalid
+messages:
+  - id: choose
+    path: .mailings/storage/processes/repair/next/choose.message.yaml
+    goal: Согласовать время осмотра
+    mainIdea: Осмотр 500 ₽ засчитывается в ремонт после согласия; итоговая цена после него
+    subject: Выберем время осмотра
+    blocks:
+      - {type: condition, text: "Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия; итоговую цену и срок мастер назовёт после осмотра", sourceRef: owner}
+    cta: {label: Ответить с удобным временем, target: ответ на это письмо}
+deliveryMode: manual
+manualInvocation: {caller: Сотрудник мастерской, trigger: Клиент попросил выбрать время,
+  recipient: Клиент той же заявки, stop: Время согласовано или клиент отказался}
+openQuestions: []
+acceptance: [Не обещает фиксированную цену ремонта или готовность сегодня]

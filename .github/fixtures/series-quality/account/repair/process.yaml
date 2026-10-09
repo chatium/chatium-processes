@@ -1,0 +1,20 @@
+title: Вымышленная веломастерская
+knowledge: .knowledge-base/processes/repair
+stages: [Запрос, Решение]
+nodes:
+  - id: followup
+    stage: Запрос
+    kind: series
+    title: Ручные ответы по заявке и смете
+    purpose: Помочь клиенту понять следующий шаг и принять решение
+    source: .mailings/storage/processes/repair/followup/
+    creativeRef: repair/creative/followup/spec.yaml
+  - id: next
+    stage: Решение
+    kind: series
+    title: Соседнее касание о времени осмотра
+    purpose: Уточнить удобное окно после ответа клиента
+    source: .mailings/storage/processes/repair/next/
+    creativeRef: repair/creative/next/spec.yaml
+links:
+  - {from: followup, to: next, when: клиент хочет выбрать время осмотра}

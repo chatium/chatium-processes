@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "process": "repair",
+  "nodeId": "followup",
+  "stage": "spec",
+  "inputDigest": "d05193763d8de91e7c6bbb5aa71e73688fba4cc0fdaa0afebf99a9915c305bc3",
+  "inspectedFiles": [
+    "repair/creative/followup/spec.yaml",
+    "repair/creative/followup/build.md",
+    "repair/materials/owner-brief.md",
+    ".knowledge-base/processes/repair/overview.md",
+    ".agents/skills/processes/creative/catalog/email-design.md",
+    ".agents/skills/processes/creative/catalog/email-quality.md",
+    "repair/PLAN.md",
+    "repair/.workspace.json",
+    "repair/process.yaml#related:followup",
+    "repair/creative/next/spec.yaml"
+  ],
+  "inspectedOriginal": "",
+  "inspectedVisuals": [],
+  "answers": [
+    {
+      "id": "task",
+      "status": "blocking",
+      "reason": "Неверны тип и адресат: onboarding означает помощь после покупки, тогда как нужны три ручных ответа по уже поданной заявке и смете. Исправить на follow_up и указать получателя и событие для каждого шаблона.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "seriesType: onboarding"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "audience: Вся база подписчиков, включая тех, кто ещё не обращался и не получал смету"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Я хочу три ручных шаблона для разных моментов: приняли запрос, отправили\nсмету после осмотра, один раз уточнили решение по смете. Это не рассылка\nвсем подписчикам."
+        }
+      ]
+    },
+    {
+      "id": "truth",
+      "status": "blocking",
+      "reason": "Оффер «любой ремонт за 1 000 ₽ и готов сегодня» отменён; гарантия без осмотра также противоречит правилу определения цены и срока. Убрать эти обещания, оставить 500 ₽ за осмотр с зачётом при согласии и индивидуальные цену и срок после осмотра.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Любой ремонт за 1 000 ₽ и готов сегодня"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Мы гарантируем результат без осмотра"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Первичный осмотр стоит 500 ₽; если после осмотра\nклиент согласен ремонтировать у нас, эти 500 ₽ входят в стоимость работ."
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "На\nстаром слайде 2024 года осталось обещание любого ремонта за 1 000 ₽\nсегодня — оно больше не действует."
+        }
+      ]
+    },
+    {
+      "id": "depth",
+      "status": "blocking",
+      "reason": "Во всех трёх письмах повторён один отменённый оффер. Читатель не узнает, принят ли запрос, что содержит его смета и как завершить обсуждение. Развести письма по этим трём моментам и дать отдельную полезную мысль в каждом.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "mainIdea: Срочно убеждаем прийти"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "mainIdea: Повторяем выгодную цену"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "mainIdea: Последний нажим"
+        },
+        {
+          "path": ".knowledge-base/processes/repair/overview.md",
+          "quote": "Человеку после первичного запроса важно знать, принят ли он и что будет\nдальше. После осмотра ему нужен понятный выбор по смете."
+        }
+      ]
+    },
+    {
+      "id": "action",
+      "status": "blocking",
+      "reason": "«Форма» не определяет адрес и действие; покупка до осмотра противоречит ручному ответу и неизвестной цене. Задать ответ мастеру на сохранённую заявку или конкретный согласованный путь с адресом для каждого момента.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "cta: {label: Купить сейчас, target: форма}"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "сотрудник выбирает одно\nуместное сообщение для человека, который уже обратился."
+        }
+      ]
+    },
+    {
+      "id": "series",
+      "status": "blocking",
+      "reason": "Заявленный спокойный голос нарушен нажимом и скачком обращения от «ты» к «вы». Роли трёх писем сводятся к повторной продаже. Переписать в единый уважительный голос и выстроить получение запроса → смета → одно уточнение решения.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "voice: {addressing: вы, character: спокойный мастер, emotionality: сдержанно,"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Лови шанс починить велосипед сегодня!"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Уважаемый клиент, наше лучшее предложение"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Эй, почему ты ещё не пришёл?"
+        },
+        {
+          "path": ".agents/skills/processes/creative/catalog/email-quality.md",
+          "quote": "Если письмо\nничего не добавляет, объедини или убери его."
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "blocking",
+      "reason": "Email-канал упомянут в настройках тестового пространства, но spec не связывает формат с этим каналом. Главное расхождение — ручной ежедневный запуск всей базе вместо одного уместного сообщения клиенту по его заявке; отказ не останавливает касания. Указать канал в spec, события и адресата каждого письма, а также остановку при отказе; реальную доставку проверить отдельно.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "formats: [email]"
+        },
+        {
+          "path": "repair/.workspace.json",
+          "quote": "\"senderChannels\":[\"test-email-channel\"]"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "manualInvocation: {caller: Любой сотрудник, trigger: Ежедневно,\n  recipient: Вся база подписчиков, stop: После трёх писем}"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Отказ прекращает\nдальнейшие сообщения."
+        }
+      ]
+    },
+    {
+      "id": "series-consistency",
+      "status": "blocking",
+      "reason": "Связанная серия обещает бесплатный осмотр и ремонт сегодня за 1 000 ₽, тогда как голос этой серии называет 500 ₽, а PLAN отменяет старый оффер; адресат и ежедневный запуск обеих серий расходятся с общей картой заявки. Исправить оба spec на единые условия и одного клиента сохранённой заявки.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "example: Осмотр стоит 500 ₽; срок ремонта узнаем после него."
+        },
+        {
+          "path": "repair/creative/next/spec.yaml",
+          "quote": "Осмотр бесплатный, ремонт любого велосипеда сегодня за 1 000 ₽"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Осмотр стоит 500 ₽ и учитывается в ремонте после согласия; итоговую цену\nи срок мастер сообщает после осмотра. Старый слайд про 1 000 ₽ и ремонт\nв тот же день отменён."
+        },
+        {
+          "path": "repair/process.yaml#related:followup",
+          "quote": "\"when\": \"клиент хочет выбрать время осмотра\""
+        }
+      ]
+    },
+    {
+      "id": "message.received.brief",
+      "status": "blocking",
+      "reason": "Для подтверждения заявки письмо не даёт подтверждения или следующего шага: оно продаёт отменённый ремонт «сегодня» и давит на читателя. Задать факт получения запроса, стоимость осмотра, ожидание личного ответа мастера и уместный ответ на письмо.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Продать ремонт всем подписчикам"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Лови шанс починить велосипед сегодня!"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Не тормози — решай сейчас!"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Человек оставляет запрос на осмотр,\nа мастер отвечает лично."
+        }
+      ]
+    },
+    {
+      "id": "message.estimate.brief",
+      "status": "blocking",
+      "reason": "Письмо сметы повторяет общий оффер, не содержит индивидуальных состава, цены и срока после осмотра и обещает результат без осмотра. Предусмотреть данные конкретной сметы и выбор согласовать работы или задать вопрос; не выдумывать универсальную цену.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "goal: Ещё раз убедить подписчика купить"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Мы гарантируем результат без осмотра"
+        },
+        {
+          "path": "repair/materials/owner-brief.md",
+          "quote": "Точную цену и срок ремонта мастер называет только после осмотра."
+        }
+      ]
+    },
+    {
+      "id": "message.decision.brief",
+      "status": "blocking",
+      "reason": "Вместо одного спокойного уточнения решения письмо снова повторяет отменённый оффер и обвиняет клиента. Задать помощь по уже выданной смете, простой ответ и остановку после отказа либо одного безответного уточнения.",
+      "evidence": [
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "subject: Эй, почему ты ещё не пришёл?"
+        },
+        {
+          "path": "repair/creative/followup/spec.yaml",
+          "quote": "Пропустишь — пожалеешь"
+        },
+        {
+          "path": "repair/PLAN.md",
+          "quote": "Если клиент молчит после сметы — один раз\nуточнить, нужна ли помощь, затем остановить касания."
+        }
+      ]
+    }
+  ],
+  "status": "needs-work",
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "series_quality_reviewer"
+  },
+  "reviewedAt": "2026-10-09T05:14:22.820Z"
+}

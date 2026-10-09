@@ -1,0 +1,62 @@
+version: 1
+kind: series
+targetNode: followup
+seriesType: follow_up
+formats: [email]
+channelIdsByFormat: {email: [test-email-channel]}
+objective: Помочь обратившемуся клиенту понять следующий шаг без преждевременного обещания ремонта
+audience: Человек с собственной заявкой на осмотр, затем с выданной ему сметой
+sources:
+  - {id: owner, path: repair/materials/owner-brief.md}
+  - {id: knowledge, path: .knowledge-base/processes/repair/overview.md}
+references: []
+voice:
+  addressing: вы
+  character: спокойный и точный мастер
+  emotionality: уважительно, без давления
+  example: Осмотр стоит 500 ₽; стоимость работ обсудим после него.
+emailDesign:
+  layout: Одна колонка
+  components: Короткий заголовок, основная мысль и один следующий шаг
+  colors: Тёмный текст на светлом фоне
+  mobile: Короткие абзацы без широких блоков
+replyTo: repair@example.invalid
+messages:
+  - id: received
+    path: .mailings/storage/processes/repair/followup/received.message.yaml
+    goal: Подтвердить получение запроса
+    mainIdea: Запрос принят; клиент может ответить, чтобы выбрать время осмотра
+    subject: Ваш запрос на осмотр получен
+    blocks:
+      - {type: confirmation, text: "Запрос получен; если хотите выбрать время осмотра, ответьте мастеру", sourceRef: owner}
+      - {type: condition, text: Осмотр стоит 500 ₽ и зачтётся в ремонт после согласия на работы, sourceRef: knowledge}
+    cta: {label: "Ответить, чтобы выбрать время или уточнить проблему", target: ответ на это письмо}
+  - id: estimate
+    path: .mailings/storage/processes/repair/followup/estimate.message.yaml
+    goal: Передать смету после осмотра
+    mainIdea: Состав и цена работ обсуждаются по фактическому осмотру
+    subject: Смета по вашему велосипеду
+    blocks:
+      - {type: explanation, text: После осмотра мастер передаёт состав работ и срок; до согласия ремонт не начинается, sourceRef: owner}
+      - {type: personal-estimate, text: "Подставить из сохранённой сметы по ID заявки состав работ, итоговую сумму и срок в html и plain; сотрудник сверяет все три поля и адрес, при пустом значении не отправляет", sourceRef: owner}
+      - {type: choice, text: Можно согласовать предложенные работы или задать вопрос по смете, sourceRef: knowledge}
+    cta: {label: Ответить мастеру по смете, target: ответ на это письмо}
+  - id: decision
+    path: .mailings/storage/processes/repair/followup/decision.message.yaml
+    goal: Один раз уточнить решение по смете
+    mainIdea: Если решение по смете не принято, предложить помощь и остановиться
+    subject: Остались вопросы по смете?
+    blocks:
+      - {type: help, text: "Если по смете остались вопросы, мастер пояснит предложенные работы", sourceRef: owner}
+      - {type: boundary, text: "Если ремонт не нужен, достаточно сообщить об этом; новых напоминаний не будет", sourceRef: knowledge}
+    cta: {label: Ответить мастеру, target: ответ на это письмо}
+deliveryMode: manual
+manualInvocation:
+  caller: Сотрудник мастерской
+  trigger: "После собственной заявки, после осмотра или однократно после сметы"
+  recipient: Только клиент сохранённой заявки и выданной ему сметы
+  stop: Отказ, согласие на работы или отсутствие ответа после одного уточнения
+openQuestions: []
+acceptance:
+  - Каждый шаблон соответствует своему моменту и не обещает ремонт в тот же день
+  - Клиент видит только свою смету; отказ останавливает касания

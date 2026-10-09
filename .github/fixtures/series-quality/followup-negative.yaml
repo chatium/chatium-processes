@@ -1,0 +1,48 @@
+version: 1
+kind: series
+targetNode: followup
+seriesType: onboarding
+formats: [email]
+objective: Прогреть всех подписчиков мастерской до покупки
+audience: Вся база подписчиков, включая тех, кто ещё не обращался и не получал смету
+sources:
+  - {id: owner, path: repair/materials/owner-brief.md}
+  - {id: knowledge, path: .knowledge-base/processes/repair/overview.md}
+references: []
+voice: {addressing: вы, character: спокойный мастер, emotionality: сдержанно,
+  example: Осмотр стоит 500 ₽; срок ремонта узнаем после него.}
+emailDesign: {layout: Одна колонка, components: Заголовок и текст,
+  colors: Тёмный текст, mobile: Короткие абзацы}
+messages:
+  - id: received
+    path: .mailings/storage/processes/repair/followup/received.message.yaml
+    goal: Продать ремонт всем подписчикам
+    mainIdea: Срочно убеждаем прийти
+    subject: Лови шанс починить велосипед сегодня!
+    blocks:
+      - {type: offer, text: Любой ремонт за 1 000 ₽ и готов сегодня, sourceRef: owner}
+      - {type: pressure, text: Не тормози — решай сейчас!, sourceRef: knowledge}
+    cta: {label: Срочно записаться, target: форма}
+  - id: estimate
+    path: .mailings/storage/processes/repair/followup/estimate.message.yaml
+    goal: Ещё раз убедить подписчика купить
+    mainIdea: Повторяем выгодную цену
+    subject: Уважаемый клиент, наше лучшее предложение
+    blocks:
+      - {type: offer, text: Любой ремонт за 1 000 ₽ и готов сегодня, sourceRef: owner}
+      - {type: authority, text: Мы гарантируем результат без осмотра, sourceRef: knowledge}
+    cta: {label: Купить сейчас, target: форма}
+  - id: decision
+    path: .mailings/storage/processes/repair/followup/decision.message.yaml
+    goal: Продать в третий раз
+    mainIdea: Последний нажим
+    subject: Эй, почему ты ещё не пришёл?
+    blocks:
+      - {type: offer, text: Любой ремонт за 1 000 ₽ и готов сегодня, sourceRef: owner}
+      - {type: pressure, text: Пропустишь — пожалеешь, sourceRef: knowledge}
+    cta: {label: Бери немедленно, target: форма}
+deliveryMode: manual
+manualInvocation: {caller: Любой сотрудник, trigger: Ежедневно,
+  recipient: Вся база подписчиков, stop: После трёх писем}
+openQuestions: []
+acceptance: [Три письма отправлены]

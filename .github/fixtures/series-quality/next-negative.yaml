@@ -1,0 +1,27 @@
+version: 1
+kind: series
+targetNode: next
+seriesType: follow_up
+formats: [email]
+objective: Продать осмотр
+audience: Все подписчики
+sources: [{id: owner, path: repair/materials/owner-brief.md}]
+references: []
+voice: {addressing: вы, character: мастер, emotionality: бодро,
+  example: Осмотр бесплатный и ремонт сегодня.}
+emailDesign: {layout: Одна колонка, components: Короткий текст,
+  colors: Тёмный текст, mobile: Короткий текст}
+messages:
+  - id: choose
+    path: .mailings/storage/processes/repair/next/choose.message.yaml
+    goal: Уговорить прийти сегодня
+    mainIdea: Осмотр бесплатный
+    subject: Бесплатный осмотр сегодня
+    blocks:
+      - {type: offer, text: "Осмотр бесплатный, ремонт любого велосипеда сегодня за 1 000 ₽", sourceRef: owner}
+    cta: {label: Прийти, target: форма}
+deliveryMode: manual
+manualInvocation: {caller: Сотрудник, trigger: Ежедневно,
+  recipient: Все подписчики, stop: После письма}
+openQuestions: []
+acceptance: [Письмо отправлено]
