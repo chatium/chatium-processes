@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "process": "demo",
+  "stage": "implementation",
+  "status": "needs-work",
+  "inputDigest": "6bc98b47caf7b01fc988da44571136a6a4e41817b4e12a6b0b41320bf0148cd6",
+  "reviewer": {
+    "kind": "subagent",
+    "reference": "load_safety_reviewer"
+  },
+  "reviewedAt": "2026-10-09T05:54:13.186Z",
+  "inspectedFiles": [
+    ".knowledge-base/.knowledge.yml",
+    ".knowledge-base/processes/.knowledge.yml",
+    ".knowledge-base/processes/demo/.knowledge.yml",
+    ".knowledge-base/processes/demo/overview.md",
+    "demo/PLAN.md",
+    "demo/process.yaml",
+    "demo/services/pendingSummary.ts"
+  ],
+  "inspectedReferences": [
+    "skills/chatium-development/SKILL.md",
+    "skills/processes/SKILL.md",
+    "skills/processes/build/review-safety.md",
+    "skills/chatium-development/auth.md",
+    "skills/chatium-development/routing.md",
+    "skills/chatium-development/heap.md",
+    "skills/chatium-development/heap-filter.md",
+    "skills/chatium-development/performance.md"
+  ],
+  "referenceHashes": {
+    "skills/chatium-development/SKILL.md": "93936099b736261d2a0fca936190358a063b2982afbd510f685b4b129c3ad716",
+    "skills/chatium-development/auth.md": "0bed59f85962781ade8c8028c1e9a87cc9229323f52ae2870b7da07c3a892684",
+    "skills/chatium-development/heap-filter.md": "b7b5963008572a1e1d7a30b56c2bb92fc0cac159dafde9f4ed8ebdbf56056f16",
+    "skills/chatium-development/heap.md": "72efbcf128bd465724c38faeddaf0929aea7ce4045ccfc690bc1bd11468992f6",
+    "skills/chatium-development/performance.md": "098d4dd7b10f389cb4cb6b441405d5cbc18de20c94fc2bce109633f5695448b3",
+    "skills/chatium-development/routing.md": "a0faf20f548f83a5d1996bdfe19b280e8d9312493ef5991dc3c74bfcaebb9385",
+    "skills/processes/SKILL.md": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+    "skills/processes/build/review-safety.md": "9c83e99e499c36cd031396826b4c24f9c1a971178ba56998f906dcb69fffa0e0"
+  },
+  "ruleDigests": {
+    "skills/chatium-development/SKILL.md": "ba9bf94227e2ac060a86d9b7d86f78dbf4e254a90c549ddea47e83ee6a65ed1b",
+    "skills/processes/SKILL.md": "0b721ba20953d10e02c75161bded48ab8a8752dfdee02e9b956a3b7c99df842b"
+  },
+  "rubricVersion": 1,
+  "skillVersion": "da58250bde202e26ea788746a7e29d2342a03222941d3138082f96c17caf046a",
+  "answers": [
+    {
+      "id": "scope.complete",
+      "status": "gap",
+      "reason": "Пакет содержит только helper и декларацию Repository. Нет Staff+ route/caller, конкретной Heap-таблицы/связки вызова и теста репозитория. staticChecks подтверждают лишь собранные файлы, а не полноту исполняемого пути. Нельзя проверить, что caller реально применяет role check и что конкретный источник данных соответствует интерфейсу.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "type Repository = {"
+        },
+        {
+          "path": "demo/process.yaml",
+          "quote": "source: demo/services/pendingSummary.ts"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить исходники Staff+ обработчика, таблицы/связки Repository и проверку вызовов в новый пакет."
+    },
+    {
+      "id": "plan.flow",
+      "status": "gap",
+      "reason": "Сводка в helper соответствует требуемым total и первой странице, но реальный Staff+ путь вызова и сценарий теста не представлены. Нельзя утверждать, что экран использует именно этот helper.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ответственному Staff+"
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "return { total, rows }"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить маршрут/экран с фактическим вызовом и тест маршрута."
+    },
+    {
+      "id": "security.access",
+      "status": "gap",
+      "reason": "План ограничивает чтение Staff+, однако в самом helper нет проверки роли, а вызывающий обработчик показан только комментарием. Прямой вызов не позволяет доказать авторизацию до чтения заявок.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ответственному Staff+"
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Представить Staff+ route/caller с requireAccountRole(ctx, 'Staff') до вызова helper; проверить прямой URL."
+    },
+    {
+      "id": "security.routes",
+      "status": "gap",
+      "reason": "В packet.files нет ни одного route-файла или app.function. Единственная названная точка входа — «экран сотрудника», его URL, реализация и серверная защита отсутствуют. Перечислить и проверить реальные GET/API напрямую нельзя.",
+      "evidence": [
+        {
+          "path": "demo/process.yaml",
+          "quote": "source: demo/services/pendingSummary.ts"
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "// Этот чистый помощник сам не является публичным маршрутом."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить файл/URL Staff+ страницы и любого API, их middleware/проверку роли и отрицательный тест прямого доступа."
+    },
+    {
+      "id": "security.inputs",
+      "status": "not-applicable",
+      "reason": "Показанный helper не принимает query/body клиента: ему передаются только ctx и Repository. Валидация внешнего запроса остаётся пробелом покрытия security.routes.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "export async function pendingSummary(ctx: unknown, requests: Repository)"
+        }
+      ]
+    },
+    {
+      "id": "security.boundaries",
+      "status": "not-applicable",
+      "reason": "В пределах показанного helper нет HTML, URL, исходящего запроса, пути файла, логирования или секрета; он возвращает список записей. Сериализация и аудитория ответа требуют отдельной проверки отсутствующего route.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "return { total, rows"
+        }
+      ]
+    },
+    {
+      "id": "payments.effects",
+      "status": "not-applicable",
+      "reason": "План прямо исключает отправки, а показанный код выполняет только чтения; платежей, выдачи результата и иных неповторяемых эффектов здесь нет.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ни клиентская страница, ни\nвыгрузка всех заявок, ни отправки не входят в этот контроль."
+        }
+      ]
+    },
+    {
+      "id": "concurrency.correctness",
+      "status": "not-applicable",
+      "reason": "Helper не изменяет записи и не запускает внешних эффектов; lock или транзакция для этого чтения не нужны. При конкурентном изменении очереди count и list могут кратко различаться; план не требует атомарного снимка.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "const [total, rows] = await Promise.all(["
+        }
+      ]
+    },
+    {
+      "id": "heap.bounds",
+      "status": "covered",
+      "reason": "В показанном helper ровно одна серверная выборка pending с limit 50 и устойчивым order(createdAt desc,id asc), а количество отделено через документированный Heap countBy(ctx, where). Память helper O(50); конкретную таблицу и вызов из Staff+ route нужно подтвердить отдельно по scope.complete.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.countBy(ctx, where)"
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.findAll(ctx, { where, limit: 50, order: [{ createdAt: 'desc' }, { id: 'asc' }] })"
+        }
+      ]
+    },
+    {
+      "id": "storage.analytics",
+      "status": "gap",
+      "reason": "Заявка как изменяемое операционное состояние подходит Heap, но конкретная таблица, схема и объём поступающих заявок не даны; нельзя оценить прирост строк, хранение и реальную стоимость countBy по статусу. Это не заявка на историческую аналитику.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/demo/overview.md",
+          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Представить .table.ts и связку Repository, оценку поступления/удержания заявок; подтвердить фильтр и countBy на целевом объёме."
+    },
+    {
+      "id": "storage.table-migration",
+      "status": "not-applicable",
+      "reason": "В пакет не включён ни один .table.ts и план не заявляет изменения схемы существующей таблицы; миграционный вердикт к этому helper неприменим. Отсутствующая таблица отмечена в scope.complete.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Реализовать ограниченное чтение очереди"
+        }
+      ]
+    },
+    {
+      "id": "events.contract",
+      "status": "not-applicable",
+      "reason": "Пакет описывает только чтение уже открытых заявок для Staff+; новый переход клиента или writer события не реализуется. Реестр событий вне данного контрольного helper.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/demo/overview.md",
+          "quote": "Публичного отчёта и выгрузки\nвсей истории нет."
+        }
+      ]
+    },
+    {
+      "id": "staff.notifications",
+      "status": "not-applicable",
+      "reason": "Здесь не создаётся новая заявка и нет входа, требующего нового уведомления сотруднику: Staff сам открывает сводку существующей очереди. Путь создания заявок не входит в пакет.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/demo/overview.md",
+          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
+        }
+      ]
+    },
+    {
+      "id": "analytics.funnels",
+      "status": "not-applicable",
+      "reason": "Сводка текущей операционной очереди не является отчётом о конверсии; в пакете нет specs/analytics.yaml, событий или ClickHouse-запроса.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "общее число ожидающих заявок и первая страница из 50 записей"
+        }
+      ]
+    },
+    {
+      "id": "heap.fanout",
+      "status": "covered",
+      "reason": "Показанный helper не загружает связанные записи и ограничивает fan-out двумя независимыми операциями независимо от N; Promise.all имеет фиксированную ширину 2. Размер rows ≤50 по интерфейсу Repository.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "const [total, rows] = await Promise.all(["
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "limit: 50"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.cost",
+      "status": "not-applicable",
+      "reason": "Файлы .knowledge-base служат статическим описанием задачи; runtime helper не делает KB-search или model call. Вопрос стоимости KB/модели для этой реализации неприменим.",
+      "evidence": [
+        {
+          "path": ".knowledge-base/processes/demo/overview.md",
+          "quote": "Сотрудник видит только первую страницу из 50 открытых заявок"
+        }
+      ]
+    },
+    {
+      "id": "loops.events",
+      "status": "not-applicable",
+      "reason": "В показанном коде нет записи события, подписки, автоматизации или job; read-only вызов не порождает следующего события. Цикл чтения в отрицательном варианте оценивается отдельно в heap.bounds и load.budget.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "const [total, rows] = await Promise.all(["
+        }
+      ]
+    },
+    {
+      "id": "jobs.retries",
+      "status": "not-applicable",
+      "reason": "План не предусматривает фоновые jobs; helper — синхронная по смыслу сводка с обычными await чтениями. Пределы повторов jobs неприменимы.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ни клиентская страница, ни\nвыгрузка всех заявок, ни отправки не входят в этот контроль."
+        }
+      ]
+    },
+    {
+      "id": "ui.network",
+      "status": "not-applicable",
+      "reason": "UI-код, polling, reconnect и client fetch в пакете отсутствуют. Нагрузку открытия экрана учли в load.budget, а реальный caller нужен для окончательной проверки.",
+      "evidence": [
+        {
+          "path": "demo/process.yaml",
+          "quote": "kind: external"
+        }
+      ]
+    },
+    {
+      "id": "external.budget",
+      "status": "not-applicable",
+      "reason": "Показанный helper обращается только к интерфейсу Repository; HTTP, внешних API и моделей в его коде нет.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "type Repository = {"
+        }
+      ]
+    },
+    {
+      "id": "load.budget",
+      "status": "covered",
+      "reason": "Горячий путь — одно открытие Staff-экрана: фиксированно 1 countBy + 1 findAll, максимум 50 строк в памяти helper, fan-out 2, без KB/HTTP/model calls. При U сотрудниках и f открытий/с спрос ≈2Uf серверных операций/с; при U=20, f=0.1/с это 4 операций/с, а не гарантия RPS. Стоимость countBy по N, наличие индекса, реальный трафик, p95 и всплески неизвестны. До запуска проверить ступенями на тестовой очереди, без отправок, с latency/errors/DB ops и заранее заданным порогом остановки. Нет повторов внутри helper; реальный caller/таблица остаются в scope.complete.",
+      "evidence": [
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.countBy(ctx, where)"
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.findAll(ctx, { where, limit: 50, order: [{ createdAt: 'desc' }, { id: 'asc' }] })"
+        }
+      ]
+    },
+    {
+      "id": "test.readiness",
+      "status": "gap",
+      "reason": "План требует тест-заглушку, фиксирующую число и параметры вызовов; в пакете есть только PLAN и helper. Нет теста, Staff+ route и прямых проверок анонимного/Staff доступа. Безопасность эффекта проста (только чтение), но готовность сценария к прогону не доказана.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Репозиторий-заглушка фиксирует число и параметры вызовов."
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить mock-тест count/findAll и граничного объёма, route и отрицательный прямой тест доступа; затем только тестовый прогон."
+    },
+    {
+      "id": "operations.lifecycle",
+      "status": "not-applicable",
+      "reason": "Новые автоматизации, отправки, платежи и долговременные эффекты этот узкий helper не запускает; отдельный план остановки серии или платежей ему не нужен. Эксплуатацию полного процесса этим пакетом подтвердить нельзя.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Ни клиентская страница, ни\nвыгрузка всех заявок, ни отправки не входят в этот контроль."
+        }
+      ]
+    },
+    {
+      "id": "plan.T1",
+      "status": "gap",
+      "reason": "T1.A1 на уровне helper выполнена: pending-фильтр, limit 50, стабильный порядок, отдельный документированный Heap countBy. Но T1.A2 требует тест репозитория-заглушки; теста в packet.files нет. Реальная таблица и Staff+ route также не показаны.",
+      "evidence": [
+        {
+          "path": "demo/PLAN.md",
+          "quote": "Репозиторий-заглушка фиксирует число и параметры вызовов."
+        },
+        {
+          "path": "demo/services/pendingSummary.ts",
+          "quote": "requests.countBy(ctx, where)"
+        }
+      ],
+      "priority": "blocking",
+      "nextAction": "Добавить тест countBy/findAll и конкретную Heap-таблицу/вызов; сверить исходники в обновлённом пакете."
+    }
+  ]
+}
