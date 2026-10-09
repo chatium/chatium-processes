@@ -735,6 +735,11 @@ test('result screenshots are tied to a committed, unchanged implementation', t =
   const args = { ...f.args, stage: 'result' }
   const initial = creativeReviewPacket(args)
   assert.equal(initial.visuals.length, 2)
+  f.put('demo/unrelated.ts', 'export const unrelated = 1\n')
+  assert.equal(creativeReviewPacket(args).inputDigest, initial.inputDigest)
+  assert.equal(git('add', 'demo/unrelated.ts').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'unrelated process code').status, 0)
+  assert.equal(creativeReviewPacket(args).inputDigest, initial.inputDigest)
   f.put('demo/tests/run.json', { status: 'passed' })
   assert.equal(creativeReviewPacket(args).inputDigest, initial.inputDigest)
   assert.equal(git('add', 'demo/tests/run.json').status, 0)

@@ -110,6 +110,37 @@ function outputFiles(root, source) {
   return files
 }
 
+function resultDependencies(corpus, source) {
+  const prefix = source.endsWith('/') ? source : `${source}/`
+  const selected = new Set([...corpus.files, ...corpus.assets]
+    .filter(file => file.path === source || file.path.startsWith(prefix)).map(file => file.path))
+  const queue = [...selected]
+  const links = new Map()
+  for (const dependency of corpus.dependencies) {
+    if (!dependency.target || !['local', 'configured-local'].includes(dependency.kind)) continue
+    if (!links.has(dependency.source)) links.set(dependency.source, [])
+    links.get(dependency.source).push(dependency.target)
+  }
+  for (let i = 0; i < queue.length; i++) {
+    for (const target of links.get(queue[i]) || []) {
+      if (selected.has(target)) continue
+      selected.add(target)
+      queue.push(target)
+    }
+    for (const entry of corpus.scope.dynamic || []) {
+      if (entry.source !== queue[i]) continue
+      for (const target of entry.paths) {
+        if (selected.has(target)) continue
+        selected.add(target)
+        queue.push(target)
+      }
+    }
+  }
+  for (const name of ['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'tsconfig.json'])
+    if (corpus.files.some(file => file.path === name)) selected.add(name)
+  return selected
+}
+
 export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   if (!['spec', 'result'].includes(stage)) throw Error('Ревью: этап spec или result.')
   const creative = creativePacket({ root, slug, nodeId })
@@ -203,12 +234,13 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     const corpus = collectImplementation({ root, slug })
     const sourceErrors = corpus.checks.flatMap(check => check.errors)
     if (sourceErrors.length) throw Error(`Неполный набор исходников результата: ${sourceErrors.join('; ')}`)
-    const code = corpus.files.filter(f => /\.(?:[cm]?[jt]sx?|vue|css|scss|sass|less|html?|json|ya?ml|svg)$/i.test(f.path) &&
+    const relevant = resultDependencies(corpus, creative.node.source)
+    const code = corpus.files.filter(f => relevant.has(f.path) && /\.(?:[cm]?[jt]sx?|vue|css|scss|sass|less|html?|json|ya?ml|svg)$/i.test(f.path) &&
       !f.path.startsWith(`${slug}/tasks/`) && !f.path.startsWith(`${slug}/reviews/`) &&
       !f.path.startsWith(`${slug}/creative/`) && !f.path.startsWith(`${slug}/tests/`) &&
       !f.path.startsWith('.knowledge-base/'))
       .map(f => ({ path: f.path, sha256: sha(f.content) }))
-    implementation = [...new Map([...code, ...corpus.assets,
+    implementation = [...new Map([...code, ...corpus.assets.filter(f => relevant.has(f.path)),
       ...creative.assetFiles, ...(creative.automationFile ? [creative.automationFile] : [])]
       .map(f => [f.path, { path: f.path, sha256: f.sha256 }])).values()].sort((a, b) => a.path.localeCompare(b.path))
     const sourcePrefix = creative.node.source.endsWith('/') ? creative.node.source : `${creative.node.source}/`
