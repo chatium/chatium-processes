@@ -1,0 +1,45 @@
+version: 1
+kind: landing
+targetNode: request
+landingType: service
+objective: Продать элитный ремонт в день обращения
+audience: Городской ездок со срочной проблемой или человек перед дальней поездкой
+sources:
+  - {id: owner, path: repair/materials/owner-brief.md}
+  - {id: knowledge, path: .knowledge-base/processes/repair/overview.md}
+references: []
+sections:
+  - id: hero
+    type: introduction
+    purpose: Обещать быстрый ремонт по одной цене
+    covers: [цена, срок, первый шаг]
+    points:
+      - {text: "Любой ремонт за 1 000 ₽ сегодня; после обращения велосипед будет готов", sourceRef: owner}
+    presentation:
+      desktop: Золотой экран с давлением на срочность
+      mobile: Тот же золотой экран и кнопка без условий осмотра
+    mechanicRefs: []
+    acceptance: [Покупатель верит в ремонт сегодня]
+  - id: paths
+    type: explanation
+    purpose: Повторить обещание для всех посетителей
+    covers: [срочный ремонт, плановая проверка]
+    points:
+      - {text: "Мастер выполнит любой ремонт сегодня за 1 000 ₽", sourceRef: knowledge}
+    presentation:
+      desktop: Одинаковый тезис для обеих ситуаций
+      mobile: Одинаковый тезис для обеих ситуаций
+    mechanicRefs: []
+    acceptance: [Посетитель видит фиксированную цену]
+mechanics: []
+design:
+  styleId: art_deco
+  adaptation: Золото и элитарный клуб, хотя владелец просил простую сервисную подачу
+copywriting:
+  styleId: luxury
+  adaptation: Обращаться к посетителю как к клиенту эксклюзивного клуба и давить на срочность
+images: []
+abTesting:
+  mode: none
+openQuestions: []
+acceptance: [Фиксированная цена и срочность повторяются на странице]

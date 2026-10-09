@@ -1,0 +1,47 @@
+version: 1
+kind: landing
+targetNode: request
+landingType: service
+objective: Объяснить осмотр велосипеда и помочь выбрать первый шаг без обещания готового ремонта
+audience: Городской ездок со срочной проблемой или человек перед дальней поездкой
+sources:
+  - {id: owner, path: repair/materials/owner-brief.md}
+  - {id: knowledge, path: .knowledge-base/processes/repair/overview.md}
+references: []
+sections:
+  - id: hero
+    type: introduction
+    purpose: Сразу объяснить, что означает первичный осмотр
+    covers: [условие осмотра, граница обещания, первый шаг]
+    points:
+      - {text: "Осмотр стоит 500 ₽ и зачтётся в ремонт, если клиент согласится на работы", sourceRef: owner}
+      - {text: "Срок и стоимость ремонта мастер назовёт только после осмотра", sourceRef: knowledge}
+    presentation:
+      desktop: Короткий заголовок, два условия и действие обратиться за окном осмотра
+      mobile: Условия читаются до действия в одной колонке
+    mechanicRefs: []
+    acceptance: [Нет обещания ремонта сегодня или фиксированной цены ремонта]
+  - id: paths
+    type: explanation
+    purpose: Помочь двум ситуациям выбрать осмысленный разговор с мастером
+    covers: [срочный осмотр, плановая проверка]
+    points:
+      - {text: "Если велосипед нужен для поездки завтра, сообщите об этом и запросите ближайший осмотр; срок ремонта не гарантирован", sourceRef: owner}
+      - {text: "Если готовитесь к длинной поездке, сообщите дату и попросите проверить узлы заранее", sourceRef: owner}
+    presentation:
+      desktop: Два различимых сценария без придуманных отзывов
+      mobile: Сценарии идут последовательно и не прячут ограничения
+    mechanicRefs: []
+    acceptance: [Каждый сценарий ведёт к запросу окна, а не к обещанию ремонта]
+mechanics: []
+design:
+  styleId: clean_service
+  adaptation: Спокойная сервисная подача без золота и элитарности; понятные этапы и контрастный текст
+copywriting:
+  styleId: educational
+  adaptation: Коротко объяснить цену осмотра и условность дальнейшего ремонта для обеих ситуаций
+images: []
+abTesting:
+  mode: none
+openQuestions: []
+acceptance: [Действующие 500 ₽ и границы обещания видны до любого действия]

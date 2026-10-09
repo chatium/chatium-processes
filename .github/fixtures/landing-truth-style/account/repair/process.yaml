@@ -1,0 +1,5 @@
+title: Вымышленная веломастерская
+knowledge: .knowledge-base/processes/repair
+stages: [Запрос]
+nodes:
+  - {id: request, stage: Запрос, kind: page, title: Осмотр велосипеда, purpose: Помочь выбрать первый шаг, source: repair/pages/request/, creativeRef: repair/creative/request/spec.yaml}
