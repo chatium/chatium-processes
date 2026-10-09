@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-09T13:59:22Z",
+  "plugin": "mailings.chatium.ru",
+  "deployedGuardCommit": "d0fa2ea3af960e5237910d344c53a4e8364d3c2e",
+  "account": "funnels-git-3.chatium.ru",
+  "branch": "process/site-agent-control",
+  "executedCommit": "3db3d4d586e19e10f60a25b83cb904873ea308f4",
+  "method": "chatium exec on the successful published Source Build called @mailings/sdk sendMessageFromTemplate for the stored process confirmation template and an approved test contact, requesting a channel outside processDeliveryChannelIds.",
+  "observed": {
+    "success": false,
+    "error": "channels вызова может только сужать processDeliveryChannelIds шаблона",
+    "channelResults": null
+  },
+  "positiveControl": "site-agent-control/tests/sdk-release-batch-2026-10-09.json in the account branch records a successful configured-channel test send on the same deployed Mailings guard.",
+  "limit": "This validates channel narrowing at the Mailings SDK boundary. It does not establish Inbox delivery or a full production subscription run."
+}
