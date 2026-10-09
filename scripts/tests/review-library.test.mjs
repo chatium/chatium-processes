@@ -63,6 +63,21 @@ test('packet contains a navigable manifest without embedding reference texts', t
   assert.equal(packet.inputDigest, f.packet().inputDigest)
 })
 
+test('source-only project notes and installation metadata stay out of reviewer references', t => {
+  const f = fixture(t)
+  const before = f.packet()
+  for (const [path, text] of [
+    ['skills/processes/.github/internal.md', '# Roadmap\nPrivate release notes.\n'],
+    ['skills/processes/.local-context/notes.md', '# Internal\nTest notes.\n'],
+    ['skills/processes/README.md', '# Repository\nDevelopment plan.\n'],
+    ['skills/processes/INSTALLATION.json', '{"sourceCommit":"old"}\n'],
+  ]) f.put(path, text)
+  const after = f.packet()
+  assert.deepEqual(after.referenceLibrary.files, before.referenceLibrary.files)
+  assert.equal(after.referenceLibrary.digest, before.referenceLibrary.digest)
+  assert.equal(after.inputDigest, before.inputDigest)
+})
+
 test('AI and analytics packets resolve both platform reference layouts', t => {
   const f = fixture(t)
   for (const path of ['blocks/ai-agent.md', 'build/agent-instructions.md', 'formats/agents.md',

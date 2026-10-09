@@ -9,7 +9,9 @@ const contents = new WeakMap()
 const hash = value => createHash('sha256').update(value).digest('hex')
 const posix = value => value.split(sep).join('/')
 const within = (base, path) => path === base || path.startsWith(base + sep)
-const ignored = new Set(['.git', '.cache', '__pycache__', '.bin'])
+// Keep source-only material out of the reviewer library so source checkouts and
+// installed skills expose the same references.
+const ignored = new Set(['.git', '.github', '.local-context', '.cache', '__pycache__', '.bin'])
 const ruleSections = {
   'skills/processes/SKILL.md': ['Начало работы', 'Этапы и обязательные ворота'],
   'skills/chatium-development/SKILL.md': ['Runtime and module boundaries', 'API source of truth'],
@@ -69,7 +71,8 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
       if (ancestors.has(canonical)) throw Error(`Циклическая ссылка библиотеки: ${path}`)
       const next = new Set([...ancestors, canonical])
       for (const name of readdirSync(path).sort()) {
-        if (ignored.has(name) || kind === 'skill' && ['scripts', 'node_modules'].includes(name)) continue
+        if (ignored.has(name) || kind === 'skill' && ['scripts', 'node_modules'].includes(name) ||
+          prefix === 'skills/processes' && path === base && ['README.md', 'INSTALLATION.json'].includes(name)) continue
         walk(base, join(path, name), prefix, kind, next)
       }
       return
