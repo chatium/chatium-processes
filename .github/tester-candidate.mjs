@@ -19,8 +19,8 @@ export function assessTesterCandidate({ rows, deferrals }) {
   const groups = deferrals?.groups || {}
   const classified = new Map()
   for (const [group, details] of Object.entries(groups)) {
-    if (!details?.purpose || !details?.verification || !Array.isArray(details.ids) || !details.ids.length)
-      errors.push(`${group}: нужна причина, способ проверки и непустой список ID.`)
+    if (!details?.purpose || !details?.verification || !Array.isArray(details.ids))
+      errors.push(`${group}: нужна причина, способ проверки и список ID.`)
     for (const id of details?.ids || []) {
       if (classified.has(id)) errors.push(`${id}: отнесён к двум видам проверки.`)
       classified.set(id, group)

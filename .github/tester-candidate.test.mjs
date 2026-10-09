@@ -29,7 +29,7 @@ test('a missing contract or duplicate classification rejects the handoff', () =>
   pending.check = '—'
   assert.match(assessTesterCandidate({ rows: candidate, deferrals }).errors.join('\n'), /нет ссылки/)
   const repeated = structuredClone(deferrals)
-  repeated.groups.harness.ids.push(repeated.groups['live-process'].ids[0])
+  repeated.groups['independent-judgment'].ids.push(repeated.groups['live-process'].ids[0])
   assert.match(assessTesterCandidate({ rows, deferrals: repeated }).errors.join('\n'), /двум видам/)
 })
 
