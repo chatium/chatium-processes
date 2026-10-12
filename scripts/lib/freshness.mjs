@@ -3,9 +3,9 @@ import { assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { startExec } from './snapshot.mjs'
 import { STAGE_CHECKS } from './snapshot-stage.mjs'
 
-export async function readBoard(root, target) {
-  return startExec(root,
-    `import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})`, target.commit)
+export async function readBoard(root, target, { usage, execute = startExec } = {}) {
+  return execute(root,
+    `import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)}, ${JSON.stringify(usage)})`, target.commit)
 }
 
 // Time changes on every check. Object key order is not part of the contract.
@@ -55,7 +55,7 @@ export async function verifySnapshot(root, expected, { expectedRevision, reader 
   let board
   try {
     // Read even with local edits: context must still show shared notes to the agent.
-    board = await reader(root, expected)
+    board = await reader(root, expected, { usage: 'check' })
     compareSnapshot(expected, board, expectedRevision)
     assertPublishedState(root, expected)
     return { verified: true, status: 'current', branch: expected.branch, commit: expected.commit,

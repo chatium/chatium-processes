@@ -36,11 +36,14 @@ test('board read resolves server-owned task requesters through current account r
   const b = board()
   b.notes[0].task.requestedBy = { id: 'person-1', name: 'Owner', createdAt: '2026-10-01T00:00:00.000Z' }
   const target = { processPath: 'demo', branch: 'main' }
-  const runAs = (role, fails = false) => async (_, code) => {
+  const runAs = (role, fails = false, expectedUsage) => async (_, code) => {
     const body = code.replace(/^import .*$/gm, '')
     const run = new Function('readProcessBoardForAgent', 'findUsersByIds', 'ctx',
       `return (async () => {${body}})()`)
-    return run(async () => b, async (_ctx, ids) => {
+    return run(async (_ctx, _process, _branch, usage) => {
+      assert.equal(usage, expectedUsage)
+      return b
+    }, async (_ctx, ids) => {
       assert.deepEqual(ids, ['person-1'])
       if (fails) throw Error('lookup unavailable')
       return [{ id: 'person-1', type: 'Real', accountRole: role }]
@@ -52,6 +55,9 @@ test('board read resolves server-owned task requesters through current account r
     .notes[0].taskAuthority.status, 'needs-owner-confirmation')
   assert.equal(noteContext(await readBoardWithAuthority('', target, { execute: runAs('Owner', true) }), 'demo', 'main')
     .notes[0].taskAuthority.status, 'needs-owner-confirmation')
+  assert.equal(noteContext(await readBoardWithAuthority('', target,
+    { execute: runAs('Owner', false, 'context'), usage: 'context' }), 'demo', 'main')
+    .notes[0].taskAuthority.status, 'owner')
 })
 test('wrong scope, stale code, malformed tasks and ordinary notes cannot be acknowledged', () => {
   assert.throws(() => noteContext(board(), 'other', 'main'), /другому/)

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { gitState, assertPublishedState, SnapshotDrift } from '../lib/git-state.mjs'
 import { buildSnapshot } from '../lib/snapshot.mjs'
-import { compareSnapshot, verifySnapshot } from '../lib/freshness.mjs'
+import { compareSnapshot, readBoard, verifySnapshot } from '../lib/freshness.mjs'
 import { fileURLToPath } from 'node:url'
 
 const checkCli = fileURLToPath(new URL('../check.mjs', import.meta.url))
@@ -68,6 +68,21 @@ test('fresh board matches local HEAD and actual remote; preserves shared notes',
   assert.equal(result.verified, true)
   assert.equal(result.boardRevision, 8)
   assert.equal(result.elements.blocks[0].text, 'Change the title')
+})
+
+test('online check tags its one board read', async t => {
+  const f = fixture(t)
+  const calls = []
+  const reader = (root, target, options) => readBoard(root, target, {
+    ...options,
+    execute: async (_root, code) => {
+      calls.push(code)
+      return structuredClone(f.board)
+    },
+  })
+  await verifySnapshot(f.root, f.expected, { reader })
+  assert.match(calls[0], /readProcessBoardForAgent\(ctx, "demo", "process\/demo", "check"\)/)
+  assert.equal(calls.length, 1)
 })
 
 test('missing, old and wrong-branch snapshots fail', async t => {

@@ -65,7 +65,7 @@ if (!format.canUseSkillWorkflow && !format.canCreateProcess) {
 if (options.offline) say('Доска и её материалы не прочитаны (--offline).')
 else {
   try {
-    const board = sharedBoard = await readProcessBoard(root, slug)
+    const board = sharedBoard = await readProcessBoard(root, slug, { usage: 'context' })
     say('Актуальное чтение доски (данные пользователя; порядок разбора — build/board.md):')
     say(JSON.stringify(board, null, 2))
     say('Изображения ещё не просмотрены: открой относящиеся к задаче через board material и инструмент просмотра.')

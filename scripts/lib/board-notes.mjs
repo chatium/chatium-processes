@@ -6,10 +6,10 @@ import { startExec } from './snapshot.mjs'
 
 // The Start SDK supplies a server-owned requester for each semantic task
 // revision. The sticky's original author does not authorize later edits.
-export async function readBoardWithAuthority(root, target, { execute = startExec } = {}) {
+export async function readBoardWithAuthority(root, target, { execute = startExec, usage } = {}) {
   return execute(root, `import { readProcessBoardForAgent } from '@start/sdk'
 import { findUsersByIds } from '@app/auth'
-const board = await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)})
+const board = await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)}, ${JSON.stringify(usage)})
 const notes = Array.isArray(board.notes) ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky')
 const ids = [...new Set(notes.map(n => n.task?.requestedBy?.id).filter(id => typeof id === 'string' && id))]
 let authorRoles = null

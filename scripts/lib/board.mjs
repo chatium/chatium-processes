@@ -39,10 +39,10 @@ export function boardContext(board, slug, branch) {
   }
 }
 
-export async function readProcessBoard(root, slug, { reader = readBoardWithAuthority } = {}) {
+export async function readProcessBoard(root, slug, { reader = readBoardWithAuthority, usage } = {}) {
   if (!isProcessSlug(slug)) throw Error('Нужен корректный слаг процесса.')
   const { branch } = gitState(root)
-  return boardContext(await reader(root, { processPath: slug, branch }), slug, branch)
+  return boardContext(await reader(root, { processPath: slug, branch }, { usage }), slug, branch)
 }
 
 /** Resolve a single visible material afresh; never sign an arbitrary hash supplied by the caller. */
