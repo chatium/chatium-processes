@@ -1,0 +1,32 @@
+# Кандидат в тестовом аккаунте — 12.10.2026
+
+Источник `chatium-processes/main@92fa839fb43556e418fd90d045eaf873e8e3ea47`
+установлен штатным `sync-skill.mjs` в `funnels-git-3/main@865bab9`.
+`INSTALLATION.json` содержит этот SHA и хеш файлов
+`513cbe3066a81214b3edd9490b18f8e54eec1e92d3346d1d50dd3d23fac686af`.
+`sync-skill status` ответил «актуален»; `chatium get-typings`,
+`chatium typecheck` и Source Build при публикации аккаунта прошли.
+Соседний `chatium-development@5914001` установлен через `chatium get-skills`
+в новой локальной копии аккаунта. Исторические ветки пилотов не изменены:
+обе являются предками `main`, где находятся более поздние файлы процессов.
+
+Один читающий локальный `check --task-stage test --no-snapshot --json` на
+этой версии дал:
+
+| Процесс | Результат | Красные области |
+| --- | --- | --- |
+| `plant-care` | 29/38 | `owner.questions`, `table.changes`, `tasks`, `creative.review`, `knowledge.review`, `implementation.review`, `reviews`, `owner.plan`, `owner.plan.board` |
+| `site-agent-control` | 28/38 | `owner.questions`, `agents.review`, `agents.runtime`, `tasks`, `creative.review`, `knowledge.review`, `implementation.review`, `reviews`, `owner.plan`, `owner.plan.board` |
+
+Старый сохранённый `commission-control-v2@406f5e6` проверен **новым**
+`check` отдельно, без изменения ветки: 31/34. Он верно остановился на
+карточках W002/W006/W011 с отсутствующими производителями `creative/*/spec.yaml`
+и на отсутствующих заключениях `knowledge-design` и `architecture`.
+Это подтверждает обнаружение прежнего дефекта, но не исправляет уже
+созданный проект и не доказывает поведение DSH на новой версии.
+
+Проверки ничего не публиковали и не запускали: DSH, браузер, отправки,
+платежи и Store Inbox не использовались. Красный статус старых пилотов
+нельзя выдавать за готовность полного процесса. Для дальнейших групповых
+испытаний использовать `main` с текущим скиллом; до внешних эффектов
+сверить тестовые контакты, песочницу и состояние подписок.
