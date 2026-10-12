@@ -469,11 +469,23 @@ test('series keeps each email distinct and checks its automation dependency', t 
     goal: 'Ответить на вопрос читателя', mainIdea: 'Как пользоваться материалом', subject: 'Ответ на ваш вопрос',
     blocks: [{ type: 'answer-in-one-paragraph', text: 'Материал помогает сделать первый шаг', sourceRef: 'offer' }] })
   f.put('demo/creative/followup/spec.yaml', spec)
+  assert.match(creativePacket(args).errors.join('\n'), /automationStop.reasons/)
+  spec.automationStop = { reasons: [{ when: 'Клиент отказался', stateSource: 'CRM, статус заявки' }],
+    replyHandling: 'Менеджер отмечает ответ в CRM',
+    checkBeforeSend: 'Условие после задержки и повторная проверка в действии отправки' }
+  f.put('demo/creative/followup/spec.yaml', spec)
   assert.deepEqual(creativePacket(args).errors, [])
   const built = writeCreativeBuild(args)
+  const stopReview = creativeReviewPacket({ ...args, stage: 'spec' })
+  assert.match(stopReview.questions.find(question => question.id === 'delivery').question, /остановки/)
   const body = readFileSync(join(f.root, built.path), 'utf8')
   assert.match(body, /answer-in-one-paragraph/)
+  assert.match(body, /Остановка следующих касаний/)
   assert.doesNotMatch(body, /undefined/)
+  spec.automationStop.reasons[0].stateSource = ''
+  f.put('demo/creative/followup/spec.yaml', spec)
+  assert.match(creativePacket(args).errors.join('\n'), /automationStop.reasons/)
+  spec.automationStop.reasons[0].stateSource = 'CRM, статус заявки'
   spec.messages[1].blocks[0].sourceRef = 'missing-source'
   f.put('demo/creative/followup/spec.yaml', spec)
   assert.ok(creativePacket(args).errors.some(e => e.includes('источника')))

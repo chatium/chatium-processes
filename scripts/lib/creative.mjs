@@ -244,7 +244,19 @@ function validateSeries(spec, errors, references) {
     if (spec.automationRef) errors.push('Ручная серия не должна ссылаться на фиктивную автоматизацию.')
     for (const field of ['caller', 'trigger', 'recipient', 'stop'])
       if (!text(spec.manualInvocation?.[field])) errors.push(`Ручная серия: нужен manualInvocation.${field}.`)
-  } else if (!text(spec.automationRef)) errors.push('Автоматической серии нужна automationRef для проверки запуска и остановки.')
+  } else {
+    if (!text(spec.automationRef)) errors.push('Автоматической серии нужна automationRef для проверки запуска и остановки.')
+    if (Array.isArray(spec.messages) && spec.messages.length > 1) {
+      const stop = spec.automationStop
+      if (!Array.isArray(stop?.reasons) || !stop.reasons.length || stop.reasons.length > 12 ||
+          stop.reasons.some(reason => !text(reason?.when) || !text(reason?.stateSource)))
+        errors.push('Автоматической серии из нескольких сообщений нужны automationStop.reasons с причиной и источником состояния.')
+      if (!text(stop?.replyHandling))
+        errors.push('Автоматической серии нужно automationStop.replyHandling: что происходит после ответа или отказа.')
+      if (!text(stop?.checkBeforeSend))
+        errors.push('Автоматической серии нужно automationStop.checkBeforeSend: где состояние проверяется перед отправкой.')
+    }
+  }
   return { guidance: catalogData.types[spec.seriesType], blocks: catalogData.blocks }
 }
 
@@ -389,7 +401,8 @@ export function compileCreative(packet) {
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')
     if (spec.deliveryMode === 'manual') lines.push('## Ручной запуск', json(spec.manualInvocation))
-    else lines.push('## Автоматизация', spec.automationRef)
+    else lines.push('## Автоматизация', spec.automationRef,
+      ...(spec.automationStop ? ['## Остановка следующих касаний', json(spec.automationStop)] : []))
   }
   lines.push('', '## Критерии приёмки', ...spec.acceptance.map(a => `- ${a}`), '',
     '## Вопросы независимому reviewer', ...(guidance.reviewQuestions || ['Достаточно ли содержания для задачи и аудитории?']).map(q => `- ${q}`), '')
