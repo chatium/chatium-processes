@@ -49,6 +49,8 @@
     }
   ],
   "preflight": {
+    "latestEvidence": ".github/evidence/installed-candidate-preflight-2026-10-13.json",
+    "latestFinding": "Точный исходник processes@0051830 установлен в account3/main@07889bc; `sync-skill status` актуален, typecheck и Source Build успешны. Читающий check на старых пилотах дал plant-care 28/38, site-agent-control 27/38; контракты компонентов, данных и карты обоих зелёные. Общая готовность красная из-за старых карточек, согласований и устаревших заключений; не подделывать их задним числом. Полный маршрут проверить один раз на новом процессе.",
     "evidence": ".github/evidence/pilot-preflight-2026-10-12.json",
     "automationStateEvidence": ".github/evidence/automation-state-preflight-2026-10-12.json",
     "finding": "На старых пилотах общий check дал 28/38 и 29/38: многие карточки не велись при первоначальной сборке, есть открытые решения и устаревшие заключения. Не создавать задним числом фиктивные принятые карточки и не считать частичную проверку полной приёмкой.",
