@@ -210,8 +210,9 @@ test('independent review packet binds role instructions and reference snapshot',
     f.run()
     const first = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(first.questions.some(question => question.id === 'role.helper'))
-    assert.equal(first.rubricVersion, 3)
+    assert.equal(first.rubricVersion, 4)
     assert.ok(first.questions.some(question => question.id === 'agent.tool-flow' && /classId/.test(question.lookFor)))
+    assert.match(first.reviewerInstructions, /Отсутствие ещё не выполненного прогона.*не является само по себе `blocking`/)
     assert.ok(first.referenceLibrary.required.some(path => [
       'skills/chatium-development/ai-routing-and-handoff.md',
       'skills/chatium-development/references/ai/routing-and-handoff.md',
@@ -220,6 +221,11 @@ test('independent review packet binds role instructions and reference snapshot',
     writeFileSync(join(f.root, 'demo/agents/helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['New instructions'], enabledTools: [] }))
     const changed = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.notEqual(changed.inputDigest, first.inputDigest)
+    mkdirSync(join(f.root, 'demo/tests'), { recursive: true })
+    writeFileSync(join(f.root, 'demo/tests/ai-grouped-result.json'), JSON.stringify({ status: 'pending' }))
+    const withObservation = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
+    assert.ok(withObservation.files.some(file => file.path === 'demo/tests/ai-grouped-result.json'))
+    assert.notEqual(withObservation.inputDigest, changed.inputDigest)
   } finally { f.cleanup() }
 })
 
