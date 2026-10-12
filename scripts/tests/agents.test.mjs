@@ -257,7 +257,7 @@ test('independent review packet binds role instructions and reference snapshot',
     f.run()
     const first = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(first.questions.some(question => question.id === 'role.helper'))
-    assert.equal(first.rubricVersion, 4)
+    assert.equal(first.rubricVersion, 5)
     assert.ok(first.questions.some(question => question.id === 'agent.tool-flow' && /classId/.test(question.lookFor)))
     assert.match(first.reviewerInstructions, /Отсутствие ещё не выполненного прогона.*не является само по себе `blocking`/)
     assert.ok(first.referenceLibrary.required.some(path => [
