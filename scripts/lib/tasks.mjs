@@ -9,6 +9,7 @@ import { analyticsReviewStatus } from './analytics-review.mjs'
 import { agentReviewStatus } from './agent-review.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
+import { needsCreativeReview } from './page-mode.mjs'
 
 export const TASK_STAGES = ['design', 'build', 'test', 'launch']
 export const TASK_STATUSES = ['queued', 'running', 'needs-input', 'ready-to-resume', 'result-ready', 'done', 'failed', 'cancelled']
@@ -284,7 +285,7 @@ export function creativeNode(root, slug, nodeId, paths = []) {
   if (!existsSync(mapPath)) return null
   if (statSync(mapPath).size > 1024 * 1024) throw Error('Слишком большая карта процесса.')
   const map = parseYaml(readFileSync(mapPath, 'utf8'))
-  const nodes = (map?.nodes || []).filter(item => ['page', 'series'].includes(item?.kind))
+  const nodes = (map?.nodes || []).filter(needsCreativeReview)
   const node = nodes.find(item => item.id === nodeId)
   const matched = nodes.filter(item => paths.some(path => creativeOutput(item, path) ||
     path === `${slug}/creative/${item.id}/build.md`))
@@ -389,7 +390,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
       if (statSync(mapPath).size > 1024 * 1024) throw Error('Слишком большая карта процесса.')
       const map = parseYaml(readFileSync(mapPath, 'utf8'))
       for (const node of map?.nodes || []) {
-        if (!['page', 'series'].includes(node?.kind)) continue
+        if (!needsCreativeReview(node)) continue
         errors.push(...creativeTaskChain({ root, slug, node, tasks: loaded.tasks }).errors)
       }
     }

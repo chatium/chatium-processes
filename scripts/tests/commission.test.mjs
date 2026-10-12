@@ -45,11 +45,12 @@ test('missing and invalid independent conclusions block the central status', t =
   assert.ok(result.requirements.every(item => item.status !== 'ready'))
 })
 
-test('a process without customer pages or message series needs no creative commission', t => {
+test('a process with only a protected staff page needs no creative commission', t => {
   const root = fixture(t)
   writeFileSync(join(root, 'demo/process.yaml'), `title: Manager notice
 nodes:
   - { id: notice, kind: external, source: demo/api/notify.ts }
+  - { id: notice-control, kind: page, pageMode: internal, source: demo/admin/notice/ }
 links: []
 `)
   assert.deepEqual(reviewRequirements({ root, slug: 'demo', stage: 'test' }).map(item => item.role),

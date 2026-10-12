@@ -10,6 +10,7 @@ import { reviewStatus } from './knowledge-review.mjs'
 import { isProcessSlug, rel } from './project.mjs'
 import { processSourceFiles } from './process-sources.mjs'
 import { parseYaml } from './yaml.mjs'
+import { needsCreativeReview } from './page-mode.mjs'
 
 export const COMMISSION_STAGES = ['design', 'build', 'test', 'launch']
 
@@ -23,7 +24,7 @@ export function reviewRequirements({ root, slug, stage = 'test' }) {
     { id: 'architecture', role: 'architecture', stage },
   ]
   if (stage !== 'design') requirements.push({ id: 'implementation', role: 'implementation', stage })
-  if (stage !== 'design') for (const node of nodes.filter(node => ['page', 'series'].includes(node.kind) && typeof node.id === 'string')) {
+  if (stage !== 'design') for (const node of nodes.filter(node => needsCreativeReview(node) && typeof node.id === 'string')) {
     requirements.push({ id: `creative-${node.id}-spec`, role: 'creative', nodeId: node.id, reviewStage: 'spec', stage })
     if (['test', 'launch'].includes(stage))
       requirements.push({ id: `creative-${node.id}-result`, role: 'creative', nodeId: node.id, reviewStage: 'result', stage })

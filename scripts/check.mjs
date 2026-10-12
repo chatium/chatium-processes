@@ -39,6 +39,7 @@ import { validateChannelPlan, validateMessageDelivery } from './lib/message-deli
 import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
 import { scanJsSource, balancedObjectEnd } from './lib/source-lex.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
+import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -437,6 +438,10 @@ check('map.sources', 'Узлы карты построены', ({ error, warn })
     }
     if (n.kind === 'page' && !(isFile(join(abs, 'index.tsx')) || (isFile(abs) && abs.endsWith('.tsx')))) {
       error(`${n.id}: в ${src} нет index.tsx`)
+    }
+    if (n.pageMode !== undefined) {
+      const pageSource = isFile(join(abs, 'index.tsx')) ? readFileSync(join(abs, 'index.tsx'), 'utf8') : ''
+      for (const issue of internalPageErrors(n, pageSource)) error(issue)
     }
     if (n.kind === 'table' && !src.endsWith('.table.ts')) error(`${n.id}: source таблицы — файл *.table.ts`)
     if (n.kind === 'agent' && !src.endsWith('.agent.json')) error(`${n.id}: source агента — файл *.agent.json`)
@@ -1052,7 +1057,7 @@ check('creative', 'Задания страниц и серий', ({ error, warn 
   const work = getWorkReport()
   if (!work.enabled || !map?.nodes) return
   const future = (options['task-stage'] || 'build') === 'design'
-  for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
+  for (const node of map.nodes.filter(needsCreativeReview)) {
     const result = creativeStatus({ root, slug, nodeId: node.id })
     for (const issue of result.errors) (future ? warn : error)(`${node.id}: ${issue}`)
   }
@@ -1062,7 +1067,7 @@ check('creative.review', 'Независимое ревью страниц и с
   const work = getWorkReport()
   if (!work.enabled || !map?.nodes) return
   const taskStage = options['task-stage'] || 'build'
-  for (const node of map.nodes.filter(n => ['page', 'series'].includes(n.kind))) {
+  for (const node of map.nodes.filter(needsCreativeReview)) {
     for (const stage of taskStage === 'design' ? [] : taskStage === 'build' ? ['spec'] : ['spec', 'result']) {
       const result = creativeReviewStatus({ root, slug, nodeId: node.id, stage })
       if (result.status !== 'ready') {

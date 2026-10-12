@@ -13,6 +13,10 @@
   `chatium-development` (`coding.md`, `routing.md`).
 - Общий `styles.tsx` — один на процесс, в `<process>/styles.tsx`.
 - В карте — узел `kind: page`, `source: <process>/<page>/`.
+- Для служебного экрана Staff/Admin поставь `pageMode: internal`, размести его в
+  `admin/` или `staff/` и проверь роль на серверном маршруте и действии.
+  Такой экран не требует задания и творческого ревью лендинга, но остаётся
+  на карте и проходит ревью кода, авторизации и результата действия.
 - Адрес страницы в ветке: `https://<домен>/<process>/<page>?__chtmPreviewMode__=account:<ветка>`.
 
 ## Связи

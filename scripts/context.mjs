@@ -12,6 +12,7 @@ import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
 import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
 import { creativeStatus } from './lib/creative.mjs'
+import { needsCreativeReview } from './lib/page-mode.mjs'
 import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
@@ -188,7 +189,7 @@ try {
     for (const issue of work.errors) say(`  ✘ ${issue}`)
     for (const issue of work.warnings) say(`  ! ${issue}`)
     say(`Детали: node .agents/skills/processes/scripts/tasks.mjs context ${slug} W001`)
-    for (const node of (map?.nodes || []).filter(n => ['page', 'series'].includes(n.kind))) {
+    for (const node of (map?.nodes || []).filter(needsCreativeReview)) {
       const creative = creativeStatus({ root, slug, nodeId: node.id })
       say(`Задание ${node.id}: ${creative.status}${creative.errors.length ? ` — ${creative.errors.join('; ')}` : ''}`)
       const review = creativeReviewStatus({ root, slug, nodeId: node.id, stage: 'spec' })
