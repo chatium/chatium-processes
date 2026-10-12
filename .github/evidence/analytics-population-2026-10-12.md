@@ -2,7 +2,8 @@
 
 Контрольный проект `commission-control-v2` создан локальным Chatium Code на
 установленном `processes@46d842e` в тестовом аккаунте `funnels-git-3`, коммит
-ветки `406f5e6`. В `PLAN.md` заявлена доля подтверждённых **среди заявок с
+ветки `process/commission-control-v2@406f5e6` опубликован и собран Source
+Build. В `PLAN.md` заявлена доля подтверждённых **среди заявок с
 решением**. В `specs/analytics.yaml` была записана воронка
 `request_created → request_confirmed` с `identity: customer`: исходная
 популяция здесь — клиенты с заявкой, а не отдельные заявки с решением.
