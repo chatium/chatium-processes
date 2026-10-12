@@ -5,7 +5,7 @@ const route = value => typeof value === 'string' && value.startsWith('/') &&
     /^[a-zA-Z0-9_-]+$/.test(part) || /^:[a-zA-Z][a-zA-Z0-9_]*$/.test(part)))
 
 /** Structural contracts for services and sites represented by existing board node kinds. */
-export function validateComponentContracts({ map, site, services }) {
+export function validateComponentContracts({ map, site, services, creativeSpecs = new Map() }) {
   const errors = []
   const nodes = Array.isArray(map?.nodes) ? map.nodes : []
   const byId = new Map(nodes.filter(node => text(node?.id)).map(node => [node.id, node]))
@@ -32,6 +32,28 @@ export function validateComponentContracts({ map, site, services }) {
         errors.push(`${where}: нужны role, purpose, безопасный route и filters[].`)
       for (const filter of page?.filters || []) if (!fields.has(filter))
         errors.push(`${where}: фильтр ${filter} не объявлен в entityFields.`)
+    }
+    const forms = Array.isArray(site?.forms) ? site.forms : []
+    if (site?.forms !== undefined && !Array.isArray(site.forms))
+      errors.push('site.yaml: forms должен быть списком форм страниц.')
+    const pageIds = new Set(pages.map(page => page?.nodeId))
+    for (const [index, form] of forms.entries()) {
+      const where = `site.forms[${index}]`
+      if (!pageIds.has(form?.page)) errors.push(`${where}: страница ${form?.page} отсутствует в site.pages.`)
+      if (!Array.isArray(form?.fields) || !form.fields.length ||
+          !form.fields.every(text) || !unique(form.fields))
+        errors.push(`${where}: нужны неповторяющиеся fields[].`)
+    }
+    for (const [nodeId, spec] of creativeSpecs) {
+      if (!pageIds.has(nodeId) || spec?.kind !== 'landing') continue
+      const siteForms = forms.filter(form => form?.page === nodeId)
+      const creativeForms = (Array.isArray(spec.mechanics) ? spec.mechanics : [])
+        .filter(mechanic => mechanic?.type === 'form')
+      const fieldsKey = form => Array.isArray(form?.fields) ? [...form.fields].sort().join('\0') : null
+      for (const form of siteForms) if (!creativeForms.some(mechanic => fieldsKey(mechanic) === fieldsKey(form)))
+        errors.push(`site.yaml: поля формы ${nodeId} не совпадают с creative/${nodeId}/spec.yaml.`)
+      for (const mechanic of creativeForms) if (!siteForms.some(form => fieldsKey(form) === fieldsKey(mechanic)))
+        errors.push(`site.yaml: форма ${nodeId} из creative/${nodeId}/spec.yaml отсутствует или имеет другие поля.`)
     }
   }
 

@@ -19,9 +19,10 @@ test('architecture reviewer receives actual component specifications and notices
   put('.knowledge-base/processes/demo/.knowledge.yml', 'title: Demo\norder: [overview.md]\n')
   put('.knowledge-base/processes/demo/overview.md', '---\ntitle: Процесс\n---\nКлиент выбирает услугу.\n')
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n')
-  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\n')
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - {id: home, kind: page, creativeRef: demo/creative/home/spec.yaml}\n')
   put('demo/.workspace.json', '{"type":"process","config":{"variables":{"price":{"value":"500 ₽"}}}}\n')
-  put('demo/specs/site.yaml', 'version: 1\ntitle: Сайт\n')
+  put('demo/specs/site.yaml', 'version: 1\ntitle: Сайт\nforms:\n  - {page: home, fields: [email, utmSource]}\n')
+  put('demo/creative/home/spec.yaml', 'version: 1\nkind: landing\nmechanics:\n  - {type: form, fields: [email, utmSource]}\n')
   put('demo/agents/spec.yaml', 'version: 1\nagents:\n  - key: helper\n    role: Помощник\n')
   put('demo/agents/cases.yaml', 'version: 1\ncases:\n  - id: no-slots\n    expected: Передать человеку\n')
   const before = makeArchitectureReviewPacket({ root, slug: 'demo' })
@@ -29,9 +30,14 @@ test('architecture reviewer receives actual component specifications and notices
   assert.ok(before.questions.find(question => question.id === 'data').requiredEvidenceGroups
     .some(group => group.paths.includes('demo/.workspace.json')))
   assert.ok(before.files.some(file => file.path === 'demo/specs/site.yaml'))
+  assert.ok(before.files.some(file => file.path === 'demo/creative/home/spec.yaml'))
+  assert.ok(before.questions.find(question => question.id === 'site-and-services')
+    .requiredEvidenceGroups.some(group => group.paths.includes('demo/creative/home/spec.yaml')))
   assert.ok(before.files.some(file => file.path === 'demo/agents/spec.yaml' && file.content.includes('Помощник')))
   assert.ok(before.files.some(file => file.path === 'demo/agents/cases.yaml' && file.content.includes('Передать человеку')))
   assert.ok(before.questions.some(question => question.id === 'site-and-services'))
+  put('demo/creative/home/spec.yaml', 'version: 1\nkind: landing\nmechanics:\n  - {type: form, fields: [email]}\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, before.inputDigest)
   assert.ok(before.questions.some(question => question.id === 'staff-work' &&
     question.question.includes('сотрудник') && question.lookFor.includes('защищённую очередь')))
   assert.ok(before.questions.some(question => question.id === 'journey' &&

@@ -408,9 +408,21 @@ check('components.contracts', 'Контракты сайта и сервисов
   for (const [name, result] of [['site.yaml', siteRes], ['services.yaml', servicesRes]])
     if (result.parseError) error(`${name} не разбирается: ${result.parseError}`)
   if (siteRes.parseError || servicesRes.parseError) return
+  const creativeSpecs = new Map()
+  if (!siteRes.missing) for (const node of nodes.filter(item => item?.kind === 'page')) {
+    if (node.creativeRef !== `${slug}/creative/${node.id}/spec.yaml`) continue
+    try {
+      const file = safeTaskPath(root, node.creativeRef, { mayBeMissing: true })
+      if (!isFile(file)) continue
+      const result = loadYamlFile(file)
+      if (result.parseError) error(`${node.creativeRef} не разбирается: ${result.parseError}`)
+      else creativeSpecs.set(node.id, result.data)
+    } catch (cause) { error(`${node.creativeRef} недоступен: ${cause.message}`) }
+  }
   for (const issue of validateComponentContracts({ map,
     ...(siteRes.missing ? {} : { site: siteRes.data }),
     ...(servicesRes.missing ? {} : { services: servicesRes.data }),
+    creativeSpecs,
   }).errors) error(issue)
 })
 

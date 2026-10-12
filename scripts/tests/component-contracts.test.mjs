@@ -32,6 +32,27 @@ test('site contract catches omitted required page and filter without a field', (
   assert.match(validateComponentContracts({ map: pagesOnly, site }).errors.join('\n'), /безопасный route/)
 })
 
+test('site form keeps attribution fields aligned with the page brief', () => {
+  const pagesOnly = { nodes: map.nodes.filter(node => node.kind === 'page') }
+  const site = { version: 1, title: 'Запись', businessModel: 'Услуги',
+    requiredRoles: ['home', 'catalog'], entityFields: [],
+    pages: [
+      { nodeId: 'home', role: 'home', route: '/', purpose: 'Выбор', filters: [] },
+      { nodeId: 'catalog', role: 'catalog', route: '/catalog', purpose: 'Заявка', filters: [] },
+    ],
+    forms: [{ page: 'catalog', fields: ['email', 'requestKey'] }] }
+  const creativeSpecs = new Map([['catalog', { kind: 'landing', mechanics: [
+    { type: 'form', fields: ['email', 'requestKey', 'utmSource', 'utmCampaign'] },
+  ] }]])
+  const mismatch = validateComponentContracts({ map: pagesOnly, site, creativeSpecs }).errors.join('\n')
+  assert.match(mismatch, /поля формы catalog не совпадают/)
+  site.forms[0].fields.push('utmSource', 'utmCampaign')
+  assert.deepEqual(validateComponentContracts({ map: pagesOnly, site, creativeSpecs }).errors, [])
+  site.forms = []
+  assert.match(validateComponentContracts({ map: pagesOnly, site, creativeSpecs }).errors.join('\n'),
+    /форма catalog.*отсутствует/)
+})
+
 test('service contract requires access, repeat behavior and failure outcomes', () => {
   const services = { version: 1, services: [{ id: 'availability', nodeId: 'availability',
     input: 'ID услуги и дата', output: 'Доступные слоты', access: '', repeat: '', errors: [] }] }

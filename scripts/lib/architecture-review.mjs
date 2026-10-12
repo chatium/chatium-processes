@@ -5,6 +5,7 @@ import { canonicalTarget, collectRiskDecisions, validateReview } from './knowled
 import { reviewPlan } from './review-normalization.mjs'
 import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
+import { parseYaml } from './yaml.mjs'
 
 export function architectureReviewPath(root, slug) {
   if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
@@ -64,8 +65,25 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
       throw Error(`Спецификация ${name} недоступна или слишком велика для ревью.`)
     return [{ path: `${slug}/${name}`, content: readFileSync(path, 'utf8') }]
   })
+  const siteFile = specFiles.find(file => file.path === `${slug}/specs/site.yaml`)
+  let siteFormNodes = []
+  if (siteFile) try {
+    const site = parseYaml(siteFile.content)
+    const map = parseYaml(readFileSync(join(root, slug, 'process.yaml'), 'utf8'))
+    const formPages = new Set((Array.isArray(site?.forms) ? site.forms : []).map(form => form?.page))
+    siteFormNodes = (Array.isArray(map?.nodes) ? map.nodes : [])
+      .filter(node => node?.kind === 'page' && /^[a-zA-Z0-9_-]+$/.test(node.id) &&
+        formPages.has(node.id) && node.creativeRef === `${slug}/creative/${node.id}/spec.yaml`)
+  } catch { /* Invalid YAML remains visible in the packet and is reported by check. */ }
+  const siteCreativeFiles = siteFormNodes.flatMap(node => {
+    const path = join(root, slug, 'creative', node.id, 'spec.yaml')
+    if (!existsSync(path)) return []
+    if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
+      throw Error(`Спецификация страницы ${node.id} недоступна или слишком велика для ревью.`)
+    return [{ path: `${slug}/creative/${node.id}/spec.yaml`, content: readFileSync(path, 'utf8') }]
+  })
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/architecture-review-questions.json'), 'utf8'))
-  if (rubric.version !== 11 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 12 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
@@ -73,11 +91,17 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const riskDecisions = collectRiskDecisions(root, slug)
   const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`,
     ...(workspaceFile ? [workspaceFile.path] : []),
-    ...specFiles.map(file => file.path), ...taskFiles.map(file => file.path)]
+    ...specFiles.map(file => file.path), ...siteCreativeFiles.map(file => file.path),
+    ...taskFiles.map(file => file.path)]
   const dataEvidence = [...(workspaceFile ? [workspaceFile.path] : []),
     ...[`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
       .filter(path => specFiles.some(file => file.path === path))]
   const questions = [...rubric.questions.map(question => {
+    if (question.id === 'site-and-services' && siteCreativeFiles.length) return { ...question,
+      allowNotApplicable: false, requiredEvidenceGroups: [
+        { paths: [`${slug}/specs/site.yaml`] },
+        ...siteCreativeFiles.map(file => ({ paths: [file.path] })),
+      ] }
     if (question.id === 'consistency' && taskFiles.length) return { ...question,
       allowNotApplicable: false, requiredEvidenceGroups: [
         { paths: [`${slug}/PLAN.md`] }, { paths: taskFiles.map(file => file.path) },
@@ -103,7 +127,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
     files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
       ? { ...file, content: reviewPlan(file.content) } : file),
-    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, ...taskFiles,
+    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, ...siteCreativeFiles, ...taskFiles,
     ...riskDecisions.map(({ path, content }) => ({ path, content }))]
       .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
