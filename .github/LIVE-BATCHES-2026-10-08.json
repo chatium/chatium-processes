@@ -81,7 +81,8 @@
       "positive": "Регион уточнён, все явно запрошенные касания и адресаты сохранены в плане и карте, Store не навязан; заключения действуют на верном объёме; агент собирает замечания и проверяет пакет исправлений, останавливает повторяющийся блокер и ясно объясняет его владельцу.",
       "prerequisite": "Первый контроль на processes@bd5e6de создал красный design-пакет commission-sample. Фактический ввод не назвал получателя операционного письма; исходное обвинение в пропуске явно заказанного письма клиенту снято. Остальные замечания и границы результата — в локальном WORKFLOW-COMMISSION-REVIEW-2026-10-12.md. Повторять прогон после каждой правки нельзя: новый контроль только на одной зафиксированной версии после завершения остального кодового блока. R40 исключён до нового образа платформы. Для R50 достаточно одного контролируемого раунда замечаний; третий запуск специально не создавать.",
       "evidence": ".github/evidence/workflow-commission-run.json",
-      "status": "pending"
+      "status": "pending",
+      "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock."
     }
   ],
   "preflight": {
