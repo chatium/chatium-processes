@@ -144,6 +144,21 @@ test('creative sources and copied sections reject placeholders or missing text',
   assert.deepEqual(creativePacket(f.args).errors, [])
 })
 
+test('YAML mapping in acceptance cannot compile as object Object', t => {
+  const f = fixture(t)
+  f.spec.acceptance = [{ 'Письма по графику': 'первое сразу' }]
+  f.spec.sections[0].acceptance = [{ 'Первый экран': 'ясная польза' }]
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  const errors = creativePacket(f.args).errors.join('\n')
+  assert.match(errors, /acceptance.*строк/)
+  assert.match(errors, /Секция hero.*приёмка.*строк/)
+  f.spec.acceptance = ['Письма по графику: первое сразу']
+  f.spec.sections[0].acceptance = ['Первый экран: ясная польза']
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  assert.doesNotMatch(compileCreative(creativePacket(f.args)), /\[object Object\]/)
+})
+
 test('page catalog keeps the V4 scenario coverage with review guidance', () => {
   const catalog = JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog/landing-types.json'), 'utf8'))
   const v4 = ['sales', 'lead_magnet', 'course', 'service', 'quiz', 'content', 'event', 'webinar',

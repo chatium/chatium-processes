@@ -111,8 +111,8 @@ function validateLanding(spec, errors, references) {
   for (const s of sections) {
     if (!text(s.id) || !text(s.type) || !text(s.purpose) || !Array.isArray(s.covers) || !s.covers.length ||
         !Array.isArray(s.points) || !s.points.length || !text(s.presentation?.desktop) || !text(s.presentation?.mobile) ||
-        !Array.isArray(s.acceptance) || !s.acceptance.length)
-      errors.push(`Секция ${s.id || '?'}: нужны цель, покрытие, тезисы, композиция desktop/mobile и приёмка.`)
+        !Array.isArray(s.acceptance) || !s.acceptance.length || !s.acceptance.every(text))
+      errors.push(`Секция ${s.id || '?'}: нужны цель, покрытие, тезисы, композиция desktop/mobile и приёмка строками.`)
     for (const point of s.points || []) if (!text(point.text) || !sourceIds.has(point.sourceRef))
       errors.push(`Секция ${s.id || '?'}: у тезиса нет текста или подтверждённого sourceRef.`)
   }
@@ -279,8 +279,9 @@ export function creativePacket({ root, slug, nodeId }) {
   errors.push(...malformedFlowFields(spec))
   if (spec?.version !== 1 || spec.targetNode !== nodeId || !['landing', 'series'].includes(spec.kind) ||
       spec.kind !== (node.kind === 'page' ? 'landing' : 'series')) errors.push('spec.yaml не соответствует узлу или версии схемы.')
-  if (!text(spec?.objective) || !text(spec?.audience) || !Array.isArray(spec?.acceptance) || !spec.acceptance.length)
-    errors.push('Нужны цель, аудитория и критерии результата.')
+  if (!text(spec?.objective) || !text(spec?.audience) || !Array.isArray(spec?.acceptance) ||
+      !spec.acceptance.length || !spec.acceptance.every(text))
+    errors.push('Нужны цель, аудитория и критерии результата; acceptance должен содержать непустые строки.')
   if (!Array.isArray(spec?.sources) || !Array.isArray(spec?.openQuestions)) errors.push('Нужны sources и openQuestions.')
   if (spec?.references !== undefined && (!Array.isArray(spec.references) || !spec.references.every(text)))
     errors.push('references должен быть списком путей.')
