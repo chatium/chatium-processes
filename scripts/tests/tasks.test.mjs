@@ -66,6 +66,36 @@ test('batch creation validates every card before changing task files or plan', t
   assert.equal(f.run('create-batch', '--file', join(f.root, 'batch.json')).status, 1)
 })
 
+test('batch creation rejects an implementation whose creative spec has no producing task', t => {
+  const f = fixture(t)
+  const implementation = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  const specPath = 'demo/creative/form/spec.yaml'
+  implementation.inputs.push({ kind: 'spec', path: specPath, purpose: 'Задание страницы' })
+  const before = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  f.put('batch.json', [implementation])
+  const missing = f.run('create-batch', '--file', join(f.root, 'batch.json'))
+  assert.equal(missing.status, 1)
+  assert.match(missing.stderr, /нужна одна карточка main\/produce/)
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  assert.equal(f.run('context', 'W001').status, 1)
+
+  const producer = structuredClone(implementation)
+  producer.id = 'W002'
+  producer.title = 'Подготовить задание страницы'
+  producer.mode = 'produce'
+  producer.inputs = [{ kind: 'knowledge', path: '.knowledge-base/processes/demo/form.md', purpose: 'Поля' }]
+  producer.expectedOutputs = [{ path: specPath, purpose: 'Задание страницы' }]
+  f.put('batch.json', [implementation, producer])
+  const unlinked = f.run('create-batch', '--file', join(f.root, 'batch.json'))
+  assert.equal(unlinked.status, 1)
+  assert.match(unlinked.stderr, /добавьте зависимость от W002/)
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  implementation.dependsOn = ['W002']
+  f.put('batch.json', [implementation, producer])
+  assert.equal(f.run('create-batch', '--file', join(f.root, 'batch.json')).status, 0)
+  assert.ok(readFileSync(join(f.root, 'demo/tasks/W002.json'), 'utf8').includes(specPath))
+})
+
 test('oversized task is rejected before either single or batch creation changes the plan', t => {
   const f = fixture(t)
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))

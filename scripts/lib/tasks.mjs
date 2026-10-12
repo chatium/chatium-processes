@@ -490,6 +490,16 @@ export function createTasksBatch(root, slug, tasks) {
     throw Error('Нужен tasks/index.json и не более 200 карточек всего.')
   const ids = tasks.map(task => task?.id)
   if (!uniq(ids)) throw Error('В пакете повторяется ID карточки.')
+  const allTasks = [...current.tasks, ...tasks].filter(task => task?.status !== 'cancelled')
+  for (const task of tasks) for (const input of task?.inputs || []) {
+    if (!input.path?.startsWith(`${slug}/creative/`) || !input.path.endsWith('/spec.yaml')) continue
+    if (existsSync(safeTaskPath(root, input.path, { mayBeMissing: true }))) continue
+    const producers = allTasks.filter(item => item.expectedOutputs?.some(output => output.path === input.path))
+    if (producers.length !== 1 || producers[0].executor?.kind !== 'main' || producers[0].mode !== 'produce')
+      throw Error(`${task.id}: для ${input.path} нужна одна карточка main/produce с этим результатом.`)
+    if (!task.dependsOn?.includes(producers[0].id))
+      throw Error(`${task.id}: добавьте зависимость от ${producers[0].id}, которая создаёт ${input.path}.`)
+  }
   let updated = original
   const files = tasks.map(task => {
     if (task?.status !== 'queued' || task?.revision !== 0 || task?.acceptance !== null || task?.result !== null)
