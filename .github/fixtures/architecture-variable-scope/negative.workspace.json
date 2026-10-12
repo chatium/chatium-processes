@@ -1,0 +1,10 @@
+{
+  "type": "process",
+  "config": {
+    "variables": {
+      "customerEmail": { "value": "first-customer@example.test" },
+      "supportContact": { "value": "support@example.test" }
+    },
+    "senderChannels": ["test-email-channel"]
+  }
+}

@@ -140,7 +140,10 @@ test('a blocking architecture conclusion keeps the design commission red', t => 
     inspectedFiles: packet.files.map(file => file.path), inspectedReferences: [...packet.referenceLibrary.required],
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки комиссии.',
-      evidence: [{ path: article, quote: quote.slice(index % 3) }] })) }
+      evidence: question.id === 'data'
+        ? [{ path: 'demo/PLAN.md', quote: 'Менеджер отвечает на заявку.' },
+          { path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' }]
+        : [{ path: article, quote: quote.slice(index % 3) }] })) }
   Object.assign(report.answers.find(answer => answer.id === 'journey'), {
     status: 'gap', priority: 'blocking', reason: 'Путь отказа клиента пропущен.',
     nextAction: 'Добавить путь отказа в план и карту.', evidence: [],

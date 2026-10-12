@@ -25,7 +25,16 @@ test('architecture reviewer receives actual component specifications and notices
   put('demo/creative/home/spec.yaml', 'version: 1\nkind: landing\nmechanics:\n  - {type: form, fields: [email, utmSource]}\n')
   put('demo/agents/spec.yaml', 'version: 1\nagents:\n  - key: helper\n    role: Помощник\n')
   put('demo/agents/cases.yaml', 'version: 1\ncases:\n  - id: no-slots\n    expected: Передать человеку\n')
+  put('demo/tools/readOwnLead.ts', 'export const readOwnLead = app.function("/own")\n')
+  put('demo/tables/observations.table.ts', 'export const observations = Heap.Table("observations", {})\n')
   const before = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  const inventory = before.files.find(file => file.path === 'demo/architecture-source-inventory.txt')
+  assert.ok(inventory.content.includes('demo/tools/readOwnLead.ts'))
+  assert.ok(inventory.content.includes('demo/tables/observations.table.ts'))
+  assert.ok(before.questions.find(question => question.id === 'site-and-services').requiredEvidenceGroups
+    .some(group => group.paths.includes(inventory.path)))
+  assert.ok(before.questions.find(question => question.id === 'data').requiredEvidenceGroups
+    .some(group => group.paths.includes(inventory.path)))
   assert.ok(before.files.some(file => file.path === 'demo/.workspace.json'))
   assert.ok(before.questions.find(question => question.id === 'data').requiredEvidenceGroups
     .some(group => group.paths.includes('demo/.workspace.json')))
@@ -55,6 +64,11 @@ test('architecture reviewer receives actual component specifications and notices
   assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, ownerBefore)
   put('demo/PLAN.md', '# План\n\nКлиент выбирает услугу.\n## Нужно от вас\n- [x] Согласовать другую цену.\n')
   assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, ownerBefore)
+  const current = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  put('demo/tools/readOwnLead.ts', 'export const readOwnLead = app.function("/own-v2")\n')
+  assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, current.inputDigest)
+  put('demo/tools/requestStaff.ts', 'export const requestStaff = app.function("/staff")\n')
+  assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, current.inputDigest)
 })
 
 test('architecture reviewer checks existing work-card conditions without tracking status bookkeeping', t => {
@@ -148,6 +162,7 @@ test('covered data answer requires citations from plan, workspace, table, event 
   )
   assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
   dataAnswer.evidence.push({ path: 'demo/.workspace.json', quote: '"variables":{}' })
+  dataAnswer.evidence.push({ path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' })
   assert.equal(validateReview(report, packet).status, 'ready')
   dataAnswer.status = 'not-applicable'
   assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)

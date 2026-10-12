@@ -65,7 +65,8 @@ test('implementation starts only after approved plan and accepted design conclus
       reason: 'Синтетический ответ для проверки перехода этапа.',
       evidence: question.id === 'data' && packet.files.some(file => file.path === 'demo/.workspace.json')
         ? [{ path: 'demo/PLAN.md', quote: 'Корректная заявка записана.' },
-          { path: 'demo/.workspace.json', quote: '"processEngine": "processes-v2"' }]
+          { path: 'demo/.workspace.json', quote: '"processEngine": "processes-v2"' },
+          { path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' }]
         : question.id === 'consistency' && packet.files.some(file => file.path === 'demo/tasks/W001.json')
         ? [{ path: 'demo/PLAN.md', quote: 'Корректная заявка записана.' },
           { path: 'demo/tasks/W001.json', quote: 'Заявка записана' }]

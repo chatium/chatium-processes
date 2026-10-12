@@ -3,7 +3,8 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget, collectRiskDecisions, validateReview } from './knowledge-review.mjs'
 import { reviewPlan } from './review-normalization.mjs'
-import { isProcessSlug, SKILL_DIR } from './project.mjs'
+import { isProcessSlug, rel, SKILL_DIR } from './project.mjs'
+import { processSourceFiles } from './process-sources.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 import { parseYaml } from './yaml.mjs'
 
@@ -65,6 +66,15 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
       throw Error(`Спецификация ${name} недоступна или слишком велика для ревью.`)
     return [{ path: `${slug}/${name}`, content: readFileSync(path, 'utf8') }]
   })
+  // Paths, not code contents: adding a route/tool/table invalidates architecture,
+  // while an ordinary implementation edit remains the code reviewer's concern.
+  const sourcePaths = ['api', 'tools', 'tables'].flatMap(directory =>
+    processSourceFiles(root, join(root, slug, directory)))
+    .filter(path => /\.(?:[cm]?jsx?|[cm]?tsx?)$/.test(path))
+    .map(path => rel(root, path)).sort()
+  if (sourcePaths.length > 300) throw Error('Слишком много исходников для архитектурного инвентаря.')
+  const sourceInventory = { path: `${slug}/architecture-source-inventory.txt`,
+    content: `Исходники API, инструментов и таблиц (включая вспомогательные):\n${sourcePaths.map(path => `- ${path}`).join('\n')}\n` }
   const siteFile = specFiles.find(file => file.path === `${slug}/specs/site.yaml`)
   let siteFormNodes = []
   if (siteFile) try {
@@ -91,15 +101,16 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
   const riskDecisions = collectRiskDecisions(root, slug)
   const architecturePaths = [`${slug}/PLAN.md`, `${slug}/process.yaml`,
     ...(workspaceFile ? [workspaceFile.path] : []),
-    ...specFiles.map(file => file.path), ...siteCreativeFiles.map(file => file.path),
+    ...specFiles.map(file => file.path), sourceInventory.path, ...siteCreativeFiles.map(file => file.path),
     ...taskFiles.map(file => file.path)]
-  const dataEvidence = [...(workspaceFile ? [workspaceFile.path] : []),
+  const dataEvidence = [sourceInventory.path, ...(workspaceFile ? [workspaceFile.path] : []),
     ...[`${slug}/specs/data.yaml`, `${slug}/specs/events.yaml`, `${slug}/specs/analytics.yaml`]
       .filter(path => specFiles.some(file => file.path === path))]
   const questions = [...rubric.questions.map(question => {
-    if (question.id === 'site-and-services' && siteCreativeFiles.length) return { ...question,
+    if (question.id === 'site-and-services' && (siteCreativeFiles.length || sourcePaths.length)) return { ...question,
       allowNotApplicable: false, requiredEvidenceGroups: [
-        { paths: [`${slug}/specs/site.yaml`] },
+        { paths: [sourceInventory.path] },
+        ...(siteFile ? [{ paths: [siteFile.path] }] : []),
         ...siteCreativeFiles.map(file => ({ paths: [file.path] })),
       ] }
     if (question.id === 'consistency' && taskFiles.length) return { ...question,
@@ -127,7 +138,7 @@ export function makeArchitectureReviewPacket({ root, slug, skillDir = SKILL_DIR 
     questions, reviewerInstructions: readFileSync(join(skillDir, 'build/architecture-reviewer.md'), 'utf8'),
     files: [...knowledge.files.map(file => file.path === `${slug}/PLAN.md`
       ? { ...file, content: reviewPlan(file.content) } : file),
-    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, ...siteCreativeFiles, ...taskFiles,
+    ...(workspaceFile ? [workspaceFile] : []), ...specFiles, sourceInventory, ...siteCreativeFiles, ...taskFiles,
     ...riskDecisions.map(({ path, content }) => ({ path, content }))]
       .sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'architecture', skillDir }))
