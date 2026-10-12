@@ -104,18 +104,19 @@ test('source packet includes subtree, linked KB, central letters and mapped exte
     { id: 'T2', title: 'Проверить повторную заявку', markedDone: false }])
 })
 
-test('implementation reviewer must trace staff notification for actionable leads', t => {
+test('implementation reviewer checks staff work without requiring Store Inbox', t => {
   const f = fixture(t)
   const packet = f.packet()
-  const question = packet.questions.find(item => item.id === 'staff.notifications')
+  const question = packet.questions.find(item => item.id === 'staff.work')
   assert.ok(question)
-  assert.match(question.lookFor, /sendNotification/)
+  assert.match(question.lookFor, /защищённую очередь/)
+  assert.match(question.lookFor, /Store Inbox не обязателен/)
   assert.match(question.lookFor, /ответственн/)
   assert.match(question.lookFor, /повторн/)
   const report = syntheticReport(packet)
   Object.assign(report.answers.find(answer => answer.id === question.id), {
-    status: 'gap', priority: 'blocking', reason: 'Заявка сохраняется, но ответственный о ней не узнаёт.',
-    nextAction: 'Добавить уведомление ответственного сотрудника после сохранения заявки.', evidence: [],
+    status: 'gap', priority: 'blocking', reason: 'Заявка сохраняется, но ответственный не имеет доступа к очереди.',
+    nextAction: 'Определить ответственного и закрытую очередь заявок.', evidence: [],
   })
   assert.equal(save(f, packet, report).status, 'needs-work')
 })

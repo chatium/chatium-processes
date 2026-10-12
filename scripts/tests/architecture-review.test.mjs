@@ -32,8 +32,10 @@ test('architecture reviewer receives actual component specifications and notices
   assert.ok(before.files.some(file => file.path === 'demo/agents/spec.yaml' && file.content.includes('Помощник')))
   assert.ok(before.files.some(file => file.path === 'demo/agents/cases.yaml' && file.content.includes('Передать человеку')))
   assert.ok(before.questions.some(question => question.id === 'site-and-services'))
-  assert.ok(before.questions.some(question => question.id === 'staff-notifications' &&
-    question.question.includes('сотрудник') && question.question.includes('заявк')))
+  assert.ok(before.questions.some(question => question.id === 'staff-work' &&
+    question.question.includes('сотрудник') && question.lookFor.includes('защищённую очередь')))
+  assert.ok(before.questions.some(question => question.id === 'journey' &&
+    question.lookFor.includes('Письмо клиенту о получении заявки')))
   put('demo/specs/site.yaml', 'version: 1\ntitle: Другой сайт\n')
   const after = makeArchitectureReviewPacket({ root, slug: 'demo' })
   assert.notEqual(after.inputDigest, before.inputDigest)
