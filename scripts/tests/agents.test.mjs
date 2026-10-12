@@ -149,6 +149,53 @@ test('route conflict and incomplete handoff are explicit failures', () => {
   } finally { f.cleanup() }
 })
 
+test('handoff must name a linked case and an executable redirect mechanism', () => {
+  const f = fixture()
+  try {
+    f.spec.agents.push({ ...f.spec.agents[0], key: 'specialist', node: 'specialist',
+      config: 'demo/agents/specialist.agent.json', cases: ['specialist-contact'] })
+    f.map.nodes.push({ id: 'specialist', kind: 'agent', agentId: 'a-2', source: 'demo/agents/specialist.agent.json' })
+    writeFileSync(join(f.root, 'demo/agents/specialist.agent.json'), JSON.stringify({ title: 'Specialist', model: 'model', instructions: ['Help'] }))
+    f.cases.cases.push({ id: 'specialist-contact', agent: 'specialist', situation: 'Transferred client', expected: 'Help', evidence: 'Response' })
+    f.cases.cases.push({ id: 'handoff', agent: 'helper', situation: 'Escalate', expected: 'Specialist continues or failure is explained', evidence: 'Trace and CRM' })
+    f.spec.agents[0].cases.push('handoff')
+    const handoff = { from: 'helper', to: 'specialist', when: 'Confirmed request', summary: 'Read current CRM status',
+      context: 'CRM customer', onFailure: 'Keep original agent and explain delay', case: 'handoff', mechanism: 'goal-redirect2' }
+    f.spec.handoffs = { ...handoff }
+    assert.match(f.run().errors.join('\n'), /handoffs должен быть списком/)
+    f.spec.handoffs = [{ ...handoff, case: 'specialist-contact' }]
+    assert.match(f.run().errors.join('\n'), /case должен быть связанным сценарием исходного помощника/)
+    f.spec.handoffs = [{ ...handoff, mechanism: 'unknown', summary: '   ' }]
+    assert.match(f.run().errors.join('\n'), /нет summary/)
+    assert.match(f.run().errors.join('\n'), /mechanism должен быть/)
+    f.spec.handoffs = [handoff]
+    assert.match(f.run().errors.join('\n'), /цель redirect2/)
+    const configPath = join(f.root, 'demo/agents/helper.agent.json')
+    const config = JSON.parse(readFileSync(configPath, 'utf8'))
+    const goal = { type: 'redirect2', trigger: 'Request confirmed', messageText: 'Continue from CRM', redirectToAgentIds: ['a-2'] }
+    writeFileSync(configPath, JSON.stringify({ ...config, goal }))
+    assert.deepEqual(f.run().errors, [])
+    f.spec.handoffs = []
+    assert.match(f.run().errors.join('\n'), /цель redirect2 не описана в handoffs/)
+    f.spec.handoffs = [handoff]
+    writeFileSync(configPath, JSON.stringify({ ...config, goal: { ...goal, messageText: undefined } }))
+    assert.deepEqual(f.run().errors, [])
+    writeFileSync(configPath, JSON.stringify({ ...config, goal: { ...goal, redirectToAgentIds: ['someone-else'] } }))
+    assert.match(f.run().errors.join('\n'), /redirectToAgentIds не содержит/)
+    writeFileSync(configPath, JSON.stringify({ ...config, goal }))
+    f.spec.handoffs.push({ ...handoff })
+    assert.match(f.run().errors.join('\n'), /повторная передача/)
+    f.spec.handoffs = [{ ...handoff, mechanism: 'sdk-redirect', handler: 'demo/tools/redirect.ts' }]
+    writeFileSync(configPath, JSON.stringify(config))
+    assert.match(f.run().errors.join('\n'), /sdk-redirect требует существующий handler/)
+    mkdirSync(join(f.root, 'demo/tools'), { recursive: true })
+    writeFileSync(join(f.root, 'demo/tools/redirect.ts'), 'export const redirect = true\n')
+    assert.deepEqual(f.run().errors, [])
+    f.spec.handoffs[0].handler = '../outside.ts'
+    assert.match(f.run().errors.join('\n'), /handler в аккаунте/)
+  } finally { f.cleanup() }
+})
+
 test('malformed routing test contacts fail local validation', () => {
   const f = fixture()
   try {

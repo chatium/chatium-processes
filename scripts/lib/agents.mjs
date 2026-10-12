@@ -91,7 +91,7 @@ export function validateProcessAgents({ root, slug, map }) {
     if (opportunities.has(item?.id)) errors.push(`${where}: повторный id ${item.id}`)
     opportunities.set(item?.id, item)
   }
-  const byKey = new Map(), byNode = new Map(), byConfig = new Map()
+  const byKey = new Map(), byNode = new Map(), byConfig = new Map(), redirectGoals = new Set()
   for (const [i, agent] of (Array.isArray(spec.agents) ? spec.agents : []).entries()) {
     const where = `agents[${i}]`
     if (!KEY.test(agent?.key || '')) errors.push(`${where}: нужен устойчивый key`)
@@ -124,6 +124,7 @@ export function validateProcessAgents({ root, slug, map }) {
       else try {
         const config = JSON.parse(readFileSync(configPath, 'utf8'))
         if (!config.title || !config.model || !Array.isArray(config.instructions) || !config.instructions.some(s => typeof s === 'string' && s.trim())) errors.push(`${where}: в конфиге нужны title, model и непустые instructions[]`)
+        if (config.goal?.type === 'redirect2') redirectGoals.add(agent.key)
         if (config.enabledTools !== undefined && (!Array.isArray(config.enabledTools) || config.enabledTools.some(ref =>
           !ref || typeof ref !== 'object' || typeof ref.isWorkspaceTool !== 'boolean' ||
           typeof ref.path !== 'string' || !ref.path || typeof ref.pattern !== 'string' || !ref.pattern ||
@@ -201,11 +202,46 @@ export function validateProcessAgents({ root, slug, map }) {
         !byKey.has(route.expectedExistingAgent))
       errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
   }
+  if (spec.handoffs !== undefined && !Array.isArray(spec.handoffs)) errors.push('handoffs должен быть списком')
+  const handoffKeys = new Set()
   for (const [i, handoff] of (Array.isArray(spec.handoffs) ? spec.handoffs : []).entries()) {
     const where = `handoffs[${i}]`
     if (!byKey.has(handoff?.from) || !byKey.has(handoff?.to) || handoff.from === handoff.to) errors.push(`${where}: нужны разные существующие from и to`)
-    for (const field of ['when', 'summary', 'context', 'onFailure']) if (!handoff?.[field]) errors.push(`${where}: нет ${field}`)
+    for (const field of ['when', 'summary', 'context', 'onFailure'])
+      if (typeof handoff?.[field] !== 'string' || !handoff[field].trim()) errors.push(`${where}: нет ${field}`)
+    const key = JSON.stringify([handoff?.from, handoff?.to, handoff?.when])
+    if (handoffKeys.has(key)) errors.push(`${where}: повторная передача from/to/when`)
+    handoffKeys.add(key)
+    const scenario = caseById.get(handoff?.case)
+    if (!scenario || scenario.agent !== handoff.from || !linkedCases.has(handoff.case))
+      errors.push(`${where}: case должен быть связанным сценарием исходного помощника`)
+    if (handoff?.mechanism === 'goal-redirect2') {
+      const source = byKey.get(handoff.from)
+      const configPath = localFile(root, source?.config)
+      if (configPath && isFile(configPath)) {
+        try {
+          const goal = JSON.parse(readFileSync(configPath, 'utf8')).goal
+          if (goal?.type !== 'redirect2' || typeof goal.trigger !== 'string' || !goal.trigger.trim() ||
+              !Array.isArray(goal.redirectToAgentIds) || !goal.redirectToAgentIds.length ||
+              goal.redirectToAgentIds.some(id => typeof id !== 'string' || !id.trim()) ||
+              (goal.messageText !== undefined && typeof goal.messageText !== 'string'))
+            errors.push(`${where}: исходный агент должен иметь цель redirect2 с trigger и redirectToAgentIds`)
+          else {
+            const target = agentNodes.find(node => node.id === byKey.get(handoff.to)?.node)
+            if (target?.agentId && !goal.redirectToAgentIds.includes(target.agentId))
+              errors.push(`${where}: redirectToAgentIds не содержит опубликованный agentId ${handoff.to}`)
+          }
+        } catch { /* Некорректный JSON уже сообщён при проверке конфига агента. */ }
+      }
+    } else if (handoff?.mechanism === 'sdk-redirect') {
+      const handler = localFile(root, handoff?.handler)
+      if (!handler || !isFile(handler))
+        errors.push(`${where}: sdk-redirect требует существующий handler в аккаунте`)
+    } else errors.push(`${where}: mechanism должен быть goal-redirect2 или sdk-redirect`)
   }
+  for (const key of redirectGoals)
+    if (!Array.isArray(spec.handoffs) || !spec.handoffs.some(handoff => handoff?.from === key && handoff.mechanism === 'goal-redirect2'))
+      errors.push(`агент ${key}: цель redirect2 не описана в handoffs`)
   if (byKey.size && !routes.length) warnings.push('Нет routes: если агент принимает сообщения из общего канала, укажи первый адресат и поведение существующего разговора')
   return { errors, warnings, enabled: true }
 }
