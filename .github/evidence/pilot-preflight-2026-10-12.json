@@ -1,0 +1,122 @@
+{
+  "kind": "deterministic-pilot-preflight",
+  "createdAt": "2026-10-12T08:10:34.769331+00:00",
+  "liveRun": false,
+  "snapshotPublished": false,
+  "installedSkillSourceCommit": "5dbf6216d5eeb55560466f88a4b4983677c8e0fc",
+  "installedSkillContentSha256": "c6efa1b18ef05b29b915085c1bdb1948571287ea1ed1d7949a0bf32eadc1291a",
+  "accountMainCommit": "987aa59",
+  "pilots": [
+    {
+      "branch": "process/site-agent-control",
+      "commit": "21df813",
+      "checksPassed": 28,
+      "checksTotal": 38,
+      "failedChecks": [
+        {
+          "id": "owner.questions",
+          "errorCount": 1,
+          "firstError": "Незакрытая зависимость блокирует test: Проверить обновлённый вид письма без дублирующего вложения и оба автоматических исхода в тестовом ящике. Зафиксируйте решение или готовность, обновите знания и карту."
+        },
+        {
+          "id": "agents.review",
+          "errorCount": 1,
+          "firstError": "Изменились прочитанные справки: skills/processes/SKILL.md#обязательные-правила, skills/processes/build/agent-instructions.md, skills/processes/formats/agents.md"
+        },
+        {
+          "id": "agents.runtime",
+          "errorCount": 1,
+          "firstError": "Проверка опубликованных помощников устарела по времени; повтори agents-runtime.mjs --record перед следующим этапом."
+        },
+        {
+          "id": "tasks",
+          "errorCount": 44,
+          "firstError": "T1.A1: не назначена рабочая задача"
+        },
+        {
+          "id": "creative.review",
+          "errorCount": 14,
+          "firstError": "home/spec: исходник site-agent-control/pages/home/ уже есть при непринятом задании; Материалы изменились после ревью."
+        },
+        {
+          "id": "knowledge.review",
+          "errorCount": 1,
+          "firstError": "Изменились прочитанные справки: skills/processes/SKILL.md#обязательные-правила. Повторите заключение по этой роли."
+        },
+        {
+          "id": "implementation.review",
+          "errorCount": 1,
+          "firstError": "Изменились прочитанные справки: skills/processes/SKILL.md#обязательные-правила, skills/processes/build/operations.md. Повторите заключение по этой роли."
+        },
+        {
+          "id": "reviews",
+          "errorCount": 19,
+          "firstError": "knowledge-build: stale — Изменились прочитанные справки: skills/processes/SKILL.md#обязательные-правила. Повторите заключение по этой роли."
+        },
+        {
+          "id": "owner.plan",
+          "errorCount": 1,
+          "firstError": "Нет ответа владельца на «строим так?»."
+        },
+        {
+          "id": "owner.plan.board",
+          "errorCount": 1,
+          "firstError": "Нет ответа владельца на «строим так?»."
+        }
+      ]
+    },
+    {
+      "branch": "process/plant-care",
+      "commit": "0692a69",
+      "checksPassed": 29,
+      "checksTotal": 38,
+      "failedChecks": [
+        {
+          "id": "owner.questions",
+          "errorCount": 7,
+          "firstError": "Незакрытая зависимость блокирует test: Согласовать тексты семи уроков. Зафиксируйте решение или готовность, обновите знания и карту."
+        },
+        {
+          "id": "tasks",
+          "errorCount": 109,
+          "firstError": "W032: для письма checklist нужен вход plant-care/creative/welcome/build.md"
+        },
+        {
+          "id": "creative",
+          "errorCount": 6,
+          "firstError": "lead-page: plant-care/creative/lead-page/build.md не соответствует актуальному конфигуратору и источникам"
+        },
+        {
+          "id": "creative.review",
+          "errorCount": 12,
+          "firstError": "lead-page/spec: исходник plant-care/pages/lead/ уже есть при непринятом задании; Задание не готово: plant-care/creative/lead-page/build.md не соответствует актуальному конфигуратору и источникам"
+        },
+        {
+          "id": "knowledge.review",
+          "errorCount": 1,
+          "firstError": "Нет независимого ревью знаний для этапа build. Запустите kb-review.mjs prepare."
+        },
+        {
+          "id": "implementation.review",
+          "errorCount": 1,
+          "firstError": "Нет независимого ревью реализации. До тестового прогона выполните code-review.mjs prepare."
+        },
+        {
+          "id": "reviews",
+          "errorCount": 15,
+          "firstError": "knowledge-build: missing — Нет независимого ревью знаний для этапа build. Запустите kb-review.mjs prepare."
+        },
+        {
+          "id": "owner.plan",
+          "errorCount": 1,
+          "firstError": "После согласования изменилось содержание: .knowledge-base/business/overview.md, .knowledge-base/processes/plant-care/audience.md, .knowledge-base/processes/plant-care/journey.md, .knowledge-base/processes/plant-care/offer.md, .knowledge-base/processes/plant-care/operations.md, .knowledge-base/processes/plant-care/overview.md, .knowledge-base/processes/plant-care/pages.md, .knowledge-base/processes/plant-care/series.md, plant-care/PLAN.md, plant-care/process.yaml. Покажите его владельцу."
+        },
+        {
+          "id": "owner.plan.board",
+          "errorCount": 1,
+          "firstError": "После согласования изменилось содержание: .knowledge-base/business/overview.md, .knowledge-base/processes/plant-care/audience.md, .knowledge-base/processes/plant-care/journey.md, .knowledge-base/processes/plant-care/offer.md, .knowledge-base/processes/plant-care/operations.md, .knowledge-base/processes/plant-care/overview.md, .knowledge-base/processes/plant-care/pages.md, .knowledge-base/processes/plant-care/series.md, plant-care/PLAN.md, plant-care/process.yaml. Покажите его владельцу."
+        }
+      ]
+    }
+  ]
+}

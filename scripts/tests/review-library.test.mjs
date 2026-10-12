@@ -148,6 +148,22 @@ test('navigation changes are informational, but common rules and inspected refer
   ])
 })
 
+test('commission orchestration changes do not invalidate reviewer conclusions', t => {
+  const f = fixture(t)
+  const originalSkill = '# Processes\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n## Порядок работы с комиссией\nReview one completed batch.\n'
+  f.put('skills/processes/SKILL.md', originalSkill)
+  const original = f.packet()
+  const saved = {
+    referenceHashes: inspectedReferenceHashes(original.referenceLibrary, original.referenceLibrary.required),
+    ruleDigests: original.referenceLibrary.ruleDigests,
+  }
+  f.put('skills/processes/SKILL.md', originalSkill.replace('Review one completed batch.', 'Repeat only affected roles.'))
+  const current = f.packet()
+  assert.equal(current.inputDigest, original.inputDigest)
+  assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
+  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/processes/SKILL.md'])
+})
+
 test('changing an uninspected workflow section does not invalidate a review', t => {
   const f = fixture(t), original = f.packet()
   const section = 'skills/processes/WORKFLOW.md#H2:Ревью'
