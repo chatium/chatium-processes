@@ -190,6 +190,9 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
    автоматизации через поддерживаемый тестовый маршрут интерфейса или заранее
    изолированное тестовое событие. Тестовый маршрут Automations использует
    сохранённый конфиг: перед прогоном убедись, что это именно версия `main`.
+   Одним читающим вызовом проверь, что обычные подписки процесса ещё выключены:
+   `node .agents/skills/processes/scripts/automations-runtime.mjs <process> --expect disabled`.
+   `status: ready` у конфига сам по себе этого не доказывает.
    Проверь все шаги, расчёт времени задержек, продолжение/остановку и журналы;
    для тестового исполнения разрешено вручную пропускать ожидание в истории
    Automations после проверки `scheduledFor`. Отдельный короткий smoke
@@ -206,7 +209,10 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
    затем `enableAutomation(ctx, automationId)` из `@automations/sdk` в
    `chatium exec`; проверь `{ success: true }`, при `{ success: false, reason }`
    остановись и разберись с причиной. Не составляй ID из пути
-   ([automation.md](../blocks/automation.md#включение)).
+   ([automation.md](../blocks/automation.md#включение)). После всех включений
+   одним читающим вызовом проверь фактические подписки:
+   `node .agents/skills/processes/scripts/automations-runtime.mjs <process> --expect enabled`.
+   Ошибка или неподтверждённый коммит оставляют запуск незавершённым.
 4. Заверши правки реестра/плана; при изменении плана/карты повтори ревью
    знаний `launch` и реализации. При необходимости commit и разрешённый push в `main`; затем
    `check <process> --knowledge-stage launch --task-stage launch`

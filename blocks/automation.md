@@ -150,7 +150,11 @@ export const prepareConsultationAction = app
   бери из SDK или интерфейса.
 - Включение — `enableAutomation(ctx, id)` из `@automations/sdk` в
   `chatium exec`; продолжай только при `{ success: true }`, при отказе покажи
-  `reason` и оставь запуск незавершённым. Выключение — `disableAutomation`,
+  `reason` и оставь запуск незавершённым. После включения сверяй фактическое
+  `enabled` через `automations-runtime.mjs <process> --expect enabled` для
+  всех конфигов сразу: `status: ready` означает лишь применённый конфиг.
+  До общего теста та же читающая команда с `--expect disabled` обнаружит
+  случайно активные подписки. Выключение — `disableAutomation`,
   его ответ тоже проверяй. Журнал выполнений —
   `getAutomationLogs(ctx, { workspacePath: '<process>' })`.
 - Автоматические события обрабатывает только `main`. Ветка подходит для
