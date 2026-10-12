@@ -16,6 +16,16 @@ function validTokenLimit(value) {
     Number.isFinite(value.periodValue) && value.periodValue > 0 && TOKEN_PERIODS.has(value.periodUnit))
 }
 
+function validAutonomyPlan(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!['first-message', 'only_if_no_reply', 'even_if_they_reply', 'repeat_until_cancelled'].includes(value.mode)) return false
+  if (!Number.isInteger(value.maxAttempts) || value.maxAttempts < 1 || value.maxAttempts > 20) return false
+  for (const field of ['start', 'stateSource', 'stopWhen', 'cancelWhen', 'quietHours', 'cancelCase'])
+    if (typeof value[field] !== 'string' || !value[field].trim()) return false
+  return value.mode !== 'repeat_until_cancelled' ||
+    (typeof value.taskKey === 'string' && Boolean(value.taskKey.trim()))
+}
+
 function agentFiles(dir, errors) {
   const files = []
   function visit(path) {
@@ -121,6 +131,12 @@ export function validateProcessAgents({ root, slug, map }) {
           errors.push(`${where}: enabledTools должен содержать канонические ссылки на инструменты`)
         if (!validTokenLimit(config.tokensLimitPerChain))
           errors.push(`${where}: tokensLimitPerChain должен быть объектом {kind: "const", value: число} либо {kind: "hard"|"soft", value: число, periodValue: число, periodUnit}`)
+        if (config.waitingToolEnabled === true || config.scheduleMessagesEnabled === true) {
+          if (!validAutonomyPlan(agent.autonomy))
+            errors.push(`${where}: инициативные касания требуют autonomy с mode, start, stateSource, stopWhen, cancelWhen, quietHours, maxAttempts и cancelCase; повтор требует taskKey`)
+          if (typeof config.timeZone !== 'string' || !config.timeZone.trim() || !validTokenLimit(config.tokensLimitPerChain) || !config.tokensLimitPerChain)
+            errors.push(`${where}: инициативные касания требуют timeZone и действительный tokensLimitPerChain в .agent.json`)
+        }
         for (const field of ['department', 'specialists', 'supervisorAgentId']) if (field in config) errors.push(`${where}: ${field} относится к старой схеме отделов`)
       } catch (error) { errors.push(`${where}: ${agent.config} не разбирается как JSON: ${error.message}`) }
     }
@@ -152,6 +168,10 @@ export function validateProcessAgents({ root, slug, map }) {
     else if (caseById.get(id)?.agent !== agent.key) errors.push(`агент ${agent.key}: сценарий ${id} назначен другому помощнику`)
     else linkedCases.add(id)
   }
+  for (const agent of byKey.values()) if (agent.autonomy?.cancelCase &&
+      (caseById.get(agent.autonomy.cancelCase)?.agent !== agent.key ||
+       !linkedCases.has(agent.autonomy.cancelCase)))
+    errors.push(`агент ${agent.key}: autonomy.cancelCase должен ссылаться на связанный сценарий отмены этого помощника`)
   for (const id of caseIds) if (!linkedCases.has(id) && byKey.has(caseById.get(id)?.agent))
     errors.push(`сценарий ${id} не привязан к своему помощнику`)
 

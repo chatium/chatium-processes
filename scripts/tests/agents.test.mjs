@@ -57,6 +57,32 @@ test('numeric token limit is rejected before Source Git agent synchronization', 
   } finally { f.cleanup() }
 })
 
+test('autonomous contact needs a bounded plan and a linked cancellation case', () => {
+  const f = fixture()
+  try {
+    const file = join(f.root, 'demo/agents/helper.agent.json')
+    const config = JSON.parse(readFileSync(file, 'utf8'))
+    writeFileSync(file, JSON.stringify({ ...config, waitingToolEnabled: true }))
+    assert.match(f.run().errors.join('\n'), /инициативные касания требуют autonomy/)
+    assert.match(f.run().errors.join('\n'), /timeZone и действительный tokensLimitPerChain/)
+    f.cases.cases.push({ id: 'cancel-after-refusal', agent: 'helper', situation: 'Customer refused before wakeup',
+      expected: 'Cancel the scheduled task', evidence: 'No later message was delivered' })
+    f.spec.agents[0].cases.push('cancel-after-refusal')
+    f.spec.agents[0].autonomy = {
+      mode: 'repeat_until_cancelled', start: 'After request', stateSource: 'CRM request',
+      stopWhen: 'Customer declined', cancelWhen: 'Reply, refusal or human takeover',
+      quietHours: 'Owner chose 09:00–19:00', maxAttempts: 2, cancelCase: 'cancel-after-refusal',
+    }
+    writeFileSync(file, JSON.stringify({ ...config, waitingToolEnabled: true,
+      timeZone: 'Asia/Almaty', tokensLimitPerChain: { kind: 'const', value: 6000 } }))
+    assert.match(f.run().errors.join('\n'), /повтор требует taskKey/)
+    f.spec.agents[0].autonomy.taskKey = 'follow-up-per-customer'
+    assert.deepEqual(f.run().errors, [])
+    f.spec.agents[0].autonomy.cancelCase = 'someone-else'
+    assert.match(f.run().errors.join('\n'), /cancelCase должен ссылаться/)
+  } finally { f.cleanup() }
+})
+
 test('manual agent needs a real answer sink before a live dialogue', () => {
   const f = fixture()
   try {
