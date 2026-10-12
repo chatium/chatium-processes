@@ -5,10 +5,13 @@
     "decidedAt": "2026-10-07T09:18:20Z"
   },
   "testPlan": {
-    "account": "funnels-git-1.chatium.ru",
+    "account": "funnels-git-3.chatium.ru",
     "mode": "isolated-new-process",
-    "reference": "conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:1",
-    "decidedAt": "2026-10-07T09:18:20Z"
+    "reference": "conversation/user:funnels-git-3-for-all-live-tests",
+    "previous": {
+      "account": "funnels-git-1.chatium.ru",
+      "reference": "conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:1"
+    }
   },
   "distribution": {
     "decision": "public",

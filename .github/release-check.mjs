@@ -21,7 +21,7 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   if (missing.length || extra.length || repeated.length)
     errors.push(`Реестр 167 пунктов нарушен: отсутствуют ${missing.join(', ') || '—'}; лишние ${extra.join(', ') || '—'}; повторные ${repeated.join(', ') || '—'}.`)
   const pending = rows.filter(row => row.status !== 'закрыто' &&
-    !(row.status === 'отложено' && ['E11', 'I10'].includes(row.id)))
+    !(row.status === 'отложено' && ['R20', 'E11', 'I10'].includes(row.id)))
   if (pending.length) errors.push(`Не закрыты ${pending.length} обязательных замечаний: ${pending.map(row => row.id).join(', ')}.`)
   for (const row of rows.filter(row => row.status === 'закрыто'))
     if (!row.check || row.check === '—' || !/^[0-9a-f]{7,40}$/.test(row.commit || ''))
@@ -35,14 +35,23 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   if (evidence.distribution?.decision !== 'public' || !evidence.distribution?.reference ||
       !Number.isFinite(Date.parse(evidence.distribution?.approvedAt)))
     errors.push('Нет записанного решения владельца о публичном распространении и ссылки на ответ.')
+  if (!evidence.testPlan?.account || evidence.testPlan?.mode !== 'isolated-new-process' ||
+      !evidence.testPlan?.reference)
+    errors.push('Нет актуального согласованного аккаунта и изолированного процесса для сквозных испытаний.')
   if (!/^[0-9a-f]{40}$/.test(evidence.testedCommit || '')) errors.push('Нет SHA версии, проверенной сквозными прогонами.')
+  if (evidence.releaseDecision?.decision !== 'publish' ||
+      evidence.releaseDecision?.commit !== evidence.testedCommit ||
+      !evidence.releaseDecision?.reference ||
+      !Number.isFinite(Date.parse(evidence.releaseDecision?.decidedAt)))
+    errors.push('Нет отдельного решения владельца выпустить проверенную версию скилла.')
   if (!/^[0-9a-f]{40}$/.test(evidence.platform?.mailingsProcessDelivery?.commit || '') ||
       !Number.isFinite(Date.parse(evidence.platform?.mailingsProcessDelivery?.verifiedAt)))
     errors.push('Не подтверждён выпуск Mailings с ограничением processDeliveryChannelIds до испытания скилла.')
   for (const harness of ['dsh', 'claude-code', 'codex']) {
     const run = evidence.runs?.[harness]
-    if (run?.status !== 'pass' || !run.account || !run.record)
-      errors.push(`Нет подтверждённого полного прогона ${harness} в чистом аккаунте.`)
+    if (run?.status !== 'pass' || !run.record || run.account !== evidence.testPlan?.account ||
+        run.commit !== evidence.testedCommit)
+      errors.push(`Нет подтверждённого полного прогона ${harness} в согласованном аккаунте на проверенной версии скилла.`)
   }
   if (changedFiles.length) errors.push(`После сквозного прогона изменились файлы скилла: ${changedFiles.join(', ')}.`)
   return errors
