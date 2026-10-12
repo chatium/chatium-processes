@@ -210,6 +210,8 @@ test('independent review packet binds role instructions and reference snapshot',
     f.run()
     const first = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(first.questions.some(question => question.id === 'role.helper'))
+    assert.equal(first.rubricVersion, 3)
+    assert.ok(first.questions.some(question => question.id === 'agent.tool-flow' && /classId/.test(question.lookFor)))
     assert.ok(first.referenceLibrary.required.some(path => [
       'skills/chatium-development/ai-routing-and-handoff.md',
       'skills/chatium-development/references/ai/routing-and-handoff.md',
