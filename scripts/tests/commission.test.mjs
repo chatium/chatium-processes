@@ -89,7 +89,7 @@ test('analytics sources require an independent conclusion with question-specific
   writeFileSync(join(root, '.knowledge-base/processes/demo/overview.md'), '---\ntitle: Demo\n---\nВладелец смотрит конверсию оплаты.\n')
   writeFileSync(join(root, 'demo/PLAN.md'), '# План\nВладелец смотрит конверсию оплаты.\n')
   mkdirSync(join(root, 'demo/specs'), { recursive: true })
-  writeFileSync(join(root, 'demo/specs/analytics.yaml'), Array.from({ length: 8 }, (_, i) => `metric_${i}: expected_${i}`).join('\n') + '\n')
+  writeFileSync(join(root, 'demo/specs/analytics.yaml'), Array.from({ length: 12 }, (_, i) => `metric_${i}: expected_${i}`).join('\n') + '\n')
   assert.ok(reviewRequirements({ root, slug: 'demo', stage: 'test' }).some(item => item.id === 'analytics'))
   assert.equal(analyticsReviewStatus({ root, slug: 'demo' }).status, 'missing')
   const packet = makeAnalyticsReviewPacket({ root, slug: 'demo' })
@@ -98,10 +98,16 @@ test('analytics sources require an independent conclusion with question-specific
     answers: packet.questions.map((question, i) => ({ id: question.id, status: 'covered',
       reason: 'Проверка области доказательства для отдельного вопроса.',
       evidence: [{ path: 'demo/specs/analytics.yaml', quote: `metric_${i}: expected_${i}` }] })) }
-  report.answers[1].evidence = [{ path: 'demo/PLAN.md', quote: 'Владелец смотрит конверсию оплаты.' }]
+  const population = report.answers.find(answer => answer.id === 'population-and-formula')
+  assert.ok(population)
+  assert.throws(() => recordAnalyticsReview({ root, slug: 'demo', packet, report,
+    agentReference: 'unit-test-only:analytics' }), /отдельные доказательства/)
+  population.evidence.push({ path: 'demo/PLAN.md', quote: 'Владелец смотрит конверсию оплаты.' })
+  const realEvents = report.answers.find(answer => answer.id === 'real-events')
+  realEvents.evidence = [{ path: 'demo/PLAN.md', quote: 'Владелец смотрит конверсию оплаты.' }]
   assert.throws(() => recordAnalyticsReview({ root, slug: 'demo', packet, report,
     agentReference: 'unit-test-only:analytics' }), /допустимой области/)
-  report.answers[1].evidence = [{ path: 'demo/specs/analytics.yaml', quote: 'metric_1: expected_1' }]
+  realEvents.evidence = [{ path: 'demo/specs/analytics.yaml', quote: 'metric_2: expected_2' }]
   assert.equal(recordAnalyticsReview({ root, slug: 'demo', packet, report,
     agentReference: 'unit-test-only:analytics' }).status, 'ready')
   assert.equal(analyticsReviewStatus({ root, slug: 'demo' }).status, 'ready')

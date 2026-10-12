@@ -32,13 +32,18 @@ export function makeAnalyticsReviewPacket({ root, slug, skillDir = SKILL_DIR }) 
   })
   if (codeFiles.length > 100) throw Error('Слишком много исходников для ревью аналитики.')
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/analytics-review-questions.json'), 'utf8'))
-  if (rubric.version !== 1 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 2 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
     throw Error('Некорректная рубрика аналитики.')
+  const questions = rubric.questions.map(question => question.id === 'population-and-formula' &&
+    specFiles.some(file => file.path === `${slug}/specs/analytics.yaml`)
+    ? { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
+      { paths: [`${slug}/PLAN.md`] }, { paths: [`${slug}/specs/analytics.yaml`] },
+    ] } : question)
   const base = { version: 1, process: slug, stage: 'analytics', rubricVersion: rubric.version,
-    questions: rubric.questions, reviewerInstructions: readFileSync(join(skillDir, 'build/analytics-reviewer.md'), 'utf8'),
+    questions, reviewerInstructions: readFileSync(join(skillDir, 'build/analytics-reviewer.md'), 'utf8'),
     files: [...knowledge.files, ...specFiles, ...codeFiles].sort((a, b) => a.path.localeCompare(b.path)), staticChecks: knowledge.checks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'analytics', skillDir }))
 }

@@ -248,6 +248,93 @@ ${dedup ? '    deduplicateBy: orderId\n' : ''}`
   assert.equal(named(f.run(), 'analytics.spec').ok, true)
 })
 
+test('analytics counts business entities only when every step carries the same ID', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: request_created
+    type: customerEvent
+    name: Заявка
+    description: Заявка получена
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+  - key: request_confirmed
+    type: customerEvent
+    name: Подтверждение
+    description: Место подтверждено
+    payloadMapping: {}
+`)
+  const funnel = field => `funnels:
+  - id: request_to_confirmation
+    question: Какая доля заявок подтверждена?
+    identity: entity
+    identityField: ${field}
+    windowDays: 30
+    steps: [request_created, request_confirmed]
+`
+  f.put('demo/specs/analytics.yaml', funnel('requestId'))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /request_confirmed.*requestId/)
+  f.put('demo/specs/events.yaml', `events:
+  - key: request_created
+    type: customerEvent
+    name: Заявка
+    description: Заявка получена
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+  - key: request_confirmed
+    type: customerEvent
+    name: Подтверждение
+    description: Место подтверждено
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+`)
+  assert.equal(named(f.run(), 'analytics.spec').ok, true)
+})
+
+test('decision ratio requires a shared subject and explicit conflict handling', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', `events:
+  - key: request_confirmed
+    type: customerEvent
+    name: Подтверждение
+    description: Место подтверждено
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+  - key: request_refused
+    type: customerEvent
+    name: Отказ
+    description: Мест нет
+    payloadMapping: {}
+`)
+  const ratio = `ratios:
+  - id: confirmation_among_decided
+    question: Какая доля заявок с решением подтверждена?
+    numeratorEvent: request_confirmed
+    denominatorEvents: [request_confirmed, request_refused]
+    subjectField: requestId
+    periodDays: 30
+    conflictRule: exclude-and-report
+`
+  f.put('demo/specs/analytics.yaml', ratio)
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /request_refused.*requestId/)
+  f.put('demo/specs/events.yaml', `events:
+  - key: request_confirmed
+    type: customerEvent
+    name: Подтверждение
+    description: Место подтверждено
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+  - key: request_refused
+    type: customerEvent
+    name: Отказ
+    description: Мест нет
+    payloadMapping:
+      requestId: { title: Номер заявки, fieldName: action_param1, type: string }
+`)
+  assert.equal(named(f.run(), 'analytics.spec').ok, true)
+  f.put('demo/specs/analytics.yaml', ratio.replace('exclude-and-report', 'latest'))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /conflictRule/)
+})
+
 test('custom analytics query needs a documented funnel contract', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', 'events: []\n')

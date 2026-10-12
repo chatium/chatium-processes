@@ -606,9 +606,10 @@ check('analytics.spec', 'Связность аналитической воро�
   if (analyticsRes.parseError) return error(`analytics.yaml не разбирается: ${analyticsRes.parseError}`)
   const funnels = analyticsRes.data?.funnels ?? []
   const metrics = analyticsRes.data?.metrics ?? []
-  if (!Array.isArray(funnels) || !Array.isArray(metrics) ||
-      funnels.length + metrics.length < 1 || funnels.length + metrics.length > 50)
-    return error('analytics.yaml: нужны funnels или metrics (в сумме от 1 до 50).')
+  const ratios = analyticsRes.data?.ratios ?? []
+  if (!Array.isArray(funnels) || !Array.isArray(metrics) || !Array.isArray(ratios) ||
+      funnels.length + metrics.length + ratios.length < 1 || funnels.length + metrics.length + ratios.length > 50)
+    return error('analytics.yaml: нужны funnels, metrics или ratios (в сумме от 1 до 50).')
   const ids = new Set()
   for (const [index, metric] of metrics.entries()) {
     const where = `analytics.metrics[${index}]${metric?.id ? ` (${metric.id})` : ''}`
@@ -627,7 +628,11 @@ check('analytics.spec', 'Связность аналитической воро�
       error(`${where}: нужен уникальный id в snake_case.`)
     if (funnel?.id) ids.add(funnel.id)
     if (typeof funnel?.question !== 'string' || !funnel.question.trim()) error(`${where}: нужен бизнес-вопрос question.`)
-    if (funnel?.identity !== 'customer') error(`${where}: поддержана только identity: customer; для другой идентичности нужен явный проверенный механизм связывания.`)
+    if (!['customer', 'entity'].includes(funnel?.identity))
+      error(`${where}: identity должен быть customer или entity.`)
+    if (funnel?.identity === 'entity' && (typeof funnel.identityField !== 'string' ||
+        !/^[a-z][a-zA-Z0-9]*$/.test(funnel.identityField)))
+      error(`${where}: для identity: entity нужен identityField — ключ одной бизнес-сущности в каждом событии.`)
     if (!Number.isInteger(funnel?.windowDays) || funnel.windowDays < 1 || funnel.windowDays > 3650)
       error(`${where}: windowDays должен быть целым числом от 1 до 3650.`)
     const steps = funnel?.steps
@@ -639,12 +644,44 @@ check('analytics.spec', 'Связность аналитической воро�
       if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
       else {
         if (event.type !== 'customerEvent') error(`${where}: ${key} имеет type ${event.type}; его нельзя связывать с клиентской конверсией без подтверждённой идентичности.`)
+        if (funnel.identity === 'entity' && funnel.identityField &&
+            event.payloadMapping?.[funnel.identityField]?.type !== 'string')
+          error(`${where}: ${key} должен передавать строковый ${funnel.identityField} в payloadMapping для связи шагов одной сущности.`)
         if (event.category === 'revenue') revenue.push(event)
       }
     }
     if (revenue.length && (!funnel.deduplicateBy || revenue.some(event =>
       !Object.hasOwn(event.payloadMapping || {}, funnel.deduplicateBy))))
       error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого revenue-события.`)
+  }
+  for (const [index, ratio] of ratios.entries()) {
+    const where = `analytics.ratios[${index}]${ratio?.id ? ` (${ratio.id})` : ''}`
+    if (typeof ratio?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(ratio.id) || ids.has(ratio.id))
+      error(`${where}: нужен уникальный id в snake_case.`)
+    if (ratio?.id) ids.add(ratio.id)
+    if (typeof ratio?.question !== 'string' || !ratio.question.trim())
+      error(`${where}: нужен бизнес-вопрос question.`)
+    if (!Number.isInteger(ratio?.periodDays) || ratio.periodDays < 1 || ratio.periodDays > 3650)
+      error(`${where}: periodDays должен быть целым числом от 1 до 3650.`)
+    if (typeof ratio?.subjectField !== 'string' || !/^[a-z][a-zA-Z0-9]*$/.test(ratio.subjectField))
+      error(`${where}: нужен subjectField — строковый ключ подсчитываемой сущности.`)
+    const denominator = ratio?.denominatorEvents
+    if (!Array.isArray(denominator) || denominator.length < 2 || denominator.length > 10 ||
+        new Set(denominator).size !== denominator.length ||
+        !denominator.includes(ratio?.numeratorEvent))
+      error(`${where}: denominatorEvents должен содержать от 2 до 10 разных событий, включая numeratorEvent.`)
+    if (ratio?.conflictRule !== 'exclude-and-report')
+      error(`${where}: для взаимоисключающих исходов нужен conflictRule: exclude-and-report.`)
+    for (const key of Array.isArray(denominator) ? denominator : []) {
+      const event = eventByKey.get(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      else {
+        if (event.type !== 'customerEvent')
+          error(`${where}: ${key} должен быть customerEvent, чтобы считать связанные исходы клиента.`)
+        if (ratio.subjectField && event.payloadMapping?.[ratio.subjectField]?.type !== 'string')
+          error(`${where}: ${key} должен передавать строковый ${ratio.subjectField} в payloadMapping.`)
+      }
+    }
   }
 })
 
