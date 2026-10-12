@@ -12,6 +12,15 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 const KINDS = ['plan', 'launch']
 
+function delegatedTestIsSafe(root, slug) {
+  try {
+    const workspace = JSON.parse(readFileSync(join(root, slug, '.workspace.json'), 'utf8'))
+    const mailings = workspace?.config?.mailings
+    return mailings?.testOnly === true && Array.isArray(mailings.testContacts) &&
+      mailings.testContacts.some(contact => text(contact?.type) && text(contact?.value))
+  } catch { return false }
+}
+
 function approvalFiles(root, directory) {
   if (!existsSync(directory)) return []
   const account = realpathSync(root), files = []
@@ -109,16 +118,23 @@ export function recordOwnerDecision({ root, slug, kind, packet, response }) {
       !Number.isFinite(Date.parse(packet.preparedAt)) ||
       !(packet.boardRevision === null || Number.isInteger(packet.boardRevision)))
     throw Error('Показанный владельцу объём устарел или пакет некорректен.')
-  if (!response || !['approve', 'decline'].includes(response.decision) || !text(response.message) ||
-      !text(response.messageReference) || !text(response.owner) ||
+  const authority = response?.authority || 'owner'
+  if (!response || !['owner', 'delegated-test'].includes(authority) ||
+      !['approve', 'decline'].includes(response.decision) || !text(response.message) ||
+      !text(response.messageReference) ||
+      !(authority === 'owner' ? text(response.owner) : text(response.actor) && text(response.delegationReference)) ||
       !Number.isFinite(Date.parse(response.answeredAt)))
-    throw Error('Нужны решение, текст реального ответа, ссылка на сообщение, владелец и время ответа.')
+    throw Error('Нужны решение, текст ответа, ссылка, время и владелец либо исполнитель с основанием тестового делегирования.')
   if (Date.parse(response.answeredAt) < Date.parse(packet.preparedAt))
-    throw Error('Ответ владельца датирован раньше показа согласуемого объёма.')
+    throw Error('Решение датировано раньше подготовки согласуемого объёма.')
+  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug))
+    throw Error('Делегированное тестовое решение требует mailings.testOnly=true и разрешённый тестовый контакт.')
   const path = ownerDecisionPath(root, slug, kind)
-  const saved = { version: 1, kind, process: slug, decision: response.decision,
+  const saved = { version: 1, kind, process: slug, decision: response.decision, authority,
     message: response.message, messageReference: response.messageReference,
-    owner: response.owner, answeredAt: response.answeredAt,
+    ...(authority === 'owner' ? { owner: response.owner } : {
+      actor: response.actor, delegationReference: response.delegationReference,
+    }), answeredAt: response.answeredAt,
     recordedAt: new Date().toISOString(), shownCommit: packet.shownCommit,
     boardRevision: packet.boardRevision, scopeDigest: packet.digest, scopeManifest: packet.manifest }
   mkdirSync(dirname(path), { recursive: true })
@@ -131,11 +147,17 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision }) 
   const path = ownerDecisionPath(root, slug, kind)
   if (!existsSync(path)) return { status: 'missing', path, error: `Нет ответа владельца на ${kind === 'plan' ? '«строим так?»' : '«запускаем?»'}.` }
   const saved = JSON.parse(readFileSync(path, 'utf8'))
+  const authority = saved.authority || 'owner'
   if (saved.version !== 1 || saved.kind !== kind || saved.process !== slug ||
-      !text(saved.message) || !text(saved.messageReference) || !text(saved.owner) ||
+      !['owner', 'delegated-test'].includes(authority) ||
+      !text(saved.message) || !text(saved.messageReference) ||
+      !(authority === 'owner' ? text(saved.owner) : text(saved.actor) && text(saved.delegationReference)) ||
       !Number.isFinite(Date.parse(saved.answeredAt)) || !/^[0-9a-f]{40}$/.test(saved.shownCommit))
-    return { status: 'invalid', path, error: 'Решение владельца неполно или принадлежит другому процессу.' }
-  if (saved.decision !== 'approve') return { status: 'declined', path, error: 'Владелец не согласовал этот шаг.' }
+    return { status: 'invalid', path, error: 'Решение неполно или принадлежит другому процессу.' }
+  if (saved.decision !== 'approve') return { status: 'declined', path, error: 'Этот шаг не согласован.' }
+  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug))
+    return { status: 'stale', path,
+      error: 'Учебное решение исполнителя не действует без mailings.testOnly=true и разрешённого тестового контакта; для обычного запуска нужен ответ владельца.' }
   const current = approvalScope({ root, slug, kind })
   const historical = saved.scopeDigest === current.digest ? null : approvalScope({ root, slug, kind, historical: true })
   if (saved.scopeDigest !== current.digest && saved.scopeDigest !== historical?.digest) {
@@ -147,9 +169,10 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision }) 
   }
   if (currentBoardRevision !== undefined && currentBoardRevision !== saved.boardRevision)
     return { status: 'stale', path, error: `Доска изменилась: показана ревизия ${saved.boardRevision ?? 'отсутствует'}, сейчас ${currentBoardRevision ?? 'отсутствует'}.` }
-  return { status: 'ready', path, shownCommit: saved.shownCommit, currentCommit: commit(root),
+  return { status: 'ready', authority, path, shownCommit: saved.shownCommit, currentCommit: commit(root),
     boardRevision: saved.boardRevision, answeredAt: saved.answeredAt,
-    messageReference: saved.messageReference }
+    messageReference: saved.messageReference,
+    ...(authority === 'delegated-test' ? { actor: saved.actor, delegationReference: saved.delegationReference } : {}) }
 }
 
 export async function ownerDecisionForCurrentBoard({ root, slug, kind, readBoard = readProcessBoard }) {

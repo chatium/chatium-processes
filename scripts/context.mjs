@@ -146,7 +146,9 @@ else if (!planApproved) stage = '2. План — ждёт согласовани
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
 else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
-else stage = '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
+else stage = launchDecision.authority === 'delegated-test'
+  ? '7–8. Учебный запуск разрешён исполнителем — боевой запуск требует ответа владельца'
+  : '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
 
 let nextAction
 if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
@@ -170,9 +172,9 @@ say('')
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
 say(`  PLAN.md      ${plan ? 'есть' : 'нет'}`)
-say(`  решение «строим так?» ${planDecision.status}${planDecision.error ? ` — ${planDecision.error}` : ''}`)
+say(`  решение «строим так?» ${planDecision.status}${planDecision.authority === 'delegated-test' ? ' (исполнитель теста)' : ''}${planDecision.error ? ` — ${planDecision.error}` : ''}`)
 say(`  проверка архитектуры ${designReview.status}${designReview.error ? ` — ${designReview.error}` : ''}`)
-say(`  решение «запускаем?» ${launchDecision.status}${launchDecision.error ? ` — ${launchDecision.error}` : ''}`)
+say(`  решение «запускаем?» ${launchDecision.status}${launchDecision.authority === 'delegated-test' ? ' (исполнитель теста)' : ''}${launchDecision.error ? ` — ${launchDecision.error}` : ''}`)
 say(`  карта        ${map ? `узлов ${(map.nodes || []).length}, стрелок ${(map.links || []).length}` : mapError}`)
 say(`  письма       ${rel(root, lettersDir)} — ${letters.length}`)
 say(`  автоматизации ${automations.length}`)

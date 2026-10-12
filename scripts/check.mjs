@@ -1162,13 +1162,15 @@ check('reviews', 'Обязательные заключения комиссии
     error(`${item.id}: ${item.status}${item.error ? ` — ${item.error}` : ''}`)
 })
 
-if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Согласование плана владельцем', ({ error }) => {
+if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Решение по плану', ({ error, warn }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
   if (decision.status !== 'ready') error(decision.error || decision.status)
+  else if (decision.authority === 'delegated-test') warn('Учебное решение исполнителя по поручению владельца; не является согласованием боевого процесса.')
 })
-if (options['task-stage'] === 'launch') check('owner.launch', 'Согласование запуска владельцем', ({ error }) => {
+if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о запуске', ({ error, warn }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch' })
   if (decision.status !== 'ready') error(decision.error || decision.status)
+  else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
 })
 if (options['task-stage'] === 'launch') check('automation.smoke', 'Полный безопасный прогон автоматизаций', ({ error }) => {
   for (const issue of automationSmokeStatus({ root, slug, automationFiles: automations.map(item => item.file) }).errors) error(issue)

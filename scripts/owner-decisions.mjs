@@ -29,7 +29,7 @@ try {
   if (command === 'prepare' && options['board-revision'] === undefined)
     throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
   if (command === 'record' && (!options.packet || !options.response))
-    throw Error('Нужны --packet и --response с реальным ответом владельца.')
+    throw Error('Нужны --packet и --response с записанным решением.')
   if (kind === 'plan' && ['prepare', 'record'].includes(command)) {
     const design = commissionStatus({ root, slug, stage: 'design' })
     if (design.status !== 'ready') throw Error(`Сначала нужны принятые заключения методологии и архитектуры: ${design.requirements

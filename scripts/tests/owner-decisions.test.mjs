@@ -35,9 +35,9 @@ test('owner answer is required and binds business scope, not a bookkeeping commi
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'missing')
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 3 })
   assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet,
-    response: answer({ messageReference: '' }) }), /реального ответа/)
+    response: answer({ messageReference: '' }) }), /текст ответа, ссылка/)
   assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet,
-    response: answer({ answeredAt: '2020-01-01T00:00:00Z' }) }), /раньше показа/)
+    response: answer({ answeredAt: '2020-01-01T00:00:00Z' }) }), /раньше подготовки/)
   recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'ready')
   f.put('demo/PLAN.md', '# План\n\n- [x] T1 Форма записи\n- Строим: согласовано\n')
@@ -154,6 +154,45 @@ test('the approved launch survives only the testOnly deployment switch', t => {
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'ready')
   f.put('demo/.workspace.json', workspace(false).replace('mail', 'sms'))
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
+})
+
+test('delegated tester may decide only for an allowlisted test process, never for live delivery', t => {
+  const f = fixture(t)
+  const workspace = (testOnly, contacts) => JSON.stringify({ type: 'process', config: {
+    mailings: { testOnly, testContacts: contacts },
+  } })
+  const contact = [{ type: 'email', value: 'test@example.invalid' }]
+  f.put('demo/.workspace.json', workspace(true, contact))
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: null })
+  const delegated = answer({ authority: 'delegated-test', owner: undefined,
+    actor: 'test-executor', delegationReference: 'conversation/owner-delegation',
+    message: 'Для проверки выбираю учебные письма и безопасный запуск.',
+    messageReference: 'tests/delegated-decision.md' })
+  const fresh = () => ({ ...delegated, answeredAt: new Date().toISOString() })
+  assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
+    response: { ...delegated, delegationReference: '' } }), /основанием тестового делегирования/)
+  f.put('demo/.workspace.json', workspace(false, contact))
+  const livePacket = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: null })
+  assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet: livePacket,
+    response: fresh() }), /testOnly=true/)
+  f.put('demo/.workspace.json', workspace(true, []))
+  const noContactsPacket = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: null })
+  assert.throws(() => recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet: noContactsPacket,
+    response: fresh() }), /тестовый контакт/)
+  f.put('demo/.workspace.json', workspace(true, contact))
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet, response: fresh() })
+  const planPacket = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: null })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet: planPacket, response: fresh() })
+  const ready = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' })
+  assert.equal(ready.status, 'ready')
+  assert.equal(ready.authority, 'delegated-test')
+  assert.equal(ready.delegationReference, delegated.delegationReference)
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).authority, 'delegated-test')
+  f.put('demo/.workspace.json', workspace(false, contact))
+  const stale = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' })
+  assert.equal(stale.status, 'stale')
+  assert.match(stale.error, /для обычного запуска нужен ответ владельца/)
+  assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'stale')
 })
 
 test('context does not present stale owner approval from an old PLAN.md line', t => {

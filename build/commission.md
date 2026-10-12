@@ -99,6 +99,17 @@ node .agents/skills/processes/scripts/owner-decisions.mjs prepare <process> --ki
 `answeredAt` (ISO). Время ответа должно быть не раньше `preparedAt` из
 показанного пакета; старый ответ на новый план записывать нельзя. Затем:
 
+Если владелец **явно делегировал** решения по вымышленному тестовому процессу,
+не проси его согласовывать каждый учебный материал. После `prepare` запиши
+собственное решение исполнителя с `authority: "delegated-test"`, `actor`,
+`delegationReference` (ссылка на реальное поручение владельца), `message`
+(что именно решил исполнитель), `messageReference` (запись этого решения),
+`decision` и `answeredAt`. Поле `owner` и вымышленную цитату владельца не
+подставляй. Команда принимает такой ответ лишь при `mailings.testOnly: true`
+и непустом списке разрешённых тестовых контактов; при снятии тестового режима
+решение устаревает. Оно годится для проверки скилла, а не для боевого запуска.
+Обычный процесс по-прежнему требует ответа владельца.
+
 ```sh
 node .agents/skills/processes/scripts/owner-decisions.mjs record <process> --kind plan --packet <packet.json> --response <owner-response.json>
 node .agents/skills/processes/scripts/owner-decisions.mjs status <process> --kind plan
