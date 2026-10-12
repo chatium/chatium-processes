@@ -418,10 +418,15 @@ test('published-state check stays partial with extra channel rules and rejects a
 
 test('agents-runtime uses the SDK contact contract and records only a fully verified published result', () => {
   const f = fixture()
+  const privateDir = mkdtempSync(join(tmpdir(), 'process-route-tests-'))
   try {
-    f.spec.routes[0].testExistingContacts = [{ type: 'email', value: 'existing@example.com' }]
+    delete f.spec.routes[0].testNewContacts
     f.spec.routes[0].expectedExistingAgent = 'helper'
-    f.run()
+    assert.deepEqual(f.run().errors, [])
+    const routeTests = join(privateDir, 'contacts.json')
+    writeFileSync(routeTests, JSON.stringify({ routes: [{ channel: 'test channel',
+      testNewContacts: [{ type: 'email', value: 'test@example.com' }],
+      testExistingContacts: [{ type: 'email', value: 'existing@example.com' }] }] }))
     const processYaml = join(f.root, 'demo/process.yaml')
     writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
     writeFileSync(processYaml, stringifyYaml({ title: 'Demo', accountId: 1, knowledge: '.knowledge-base/processes/demo/',
@@ -438,10 +443,10 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const response = { accountId: 1, agents: [{ key: 'helper', value: publishedAgentVersion(f.root), toolChecks: [] }],
       routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] },
         dryRun: { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }, existingDryRun: null }] }
-    const run = () => {
+    const run = (contactsFile = routeTests) => {
       writeFileSync(responseFile, JSON.stringify(response))
       const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
-        'demo', '--root', f.root, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
+        'demo', '--root', f.root, '--route-tests', contactsFile, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
           PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit, FAKE_RUNTIME_INPUT: inputFile } })
       return { exit: result.status, report: JSON.parse(result.stdout) }
     }
@@ -464,6 +469,13 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     assert.equal(passed.exit, 0, JSON.stringify(passed.report))
     assert.equal(passed.report.status, 'verified')
     assert.ok(passed.report.recordedPath)
+    assert.doesNotMatch(JSON.stringify(passed.report), /test@example.com|existing@example.com/)
+    assert.doesNotMatch(readFileSync(passed.report.recordedPath, 'utf8'), /test@example.com|existing@example.com/)
     assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'ready')
-  } finally { f.cleanup() }
+    const trackedContacts = join(f.root, 'route-tests.json')
+    writeFileSync(trackedContacts, readFileSync(routeTests))
+    const rejected = run(trackedContacts)
+    assert.equal(rejected.exit, 2)
+    assert.match(rejected.report.error, /вне Git-аккаунта/)
+  } finally { f.cleanup(); rmSync(privateDir, { recursive: true, force: true }) }
 })

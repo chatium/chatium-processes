@@ -2,8 +2,8 @@
 // Compares published state without sending messages or changing routing. Agent lookup requires completed build sync; dry-run emits a metric.
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
@@ -18,17 +18,49 @@ function closestWorkspacePath(root, sourcePath) {
   }
 }
 
+function routeTestContacts(file, root, routes) {
+  if (file === undefined) return new Map()
+  if (typeof file !== 'string') throw Error('Укажи путь после --route-tests.')
+  const path = resolve(file)
+  const stat = lstatSync(path)
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16 * 1024)
+    throw Error('Файл --route-tests должен быть обычным JSON-файлом до 16 KB.')
+  const account = realpathSync(root)
+  const canonical = realpathSync(path)
+  if (canonical === account || canonical.startsWith(account + sep))
+    throw Error('Файл --route-tests должен находиться вне Git-аккаунта, чтобы контакты не попали в коммит.')
+  let parsed
+  try { parsed = JSON.parse(readFileSync(path, 'utf8')) }
+  catch { throw Error('Файл --route-tests не читается как JSON.') }
+  if (!parsed || !Array.isArray(parsed.routes)) throw Error('В --route-tests нужен список routes.')
+  const channels = new Set(routes.map(route => route.channel))
+  const result = new Map()
+  for (const row of parsed.routes) {
+    if (!row || typeof row.channel !== 'string' || !channels.has(row.channel) || result.has(row.channel))
+      throw Error('В --route-tests найден неизвестный или повторный канал.')
+    for (const key of Object.keys(row)) if (!['channel', 'testNewContacts', 'testExistingContacts'].includes(key))
+      throw Error(`Неизвестное поле --route-tests: ${key}.`)
+    for (const key of ['testNewContacts', 'testExistingContacts']) if (row[key] !== undefined &&
+        (!Array.isArray(row[key]) || !row[key].length || row[key].length > 5 ||
+          row[key].some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
+            typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500)))
+      throw Error(`${key} в --route-tests должен содержать 1–5 контактов с type и value.`)
+    result.set(row.channel, row)
+  }
+  return result
+}
+
 let parsed
-try { parsed = parseArgs(process.argv.slice(2), ['help', 'json', 'record'], ['help', 'json', 'record', 'root']) }
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json', 'record'], ['help', 'json', 'record', 'root', 'route-tests']) }
 catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('agents-runtime.mjs <process> [--root DIR] [--json] [--record]')
+  console.log('agents-runtime.mjs <process> [--root DIR] [--route-tests FILE] [--json] [--record]')
   process.exit(options.help ? 0 : 2)
 }
 try {
-  if (positional.length !== 1 || Object.keys(options).some(key => !['help', 'json', 'record', 'root'].includes(key))) throw Error('Неизвестный параметр или лишний аргумент.')
+  if (positional.length !== 1 || Object.keys(options).some(key => !['help', 'json', 'record', 'root', 'route-tests'].includes(key))) throw Error('Неизвестный параметр или лишний аргумент.')
   requireYaml()
   const root = findRoot(options.root)
   assertSkillProcess(root, slug)
@@ -48,11 +80,15 @@ try {
       enabledTools: JSON.parse(source).enabledTools || [] }
   })
   const routes = Array.isArray(spec.routes) ? spec.routes : []
+  const contacts = routeTestContacts(options['route-tests'], root, routes)
+  for (const route of routes) if (contacts.has(route.channel) &&
+      (route.testNewContacts || route.testExistingContacts))
+    throw Error(`Контакты канала ${route.channel} заданы и в spec.yaml, и в --route-tests.`)
   const input = { branch, agents: agents.map(({ key, config, enabledTools }) => ({ key, config, enabledTools })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
-      contacts: route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
+      contacts: contacts.get(route.channel)?.testNewContacts || route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
       startParam: route.testStartParam || undefined,
-      existingContacts: route.testExistingContacts || null })) }
+      existingContacts: contacts.get(route.channel)?.testExistingContacts || route.testExistingContacts || null })) }
   const code = `import { getPublishedAgentVersionBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
     `const input = ${JSON.stringify(input)}\n` +
     `const agents = []\n` +
@@ -97,10 +133,10 @@ try {
     if (!id) { errors.push(`routes[${index}]: не установлен опубликованный ID первого агента`); continue }
     if (!row.value.config?.enabled || row.value.config.defaultAgentId !== id) errors.push(`routes[${index}]: канал не направлен к ${route.firstAgent}`)
     if (!row.value.linkedAgentIds?.includes(id)) errors.push(`routes[${index}]: агент не привязан к каналу`)
-    if (!route.testNewContacts) warnings.push(`routes[${index}]: первый вход не проверен по тестовым контактам из CRM`)
+    if (!input.routes[index].contacts) warnings.push(`routes[${index}]: первый вход не проверен по тестовым контактам из CRM`)
     else if (row.dryRun?.mode !== 'selected' || row.dryRun?.agentId !== id || row.dryRun?.reason !== 'default-agent')
       errors.push(`routes[${index}]: новое обращение выбрало ${row.dryRun?.agentId || row.dryRun?.mode || 'ничего'} по причине ${row.dryRun?.reason || 'неизвестна'}, ожидался первый агент ${id} по правилу default-agent`)
-    if (!route.testExistingContacts || !route.expectedExistingAgent)
+    if (!input.routes[index].existingContacts || !route.expectedExistingAgent)
       warnings.push(`routes[${index}]: продолжение CRM-разговора требует testExistingContacts и expectedExistingAgent`)
     else {
       const expected = ids.get(route.expectedExistingAgent)

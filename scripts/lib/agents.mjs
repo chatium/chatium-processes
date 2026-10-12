@@ -191,13 +191,15 @@ export function validateProcessAgents({ root, slug, map }) {
         route.testNewContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
           typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500)))
       errors.push(`${where}: testNewContacts должен содержать 1–5 тестовых контактов с type и value`)
-    if (route?.testExistingContacts !== undefined || route?.expectedExistingAgent !== undefined) {
+    if (route?.testExistingContacts !== undefined) {
       if (!Array.isArray(route.testExistingContacts) || !route.testExistingContacts.length || route.testExistingContacts.length > 5 ||
           route.testExistingContacts.some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
             typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500))
         errors.push(`${where}: testExistingContacts должен содержать 1–5 тестовых контактов с существующей CRM-цепочкой`)
-      if (!byKey.has(route.expectedExistingAgent)) errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
     }
+    if ((route?.testExistingContacts !== undefined || route?.expectedExistingAgent !== undefined) &&
+        !byKey.has(route.expectedExistingAgent))
+      errors.push(`${where}: expectedExistingAgent должен указывать существующего помощника`)
   }
   for (const [i, handoff] of (Array.isArray(spec.handoffs) ? spec.handoffs : []).entries()) {
     const where = `handoffs[${i}]`
