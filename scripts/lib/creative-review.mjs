@@ -39,11 +39,13 @@ function adjacentCreativeFiles(root, slug, nodeId) {
   }
   return { files, missing }
 }
-const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email'], original = null) => [
+const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email'], original = null, revision = null) => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
   { id: 'action', question: 'Понятен и работоспособен ли следующий шаг клиента?' },
+  ...(kind === 'landing' && revision && stage === 'spec' ? [{ id: 'scope',
+    question: 'Точно ли названы запрошенные изменения, исходная версия и части страницы, которые нельзя менять при точечной правке?' }] : []),
   ...(kind === 'landing' ? [
     { id: 'structure', question: 'Раскрыты ли нужные смысловые функции, механики и возражения?' },
     { id: 'design', question: 'Конкретны ли композиция, дизайн-система, изображения и мобильная версия?' },
@@ -74,6 +76,8 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png', ima
   ]) : []),
   ...(stage === 'result' ? [
     { id: 'implemented', question: 'Совпадает ли фактическое содержимое и поведение с заданием?' },
+    ...(kind === 'landing' && revision ? [{ id: 'preservation',
+      question: 'Сверены ли исходная версия, Git-разница и готовая страница: изменено только согласованное, а остальные разделы, факты и действия сохранены?' }] : []),
     ...(kind === 'landing' || formats.includes('email') ? [{ id: 'visual', question: visualMode === 'owner-preview'
       ? 'Подтвердил ли владелец вид результата на нужных размерах/в канале в живом превью текущей версии?'
       : 'Проверен ли отрендеренный результат на нужных размерах/в канале?' }] : []),
@@ -185,6 +189,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   let visualMode = needsVisual ? 'png' : 'none'
   let implementation = []
   let messageFiles = []
+  let revisionDiffPath = null
   if (stage === 'result') {
     const output = outputFiles(root, creative.node.source)
     files.push(...output)
@@ -246,6 +251,25 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
     const sourcePrefix = creative.node.source.endsWith('/') ? creative.node.source : `${creative.node.source}/`
     if (!implementation.some(f => f.path === creative.node.source || f.path.startsWith(sourcePrefix)))
       throw Error(`Исходник результата ${creative.node.source} не включён в пакет реализации.`)
+    if (creative.node.kind === 'page' && creative.spec.revision) {
+      const base = creative.spec.revision.baseCommit
+      const run = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000, maxBuffer: 256 * 1024 })
+      const gitRoot = run(['rev-parse', '--show-toplevel'])
+      if (gitRoot.status !== 0 || realpathSync(gitRoot.stdout.trim()) !== realpathSync(root) ||
+          run(['merge-base', '--is-ancestor', base, 'HEAD']).status !== 0)
+        throw Error('Исходный коммит точечной правки не входит в текущую ветку аккаунта.')
+      const original = run(['ls-tree', '-r', '--name-only', base, '--', creative.node.source])
+      if (original.status !== 0 || !original.stdout.trim())
+        throw Error('В исходном коммите нет прежней страницы для сравнения.')
+      const paths = [...new Set([creative.node.source, ...implementation.map(file => file.path)])]
+      const diff = run(['diff', '--no-ext-diff', '--unified=3', base, 'HEAD', '--', ...paths])
+      if (diff.status !== 0 || !diff.stdout.trim())
+        throw Error('Нет опубликованной Git-разницы точечной правки страницы.')
+      if (Buffer.byteLength(diff.stdout) > 128 * 1024)
+        throw Error('Git-разница точечной правки слишком велика для одного ревью.')
+      revisionDiffPath = `${slug}/reviews/creative/${nodeId}-revision.diff`
+      files.push({ path: revisionDiffPath, content: diff.stdout })
+    }
     const visualPath = `${slug}/reviews/creative/${nodeId}-visual.json`
     if (needsVisual) {
     const visualFile = safeTaskPath(root, visualPath)
@@ -286,7 +310,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
         if (!text(capture.viewport) || !/^https:\/\/[^\s@/]+(?:\/|$)/i.test(capture.url || ''))
           throw Error('У живого превью нужны viewport и HTTPS-ссылка без credentials.')
         return { ...capture, kind: 'owner-preview',
-          path: `${visualPath}#${capture.messageId || nodeId}:${capture.viewport}` }
+          path: `${visualPath}#${capture.variantKey || capture.messageId || nodeId}:${capture.viewport}` }
       }
       if (!text(capture.path) || !text(capture.viewport) || !text(capture.codeVersion)) throw Error('У снимка нужны путь, viewport и версия кода.')
       const path = safeTaskPath(root, capture.path)
@@ -300,8 +324,25 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
       if (!width || !height || width > 16000 || height > 16000) throw Error(`Неверный размер снимка ${capture.path}.`)
       return { ...capture, kind: 'png', width, height, sha256: sha(bytes) }
     })
-    if (creative.node.kind === 'page' && !['desktop', 'mobile'].every(view => visuals.some(v => v.viewport === view)))
-      throw Error('Для страницы нужны desktop и mobile снимки.')
+    if (creative.node.kind === 'page') {
+      const variants = creative.spec.abTesting?.mode === 'none' ? [] :
+        (creative.spec.abTesting?.variants || []).map(variant => variant.key)
+      if (variants.length) {
+        if (visuals.some(visual => !variants.includes(visual.variantKey)))
+          throw Error('Снимок A/B-страницы должен указывать существующий variantKey.')
+        for (const key of variants) for (const viewport of ['desktop', 'mobile'])
+          if (!visuals.some(visual => visual.variantKey === key && visual.viewport === viewport))
+            throw Error(`Для варианта ${key} нужен ${viewport} снимок или подтверждённое превью.`)
+        if (visualMode === 'owner-preview' && visuals.some(visual => !text(visual.selectionEvidence)))
+          throw Error('Для живого превью A/B-варианта укажи, как был выбран именно этот variantKey.')
+        if (visualMode === 'png') for (const viewport of ['desktop', 'mobile']) {
+          const paths = visuals.filter(visual => visual.viewport === viewport).map(visual => visual.path)
+          if (new Set(paths).size !== paths.length)
+            throw Error(`Разные A/B-варианты требуют разных ${viewport} снимков.`)
+        }
+      } else if (!['desktop', 'mobile'].every(view => visuals.some(v => v.viewport === view)))
+        throw Error('Для страницы нужны desktop и mobile снимки.')
+    }
     if (creative.node.kind === 'series') for (const message of creative.spec.messages)
       for (const viewport of ['email-desktop', 'email-mobile'])
         if (!visuals.some(visual => visual.messageId === message.id && visual.viewport === viewport))
@@ -312,9 +353,9 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats, creative.original),
+    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats, creative.original, creative.spec.revision),
     files, adjacentMissing: adjacent?.missing || [], assets: creative.assetFiles,
-    original: creative.original, visuals, messageFiles, implementation,
+    original: creative.original, visuals, messageFiles, implementation, revisionDiffPath,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
   return { ...packet, inputDigest: sha(JSON.stringify(packet)) }
 }
@@ -351,6 +392,9 @@ function validateReport(report, packet) {
         answer.status === 'pass' && (answer.id === 'visual' || answer.id.endsWith('.render')) &&
         !answer.evidence.some(item => item.path === `${packet.process}/reviews/creative/${packet.nodeId}-visual.json`))
       throw Error(`${answer.id}: нужен точный фрагмент ответа владельца о живом превью.`)
+    if (answer.status === 'pass' && answer.id === 'preservation' &&
+        !answer.evidence.some(item => item.path === packet.revisionDiffPath))
+      throw Error('Для подтверждения точечной правки нужна цитата из Git-разницы.')
     if (answer.status === 'blocking') blocking.push(answer)
     if (answer.status === 'advisory') advisory.push(answer)
   }

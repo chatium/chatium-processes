@@ -284,6 +284,13 @@ export function creativePacket({ root, slug, nodeId }) {
   if (!Array.isArray(spec?.sources) || !Array.isArray(spec?.openQuestions)) errors.push('Нужны sources и openQuestions.')
   if (spec?.references !== undefined && (!Array.isArray(spec.references) || !spec.references.every(text)))
     errors.push('references должен быть списком путей.')
+  if (spec?.revision !== undefined && (spec.kind !== 'landing' ||
+      !/^[0-9a-f]{40}$/.test(spec.revision?.baseCommit || '') ||
+      !Array.isArray(spec.revision?.requestedChanges) || !spec.revision.requestedChanges.length ||
+      spec.revision.requestedChanges.length > 20 || !spec.revision.requestedChanges.every(text) ||
+      !Array.isArray(spec.revision?.preserve) || !spec.revision.preserve.length ||
+      spec.revision.preserve.length > 20 || !spec.revision.preserve.every(text)))
+    errors.push('Точечная правка страницы: нужны revision.baseCommit, requestedChanges и preserve.')
   if ((spec?.openQuestions || []).some(q => q.blocking)) errors.push('Есть блокирующие вопросы.')
   const sources = sourceFiles(root, spec || {}, errors)
   const copyFiles = [], assetFiles = []
@@ -381,6 +388,7 @@ export function compileCreative(packet) {
     if (spec.event) lines.push('', '## Сценарий мероприятия', json(spec.event))
     if (spec.quiz) lines.push('', '## Результат квиза', json(spec.quiz))
     if (spec.redesign) lines.push('', '## Исходник и границы редизайна', json(spec.redesign))
+    if (spec.revision) lines.push('', '## Границы точечной правки', json(spec.revision))
     lines.push('', '## Дизайн-система', json(guidance.style), `Адаптация: ${spec.design.adaptation}`)
     if (spec.copywriting) lines.push('', '## Подача текста', json(guidance.writing),
       `Адаптация под аудиторию и бренд: ${spec.copywriting.adaptation}`,

@@ -823,6 +823,77 @@ test('owner-confirmed live preview is accepted only for the reviewed code and bo
   assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /Результат изменился/)
 })
 
+test('A/B previews cover every variant and targeted page review includes the actual Git diff', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Страница',
+    source: 'demo/page.ts', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
+  f.spec.abTesting = { mode: 'text', hypothesis: 'Сравнить ясность заголовка',
+    experimentKey: 'heading', assignment: 'Один вариант на клиента', metric: 'Заявки',
+    tracking: 'Событие с ключом варианта', variants: [{ key: 'A', changes: 'Первый заголовок' },
+      { key: 'B', changes: 'Второй заголовок' }] }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  f.put('demo/page.ts', 'export const heading = "Материал"\nexport const footer = "Условия без изменений"\n')
+  writeCreativeBuild(f.args)
+  const git = (...args) => spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+  assert.equal(git('init', '-q').status, 0)
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'original page').status, 0)
+  const baseCommit = git('rev-parse', 'HEAD').stdout.trim()
+  f.spec.revision = { baseCommit, requestedChanges: ['Уточнить заголовок'], preserve: ['Условия внизу страницы'] }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  f.put('demo/page.ts', 'export const heading = "Новый материал"\nexport const footer = "Условия без изменений"\n')
+  writeCreativeBuild(f.args)
+  assert.ok(creativeReviewPacket({ ...f.args, stage: 'spec' }).questions.some(question => question.id === 'scope'))
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'targeted edit').status, 0)
+  const version = git('rev-parse', 'HEAD').stdout.trim()
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64')
+  for (const key of ['A', 'B']) for (const viewport of ['desktop', 'mobile'])
+    f.put(`demo/reviews/creative/${key}-${viewport}.png`, png)
+  const visualPath = 'demo/reviews/creative/lead-page-visual.json'
+  const captures = ['A', 'B'].flatMap(variantKey => ['desktop', 'mobile'].map(viewport => ({
+    path: `demo/reviews/creative/${variantKey}-${viewport}.png`, variantKey, viewport, codeVersion: version })))
+  f.put(visualPath, { captures: captures.slice(0, 3) })
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /варианта B нужен mobile/)
+  const ownerReview = { owner: 'Owner', message: 'Посмотрел оба варианта на телефоне и компьютере.',
+    messageReference: 'conversation:both-variants', reviewedAt: new Date().toISOString() }
+  f.put(visualPath, { mode: 'owner-preview', ownerReview, captures: captures.map(capture => ({
+    url: 'https://demo.example/page', variantKey: capture.variantKey,
+    viewport: capture.viewport, codeVersion: version })) })
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'result' }), /как был выбран именно этот variantKey/)
+  f.put(visualPath, { mode: 'owner-preview', ownerReview, captures: captures.map(capture => ({
+    url: 'https://demo.example/page', variantKey: capture.variantKey,
+    viewport: capture.viewport, codeVersion: version, selectionEvidence: `Тестовый выбор ${capture.variantKey}` })) })
+  assert.equal(new Set(creativeReviewPacket({ ...f.args, stage: 'result' }).visuals.map(v => v.path)).size, 4)
+  f.put(visualPath, { captures })
+  const packet = creativeReviewPacket({ ...f.args, stage: 'result' })
+  assert.ok(packet.questions.some(question => question.id === 'preservation'))
+  const diff = packet.files.find(file => file.path === packet.revisionDiffPath)
+  assert.match(diff.content, /Новый материал/)
+  assert.doesNotMatch(diff.content, /\+export const footer/)
+  const specPath = 'demo/creative/lead-page/spec.yaml'
+  const quotes = packet.files.find(file => file.path === specPath).content.split('\n').filter(line => line.trim().length > 9)
+  const report = { version: 1, process: 'demo', nodeId: 'lead-page', stage: 'result',
+    inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
+    inspectedVisuals: packet.visuals.map(visual => visual.path),
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass',
+      reason: 'Проверены файл, снимки и область изменения.', evidence: [{ path: specPath, quote: quotes[index] }] })) }
+  assert.throws(() => recordCreativeReview({ ...f.args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }), /цитата из Git-разницы/)
+  report.answers.find(answer => answer.id === 'preservation').evidence = [
+    { path: packet.revisionDiffPath, quote: '+export const heading = "Новый материал"' }]
+  assert.equal(recordCreativeReview({ ...f.args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }).status, 'ready')
+  f.put('demo/page.ts', 'export const heading = "Новый материал"\nexport const footer = "Другие условия"\n')
+  assert.equal(git('add', 'demo/page.ts').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'unrelated footer change').status, 0)
+  const changedVersion = git('rev-parse', 'HEAD').stdout.trim()
+  f.put(visualPath, { captures: captures.map(capture => ({ ...capture, codeVersion: changedVersion })) })
+  const changed = creativeReviewPacket({ ...f.args, stage: 'result' })
+  assert.match(changed.files.find(file => file.path === changed.revisionDiffPath).content, /\+export const footer = "Другие условия"/)
+  assert.equal(creativeReviewStatus({ ...f.args, stage: 'result' }).status, 'stale')
+})
+
 test('built-in reference cannot escape its catalog', t => {
   const f = fixture(t)
   f.spec.references = ['creative/catalog/../../../SKILL.md']
