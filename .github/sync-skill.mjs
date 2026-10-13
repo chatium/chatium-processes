@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const [action, accountArg] = process.argv.slice(2)
-if (!['status', 'install'].includes(action) || !accountArg || process.argv.length !== 4) {
-  console.error('Использование: node .github/sync-skill.mjs status|install <корень Git-аккаунта>')
+if (!['status', 'install', 'install-local'].includes(action) || !accountArg || process.argv.length !== 4) {
+  console.error('Использование: node .github/sync-skill.mjs status|install|install-local <корень Git-аккаунта>')
   process.exit(2)
 }
 
@@ -45,8 +45,11 @@ for (const path of [join(account, '.agents'), join(account, '.agents', 'skills')
 const temp = mkdtempSync(join(tmpdir(), 'processes-sync-'))
 
 try {
-  git(source, 'fetch', '--quiet', 'origin', 'main')
-  const commit = git(source, 'rev-parse', 'FETCH_HEAD')
+  if (action === 'install-local' && git(source, 'status', '--porcelain', '--untracked-files=no')) {
+    throw Error('Для установки локального кандидата сначала зафиксируйте изменения исходника')
+  }
+  if (action !== 'install-local') git(source, 'fetch', '--quiet', 'origin', 'main')
+  const commit = git(source, 'rev-parse', action === 'install-local' ? 'HEAD' : 'FETCH_HEAD')
   const unpacked = join(temp, 'archive')
   const distribution = join(temp, 'distribution')
   mkdirSync(unpacked)
@@ -79,6 +82,7 @@ try {
       source: 'https://github.com/chatium/chatium-processes',
       sourceCommit: commit,
       contentSha256: contentHash,
+      ...(action === 'install-local' ? { localCandidate: true } : {}),
     }, null, 2) + '\n')
     mkdirSync(target, { recursive: true })
     execFileSync('rsync', ['-ac', '--delete', '--exclude=/node_modules/', distribution + sep, target + sep], { stdio: 'inherit' })
