@@ -6,7 +6,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { architectureReviewStatus, makeArchitectureReviewPacket, recordArchitectureReview } from './lib/architecture-review.mjs'
 import { makeAnalyticsReviewPacket, recordAnalyticsReview } from './lib/analytics-review.mjs'
-import { commissionStatus, reviewRequirements, COMMISSION_STAGES } from './lib/commission.mjs'
+import { commissionStatus, readRequirement, reviewRequirements, COMMISSION_STAGES } from './lib/commission.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { referencePrompt, writeReferenceSnapshot } from './lib/review-library.mjs'
@@ -39,6 +39,19 @@ try {
   } else if (command === 'prepare' || command === 'record') {
     const role = options.role
     if (!role) throw Error('Укажите --role из reviews requirements.')
+    if (command === 'prepare') {
+      const reviewStage = ['test', 'launch'].includes(stage) ? 'result' : 'spec'
+      const requirement = reviewRequirements({ root, slug, stage }).find(item =>
+        item.role === role && (role !== 'creative' ||
+          (item.nodeId === options.node && item.reviewStage === reviewStage)))
+      if (requirement) {
+        const current = readRequirement({ root, slug, requirement })
+        if (current.status === 'needs-work' && current.path) throw Error(
+          `У роли ${role} уже есть заключение с замечаниями на неизменённом пакете. ` +
+          'Собери все замечания, исправь их одним блоком и проверь reviews status; ' +
+          'повторяй ревью после изменения проверяемых материалов.')
+      }
+    }
     if (!['architecture', 'analytics'].includes(role)) {
       const roleScripts = { methodology: 'kb-review.mjs', implementation: 'code-review.mjs', creative: 'creative-review.mjs', agents: 'agent-review.mjs' }
       const script = roleScripts[role]

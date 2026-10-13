@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -180,4 +180,18 @@ test('a blocking architecture conclusion keeps the design commission red', t => 
   const architecture = status.requirements.find(item => item.id === 'architecture')
   assert.equal(architecture.status, 'needs-work')
   assert.deepEqual(architecture.blocking.map(item => item.id), ['journey'])
+  const directory = mkdtempSync(join(tmpdir(), 'process-repeat-review-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const prepare = () => spawnSync(process.execPath, [reviewsCli, 'prepare', 'demo', '--role', 'architecture',
+    '--stage', 'design', '--root', root, '--out', directory], { encoding: 'utf8', timeout: 15_000 })
+  const unchanged = prepare()
+  assert.equal(unchanged.status, 2)
+  assert.match(unchanged.stderr, /неизменённом пакете/)
+  assert.equal(existsSync(join(directory, 'packet.json')), false)
+  writeFileSync(join(root, 'demo/PLAN.md'), '# План\n\nМенеджер отвечает на заявку и отказ клиента.\n')
+  assert.equal(commissionStatus({ root, slug: 'demo', stage: 'design' })
+    .requirements.find(item => item.id === 'architecture').status, 'stale')
+  const corrected = prepare()
+  assert.equal(corrected.status, 0, corrected.stderr)
+  assert.equal(existsSync(join(directory, 'packet.json')), true)
 })

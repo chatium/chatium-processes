@@ -55,7 +55,7 @@ export function reviewRequirements({ root, slug, stage = 'test' }) {
   return requirements
 }
 
-function readRequirement({ root, slug, requirement }) {
+export function readRequirement({ root, slug, requirement }) {
   if (requirement.role === 'methodology') return reviewStatus({ root, slug, stage: requirement.id.slice('knowledge-'.length) })
   if (requirement.role === 'architecture') return architectureReviewStatus({ root, slug })
   if (requirement.role === 'implementation') return codeReviewStatus({ root, slug })
