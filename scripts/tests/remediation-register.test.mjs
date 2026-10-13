@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const register = fileURLToPath(new URL('../../.github/REMEDIATION-REGISTER-2026-10-07.md', import.meta.url))
+const deferrals = fileURLToPath(new URL('../../.github/TESTER-DEFERRALS.json', import.meta.url))
 const expected = [
   ...Array.from({ length: 59 }, (_, i) => `R${String(i + 1).padStart(2, '0')}`),
   ...Array.from({ length: 12 }, (_, i) => `F${String(i + 1).padStart(2, '0')}`),
@@ -30,3 +31,14 @@ test('the remediation register retains all 176 findings and evidence for closed 
     }
   }
   })
+
+test('every unfinished finding has exactly one follow-up group',
+  { skip: !existsSync(register) || !existsSync(deferrals) }, () => {
+  const rows = readFileSync(register, 'utf8').split(/\r?\n/)
+    .filter(line => /^\| (?:R|F|M|A|D|C|E|I|Q|N)\d{2} \|/.test(line))
+    .map(line => line.split('|').map(value => value.trim()))
+  const unfinished = rows.filter(row => row[6] !== 'закрыто').map(row => row[1]).sort()
+  const groups = JSON.parse(readFileSync(deferrals, 'utf8')).groups
+  const assigned = Object.values(groups).flatMap(group => group.ids).sort()
+  assert.deepEqual(assigned, unfinished)
+})
