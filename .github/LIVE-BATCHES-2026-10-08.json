@@ -22,7 +22,8 @@
       "evidence": "plant-care/tests/customer-delivery-run.json",
       "latestOfflineEvidence": ".github/evidence/customer-delivery-offline-2026-10-13.md",
       "offlinePreparation": "account3/main@2138365: повтор второго платежа сохраняет duplicate_payment при retry без ложного paid_without_lessons; см. .github/evidence/architecture-analytics-offline-2026-10-13.md. Проверить один раз в этом пакете, не отдельной оплатой.",
-      "status": "pending"
+      "status": "partial",
+      "latestExecution": "13.10: на account3/main@94fcf11 повтор заявки не создал нового письма; 401 на анонимной смене цены, публичная цена 3900, одно обращение о возврате связано с точным sandbox paymentId. Pay refund и полная остановка остаются открытыми. Evidence: plant-care/tests/customer-delivery-grouped-2026-10-13.json."
     },
     {
       "id": "site-data-creative",
@@ -44,10 +45,11 @@
       "evidence": "site-agent-control/tests/site-data-run.json",
       "offlinePreparation": "account3/main@2138365: архитектура и аналитика сверены по исходникам; согласованы 30-дневное окно операционной метрики и локальная когорта. Нужны одна совпадающая CRM-пара, роль Admin/не-Admin, отрицательный direct caller и настоящий ход помощника; см. .github/evidence/architecture-analytics-offline-2026-10-13.md.",
       "latestIndependentReview": ".github/evidence/site-data-creative-grouped-2026-10-13.md",
-      "status": "pending",
+      "status": "partial",
       "closedIds": [
         "F06"
-      ]
+      ],
+      "latestExecution": "13.10: на account3/main@9806d58 связанная пара lead_created→booking_confirmed подтверждена независимым CRM-журналом; тестовый маршрут удалён. Формальные заключения и media/role остаются открытыми. Evidence: site-agent-control/tests/site-data-linked-crm-pair-2026-10-13.json."
     },
     {
       "id": "ai-routing",
@@ -64,7 +66,8 @@
       "testIdentityPlan": "Не пытаться добиться положительного staff-help повторением сообщения в существующей Telegram-цепочке владельца: у связанного CRM-клиента несколько заявок, а опубликованный requestStaffHelp.ts намеренно возвращает multiple-leads ещё до вызова Store. Для положительного случая в одном общем прогоне заранее создать отдельную синтетическую CRM-личность с одним учебным лидом и уникальным контактом домена .invalid, добавить этот контакт только в testContacts при mailings.testOnly=true и использовать directOutput без внешнего канала. Проверить queued и одну запись AgentHelpRequests; показ Store Inbox не оценивать. Существующий клиент с несколькими заявками даёт отрицательный случай, чужая личность — отказ в доступе. После пакета убрать синтетический контакт из конфига, сохранить тестовую запись как доказательство. Не создавать живую попытку до готовности всего пакета.",
       "latestAttempt": "После двух одинаковых отказов модели детерминированный вход подготовлен без нового сообщения. AI Agents main@706df39 и account3/main@7a437a6 прошли Source Build. Правило exact-ignore для «Позови сотрудника» установлено с CAS; dryRun вернул ignored для команды и selected для обычного вопроса. Sender-обработчик включён, локальные тесты и typecheck прошли. Реальная постановка обращения и перенос контекста ещё не проверены; следующий шаг — один общий AI-пакет, не третий модельный микропрогон. Evidence: .github/evidence/ai-handoff-grouped-2026-10-13.md.",
       "evidence": "site-agent-control/tests/ai-model-context-batch-2026-10-12.json",
-      "status": "pending"
+      "status": "partial",
+      "latestExecution": "13.10: на account3/main@dc706ec один синтетический CRM-клиент получил queued; намеренный повтор сохранил тот же requestId, многозаявочный контакт получил multiple-leads. Временный allowlist удалён в main@b1f9b84. Реальный Telegram-вход и перенос контекста ещё открыты. Evidence: site-agent-control/tests/ai-queue-grouped-2026-10-13.json."
     },
     {
       "id": "workflow-commission",
@@ -82,8 +85,9 @@
       "positive": "Регион уточнён, все явно запрошенные касания и адресаты сохранены в плане и карте, Store не навязан; заключения действуют на верном объёме; агент собирает замечания и проверяет пакет исправлений, останавливает повторяющийся блокер и ясно объясняет его владельцу.",
       "prerequisite": "Первый контроль на processes@bd5e6de создал красный design-пакет commission-sample. Фактический ввод не назвал получателя операционного письма; исходное обвинение в пропуске явно заказанного письма клиенту снято. Остальные замечания и границы результата — в локальном WORKFLOW-COMMISSION-REVIEW-2026-10-12.md. Повторять прогон после каждой правки нельзя: новый контроль только на одной зафиксированной версии после завершения остального кодового блока. R40 исключён до нового образа платформы. Для R50 достаточно одного контролируемого раунда замечаний; третий запуск специально не создавать.",
       "evidence": ".github/evidence/workflow-commission-run.json",
-      "status": "pending",
-      "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock."
+      "status": "needs-work",
+      "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock.",
+      "latestExecution": "13.10: Chatium Code на installed processes@cba5e73, ветка process/commission-control-v4. До первого ревью UI показал 83 шага разведки, только каркас и одна статья; сеанс остановлен один раз из-за расхода лимита. Источник скилла теперь требует scaffold сразу и запрещает исследовать валидаторы/соседние процессы без конкретной ошибки. Красный результат R16, остальные workflow ID не проверены. Evidence: .github/evidence/workflow-commission-budget-stop-2026-10-13.json."
     }
   ],
   "preflight": {

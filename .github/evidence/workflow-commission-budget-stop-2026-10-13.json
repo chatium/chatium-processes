@@ -1,0 +1,23 @@
+{
+  "batch": "workflow-commission",
+  "status": "red-budget-stop",
+  "account": "funnels-git-3.chatium.ru",
+  "branch": "process/commission-control-v4",
+  "baseCommit": "b1f9b844aba53a7bf2d2bdca1c34b8a3b406a74a",
+  "installedSkillCommit": "cba5e739aabe2449c2cc7660cefce706572dbeee",
+  "environment": "Authorized local Chatium Code desktop on the user's Mac, not ACP CLI or VM",
+  "scope": "One design-stage workflow package for a fictional ceramics workshop, with delegated test decisions, no message/payment/publication",
+  "observation": "Before the first design review, the UI already displayed a collapsed group of 83 steps spent on instructions, validator source, neighboring process examples and environment exploration. Only scaffold files and one draft knowledge article existed in the clean test branch. No methodology or architecture report had been prepared or recorded.",
+  "stop": "The running session was stopped once to protect the user's stated limit budget. No identical retry was launched.",
+  "filesAtStop": [
+    "ceramics-trial/.workspace.json",
+    "ceramics-trial/PLAN.md",
+    "ceramics-trial/process.yaml",
+    "ceramics-trial/specs/events.yaml",
+    "ceramics-trial/tasks/index.json",
+    ".knowledge-base/processes/ceramics-trial/overview.md"
+  ],
+  "finding": "The skill says to use a short router and scaffold first, but the agent still explored check/scaffold internals and sibling processes before building the package. This is a live negative example for R16 and the grouped-work budget rule; it is not evidence that the commission works.",
+  "mitigation": "The source skill now explicitly tells the agent to run scaffold immediately, use generated templates and one check on the complete draft, and inspect validator source or sibling examples only for a concrete unresolved error. The mitigation needs one future grouped acceptance, not a micro-retry now.",
+  "limits": "No owner decision, board-authority case, accepted review, full design check or launch was observed. R16/R44/R46/R50/M20 remain open pending the next bounded workflow acceptance."
+}
