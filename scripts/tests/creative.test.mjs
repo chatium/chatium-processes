@@ -784,6 +784,11 @@ test('independent review is tied to the current brief and sources', t => {
       evidence: [{ path: '.knowledge-base/processes/demo/offer.md', quote: quote.slice(0, 8 + index % 3) }] })),
   }
   const repeated = structuredClone(report)
+  for (const id of ['positioning', 'voice', 'coherence']) {
+    assert.ok(packet.questions.some(question => question.id === id))
+    const missing = { ...report, answers: report.answers.filter(answer => answer.id !== id) }
+    assert.throws(() => recordCreativeReview({ ...args, packet, report: missing, agentReference: 'unit-test-only' }), /каждый вопрос/)
+  }
   for (const answer of repeated.answers) answer.evidence = [{ path: '.knowledge-base/processes/demo/offer.md', quote }]
   assert.throws(() => recordCreativeReview({ ...args, packet, report: repeated, agentReference: 'unit-test-only' }), /Одна и та же цитата/)
   assert.equal(recordCreativeReview({ ...args, packet, report, agentReference: 'unit-test-only' }).status, 'ready')

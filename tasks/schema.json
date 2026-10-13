@@ -21,7 +21,8 @@
       "required": ["kind", "role"],
       "properties": {
         "kind": { "enum": ["main", "specialist"] },
-        "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$" }
+        "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$" },
+        "profiles": { "type": "array", "uniqueItems": true, "description": "Дополнительные компетенции; обязательные профили роли добавляются автоматически. Для consultant нужен хотя бы один.", "items": { "enum": ["marketing", "copywriting", "design", "communications", "product", "dialogue"] } }
       }
     },
     "mode": { "enum": ["implement", "consult", "produce", "review", "verify"] },

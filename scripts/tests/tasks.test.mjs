@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { acceptanceErrors, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
+import { acceptanceErrors, creativeTaskChain, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { SKILL_DIR } from '../lib/project.mjs'
 
@@ -528,8 +528,62 @@ test('specialist result requires bound run and saved response', t => {
   assert.equal(withoutRun.status, 1)
   assert.match(withoutRun.stderr, /сначала нужен bind/)
   assert.equal(f.run('bind', 'W001', '--agent-id', 'subagent-42').status, 0)
+  const missingProfiles = f.run('record', 'W001', '--file', join(f.root, 'result.json'))
+  assert.equal(missingProfiles.status, 1)
+  assert.match(missingProfiles.stderr, /контракту компетенций|brief/)
+  writeFileSync(responseRef, JSON.stringify({ status: 'result',
+    contractDigest: f.task().attempts.at(-1).specialistContract.digest,
+    brief: 'Заявка требует email; источник: .knowledge-base/processes/demo/form.md.',
+    proposal: 'Текст формы и подтверждения.',
+    profileApplications: [{ id: 'copywriting', decision: 'Точный текст состояния после отправки', proposalQuote: 'Текст формы и подтверждения.' }] }))
   assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).status, 0)
   assert.equal(f.task().attempts.at(-1).responseRef, responseRef)
+  assert.equal(f.task().result.specialistEvidence.profileApplications[0].id, 'copywriting')
+  assert.equal(f.run('accept', 'W001').status, 0)
+  const saved = f.task()
+  saved.result.specialistEvidence.profileApplications = []
+  f.put('demo/tasks/W001.json', saved)
+  assert.match(f.run('status').stdout, /каждого выбранного профиля/)
+})
+
+test('consultation CLI composes explicit profiles and rejects unknown profiles before creating a card', t => {
+  const f = fixture(t), task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.executor = { kind: 'specialist', role: 'consultant', profiles: ['marketing', 'missing'] }
+  task.mode = 'consult'
+  task.expectedOutputs = [{ path: 'demo/proposals/offer.md', purpose: 'Выбор предложения' }]
+  f.put('task.json', task)
+  const before = readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8')
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 1)
+  assert.equal(readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8'), before)
+  task.executor.profiles = ['marketing', 'product']
+  f.put('task.json', task)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  assert.equal(f.run('start', 'W001').status, 0)
+  const directory = mkdtempSync(join(tmpdir(), 'composed-consultation-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const prepared = f.run('prepare', 'W001', '--out', directory)
+  assert.equal(prepared.status, 0, prepared.stderr)
+  const packet = JSON.parse(readFileSync(prepared.json.packet, 'utf8'))
+  assert.deepEqual(packet.competencies.profiles.map(p => p.id), ['marketing', 'product'])
+  assert.equal(packet.competencies.digest, f.task().attempts.at(-1).specialistContract.digest)
+  assert.ok(readFileSync(prepared.json.prompt, 'utf8').includes(readFileSync(join(SKILL_DIR, 'specialists/profiles/product.md'), 'utf8').trim()))
+})
+
+test('confirmation recipe only replaces landing for a thank-you page; consultation cannot bypass the creative chain', t => {
+  const f = fixture(t), node = { id: 'form', kind: 'page', source: 'demo/form.vue' }
+  const expert = { id: 'W001', targetNode: 'form', executor: { kind: 'specialist', role: 'confirmation' }, mode: 'produce',
+    expectedOutputs: [{ path: 'demo/proposals/thanks.md' }] }
+  const spec = { id: 'W002', targetNode: 'form', executor: { kind: 'main' }, mode: 'produce', dependsOn: ['W001'],
+    inputs: [{ path: 'demo/proposals/thanks.md' }], expectedOutputs: [{ path: 'demo/creative/form/spec.yaml' }] }
+  const build = { id: 'W003', targetNode: 'form', executor: { kind: 'main' }, mode: 'implement', dependsOn: ['W002'],
+    inputs: [{ kind: 'build', path: 'demo/creative/form/build.md' }], expectedOutputs: [{ path: 'demo/form.vue' }] }
+  const run = () => creativeTaskChain({ root: f.root, slug: 'demo', node, tasks: [expert, spec, build] }).errors
+  f.put('demo/creative/form/spec.yaml', { landingType: 'thankyou' })
+  assert.deepEqual(run(), [])
+  f.put('demo/creative/form/spec.yaml', { landingType: 'sales' })
+  assert.match(run().join(), /confirmation подходит только/)
+  expert.executor.role = 'consultant'
+  assert.match(run().join(), /нет задачи специалиста landing/)
 })
 
 test('duplicate plan task and criterion IDs are rejected', t => {
