@@ -35,7 +35,10 @@ test('a missing contract or duplicate classification rejects the handoff', () =>
 
 test('every live finding belongs to exactly one grouped run', () => {
   const ids = deferrals.groups['live-process'].ids
-  assert.deepEqual(assessLiveBatches(liveBatches.batches, ids).errors, [])
+  const grouped = assessLiveBatches(liveBatches.batches, ids)
+  assert.deepEqual(grouped.errors, [])
+  assert.equal(grouped.batchCount, 4)
+  assert.equal(grouped.sessionCount, 3)
   const missing = structuredClone(liveBatches.batches)
   missing[0].ids.pop()
   assert.match(assessLiveBatches(missing, ids).errors.join('\n'), /назначен 0 пакетам/)
@@ -45,4 +48,10 @@ test('every live finding belongs to exactly one grouped run', () => {
   const inventedStatus = structuredClone(liveBatches.batches)
   inventedStatus[0].status = 'completed'
   assert.match(assessLiveBatches(inventedStatus, ids).errors.join('\n'), /допустимый статус/)
+  const mismatched = structuredClone(liveBatches.batches)
+  mismatched[2].fixture = 'funnels-git-3/main: other-process'
+  assert.match(assessLiveBatches(mismatched, ids).errors.join('\n'), /разные аккаунты или процессы/)
+  const separated = structuredClone(liveBatches.batches)
+  delete separated[2].sharedLiveSession
+  assert.match(assessLiveBatches(separated, ids).errors.join('\n'), /только одному пакету/)
 })

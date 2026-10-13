@@ -52,14 +52,24 @@ export function parseRegister(source) {
 }
 
 export function assessLiveBatches(batches, liveIds) {
-  const errors = [], seen = new Map(), expected = new Set(liveIds)
+  const errors = [], seen = new Map(), sessions = new Map(), expected = new Set(liveIds)
   const validStatuses = new Set(['pending', 'partial', 'executed-needs-work'])
   if (!Array.isArray(batches) || batches.length < 1 || batches.length > 4)
     return { errors: ['Живые проверки должны быть собраны в 1–4 пакета.'] }
   for (const batch of batches) {
+    if (!batch || typeof batch !== 'object') { errors.push('Неверное описание живого пакета.'); continue }
     if (!batch?.id || !batch.fixture || !batch.negative || !batch.positive || !batch.evidence ||
         !validStatuses.has(batch.status) || !Array.isArray(batch.ids) || !batch.ids.length)
       errors.push(`${batch?.id || '?'}: нужен сценарий, место, журнал, ID и допустимый статус проверки.`)
+    if ('sharedLiveSession' in batch &&
+        (typeof batch.sharedLiveSession !== 'string' || !batch.sharedLiveSession.trim()))
+      errors.push(`${batch.id}: sharedLiveSession должен быть непустым именем.`)
+    const key = batch.sharedLiveSession ? `shared:${batch.sharedLiveSession}` : `batch:${batch.id}`
+    const session = sessions.get(key)
+    if (session && session.fixture !== batch.fixture)
+      errors.push(`${batch.id}: общая живая сессия ${batch.sharedLiveSession} объединяет разные аккаунты или процессы.`)
+    if (session) session.count++
+    else sessions.set(key, { fixture: batch.fixture, count: 1, shared: Boolean(batch.sharedLiveSession) })
     for (const id of batch.ids || []) {
       if (!expected.has(id)) errors.push(`${id}: нет в списке живых проверок.`)
       seen.set(id, (seen.get(id) || 0) + 1)
@@ -67,7 +77,10 @@ export function assessLiveBatches(batches, liveIds) {
   }
   for (const id of liveIds) if (seen.get(id) !== 1)
     errors.push(`${id}: назначен ${seen.get(id) || 0} пакетам вместо одного.`)
-  return { errors, batchCount: batches.length }
+  for (const [key, session] of sessions)
+    if (session.shared && session.count < 2)
+      errors.push(`${key}: общая живая сессия назначена только одному пакету.`)
+  return { errors, batchCount: batches.length, sessionCount: sessions.size }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -83,7 +96,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else {
     console.log(`Кандидат для тестировщика учтён: ${rows.length - result.pendingCount} закрыто, ${result.pendingCount} ожидают проверки.`)
     for (const [group, count] of Object.entries(result.groups)) console.log(`  ${group}: ${count}`)
-    console.log(`Живые проверки собраны в ${live.batchCount} общих прогона; частичные результаты остаются открытыми.`)
+    console.log(`Живые проверки собраны в ${live.batchCount} логических пакета и ${live.sessionCount} сеанса; частичные результаты остаются открытыми.`)
     console.log('Это не разрешение на запуск процесса и не подтверждение готовности выпуска.')
   }
 }
