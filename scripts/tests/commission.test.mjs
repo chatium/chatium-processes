@@ -124,6 +124,31 @@ test('analytics sources require an independent conclusion with question-specific
   assert.equal(record.status, 0, record.stderr)
 })
 
+test('analytics reviewer receives only declared local evidence and notices changes', t => {
+  const root = fixture(t)
+  mkdirSync(join(root, '.knowledge-base/processes/demo'), { recursive: true })
+  writeFileSync(join(root, '.knowledge-base/.knowledge.yml'), 'order: [processes]\n')
+  writeFileSync(join(root, '.knowledge-base/processes/.knowledge.yml'), 'order: [demo]\n')
+  writeFileSync(join(root, '.knowledge-base/processes/demo/.knowledge.yml'), 'title: Demo\norder: [overview.md]\n')
+  writeFileSync(join(root, '.knowledge-base/processes/demo/overview.md'), '---\ntitle: Demo\n---\nПроверяем события.\n')
+  mkdirSync(join(root, 'demo/specs'), { recursive: true })
+  mkdirSync(join(root, 'demo/tests'), { recursive: true })
+  const specPath = join(root, 'demo/specs/analytics.yaml')
+  const evidencePath = join(root, 'demo/tests/linked-events.json')
+  writeFileSync(specPath, 'evidenceFiles:\n  - demo/tests/linked-events.json\n')
+  writeFileSync(evidencePath, '{"leadId":"lead-1","bookingId":"booking-1"}\n')
+  const packet = makeAnalyticsReviewPacket({ root, slug: 'demo' })
+  assert.equal(packet.files.find(file => file.path === 'demo/tests/linked-events.json')?.content,
+    '{"leadId":"lead-1","bookingId":"booking-1"}\n')
+  writeFileSync(evidencePath, '{"leadId":"lead-2","bookingId":"booking-1"}\n')
+  assert.notEqual(makeAnalyticsReviewPacket({ root, slug: 'demo' }).inputDigest, packet.inputDigest)
+  writeFileSync(specPath, 'evidenceFiles:\n  - demo/tests/../PLAN.md\n')
+  assert.throws(() => makeAnalyticsReviewPacket({ root, slug: 'demo' }), /Доказательство аналитики/)
+  writeFileSync(specPath, 'evidenceFiles:\n  - demo/tests/linked-events.json\n')
+  writeFileSync(evidencePath, '{invalid json')
+  assert.throws(() => makeAnalyticsReviewPacket({ root, slug: 'demo' }), /корректным JSON/)
+})
+
 test('a blocking architecture conclusion keeps the design commission red', t => {
   const root = fixture(t)
   mkdirSync(join(root, '.knowledge-base/processes/demo'), { recursive: true })
