@@ -87,7 +87,7 @@
       "evidence": ".github/evidence/workflow-commission-grouped-2026-10-13.json",
       "status": "executed-needs-work",
       "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock.",
-      "latestExecution": "13.10: на candidate processes@919316f агент собрал проектный пакет за 35 вызовов до записи обеих независимых заключений, всего 36. Читающий design check 32/34; методолог нашёл 10 пробелов (4 блокирующих), архитектор 10 (6 блокирующих). Комиссия закономерно оставила этап красным. Один общий список правок, затем повтор только затронутых ролей; отдельные живые микроповторы не делать. Evidence: .github/evidence/workflow-commission-grouped-2026-10-13.json."
+      "latestExecution": "13.10: на candidate processes@919316f первый пакет дошёл до обоих независимых заключений за 35 вызовов (36 всего); check 32/34, методолог 4 блокера, архитектор 6. Затем 18 причин исправлены одной пачкой; в той же локальной DSH-сессии только эти две роли повторили ревью за 20 вызовов, check 33/34. Методолог ready без блокеров, архитектор needs-work с двумя блокерами: непроверенный путь отправки и невыданные прикладные роли. Третий раунд не запускался. Это положительный сценарий группировки R50, но не общая приёмка. Evidence: .github/evidence/workflow-commission-grouped-2026-10-13.json."
     }
   ],
   "preflight": {

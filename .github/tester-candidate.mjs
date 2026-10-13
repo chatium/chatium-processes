@@ -53,12 +53,13 @@ export function parseRegister(source) {
 
 export function assessLiveBatches(batches, liveIds) {
   const errors = [], seen = new Map(), expected = new Set(liveIds)
+  const validStatuses = new Set(['pending', 'partial', 'executed-needs-work'])
   if (!Array.isArray(batches) || batches.length < 1 || batches.length > 4)
     return { errors: ['Живые проверки должны быть собраны в 1–4 пакета.'] }
   for (const batch of batches) {
     if (!batch?.id || !batch.fixture || !batch.negative || !batch.positive || !batch.evidence ||
-        batch.status !== 'pending' || !Array.isArray(batch.ids) || !batch.ids.length)
-      errors.push(`${batch?.id || '?'}: нужен сценарий, место, журнал, ID и статус pending.`)
+        !validStatuses.has(batch.status) || !Array.isArray(batch.ids) || !batch.ids.length)
+      errors.push(`${batch?.id || '?'}: нужен сценарий, место, журнал, ID и допустимый статус проверки.`)
     for (const id of batch.ids || []) {
       if (!expected.has(id)) errors.push(`${id}: нет в списке живых проверок.`)
       seen.set(id, (seen.get(id) || 0) + 1)
@@ -82,7 +83,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else {
     console.log(`Кандидат для тестировщика учтён: ${rows.length - result.pendingCount} закрыто, ${result.pendingCount} ожидают проверки.`)
     for (const [group, count] of Object.entries(result.groups)) console.log(`  ${group}: ${count}`)
-    console.log(`Живые проверки собраны в ${live.batchCount} общих прогона; их статус pending.`)
+    console.log(`Живые проверки собраны в ${live.batchCount} общих прогона; частичные результаты остаются открытыми.`)
     console.log('Это не разрешение на запуск процесса и не подтверждение готовности выпуска.')
   }
 }

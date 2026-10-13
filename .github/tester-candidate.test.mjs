@@ -42,4 +42,7 @@ test('every live finding belongs to exactly one grouped run', () => {
   const duplicate = structuredClone(liveBatches.batches)
   duplicate[1].ids.push(duplicate[0].ids[0])
   assert.match(assessLiveBatches(duplicate, ids).errors.join('\n'), /назначен 2 пакетам/)
+  const inventedStatus = structuredClone(liveBatches.batches)
+  inventedStatus[0].status = 'completed'
+  assert.match(assessLiveBatches(inventedStatus, ids).errors.join('\n'), /допустимый статус/)
 })

@@ -3,7 +3,7 @@
   "status": "executed-needs-work",
   "account": "funnels-git-3.chatium.ru",
   "accountMain": "069add0",
-  "testBranch": "process/commission-control-v4@5e1c5a5",
+  "testBranch": "process/commission-control-v4@e6d80fd",
   "installedSkillCommit": "919316fc24aecd1a618b05defa4b0842e826ac6a",
   "environment": "authorized local Chatium Code desktop",
   "scope": "One bounded design-stage run for a fictional ceramics workshop; no page publication, message, payment or automation enablement",
@@ -25,6 +25,20 @@
     "methodology": "10 gaps, 4 blocking: personal data/consent, unfulfilled customer contact promise, no way for client to learn staff decision, undefined trial offer terms",
     "architecture": "10 gaps, 6 blocking: missing table data spec, incomplete executable source inventory, undefined event contact source, missing sending action, wrong letter path, contradictory seventh-request behavior"
   },
-  "limits": "R16 shows improvement for this prompted bounded case but remains open for unprompted behavior; R44 was not tested because Almaty was supplied in the prompt; board-authority R46 and review-loop R50 remain open. No owner plan or launch decision was recorded. Existing three runtime batches remain partial and were not rerun here.",
-  "next": "Merge the two review reports into one offline correction block, then repeat only affected roles once. Do not run separate live checks for each finding."
+  "secondRound": {
+    "correction": "18 causes C1-C18 were grouped in ceramics-trial/reviews/round2-causes.md; knowledge, plan, map, events, data spec and cards were changed together in test branch commit d721016",
+    "budget": "One continuation in the existing local DSH session; 20 parent calls to grouped correction, check, two selective reviews and stop; no third round, sends, payments, publishing or runtime tests",
+    "reviews": "Only methodology and architecture were repeated on one frozen packet; results and evidence committed in the test branch at e6d80fd",
+    "check": "33/34 design checks passed; only architecture remains red",
+    "methodology": "ready; 17 covered, 2 advisory gaps, no blockers",
+    "architecture": "needs-work; 5 covered, 1 not applicable, 6 gaps including 2 blockers",
+    "blockingFindings": [
+      "The promised letters still lack a verified action route or a planned local action; decision-letter variables and required full-run test artifacts are not specified",
+      "Invented workshop-staff/workshop-owner roles have no creation, grant or server-side check mechanism; using account Staff would expose contacts to all account staff"
+    ],
+    "otherFindings": "Missing index.tsx route files in page task inventory; deadline calendar/timezone and class date unresolved; some data/event lifecycle and analytics design details incomplete",
+    "result": "The commission correctly refuses design. The R50 positive path is observed: one grouped correction, only affected roles repeated, no third identical round. Full workflow acceptance is not established."
+  },
+  "limits": "R16 shows improvement for this prompted bounded case but remains open for unprompted behavior and total work cost; R44 was not tested because Almaty was supplied in the prompt; board-authority R46 and negative review-loop R50 remain open. No owner plan or launch decision was recorded. Existing three runtime batches remain partial and were not rerun here.",
+  "next": "Resolve the two architecture blockers and advisory source/contract gaps offline, batch with other open work, then one grouped acceptance on a frozen candidate. Do not run a live check for each finding."
 }
