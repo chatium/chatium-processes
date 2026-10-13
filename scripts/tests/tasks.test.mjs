@@ -17,6 +17,20 @@ test('CRLF and deeper indentation preserve plan tasks and criteria', () => {
   assert.deepEqual(parseTaskPlan(plan).map(task => [task.id, task.criteria.map(item => item.id)]), [['T1', ['T1.A1']]])
 })
 
+test('live plan criterion cannot be assigned to a build card', t => {
+  const f = fixture(t)
+  f.put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Форма\n  - T1.A1 [build] Форма собрана.\n  - T1.A2 [test] Заявка сохранена на сервере.\n')
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.acceptanceCriteria[0].planCriteria = ['T1.A2']
+  f.put('demo/tasks/W001.json', task)
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo', stage: 'build' }).errors
+    .some(error => /T1\.A2: живой критерий этапа test нужен в отдельной карточке test/.test(error)))
+  task.stage = 'test'
+  f.put('demo/tasks/W001.json', task)
+  assert.ok(!taskReadiness({ root: f.root, slug: 'demo', stage: 'test' }).errors
+    .some(error => /T1\.A2: живой критерий этапа test нужен/.test(error)))
+})
+
 test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness', t => {
   const f = fixture(t)
   const unknown = f.run('startt', 'W001')

@@ -157,7 +157,10 @@ function taskErrors(task, plan) {
   for (const c of task?.acceptanceCriteria || []) for (const id of c.planCriteria || []) {
     const target = t?.criteria.find(x => x.id === id)
     need(Boolean(target), `нет критерия плана ${id}`)
-    if (target) need(TASK_STAGES.indexOf(task.stage) <= TASK_STAGES.indexOf(target.stage), `${id}: рабочая задача назначена позже срока`)
+    if (target) {
+      need(TASK_STAGES.indexOf(task.stage) <= TASK_STAGES.indexOf(target.stage), `${id}: рабочая задача назначена позже срока`)
+      if (target.stage === 'test') need(task.stage === 'test', `${id}: живой критерий этапа test нужен в отдельной карточке test`)
+    }
   }
   return errors
 }
