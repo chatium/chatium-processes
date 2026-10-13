@@ -12,6 +12,8 @@ const text = value => typeof value === 'string' && value.trim().length > 0
 const unique = values => new Set(values).size === values.length
 const catalog = name => JSON.parse(readFileSync(join(SKILL_DIR, 'creative/catalog', name), 'utf8'))
 const json = value => JSON.stringify(value, null, 2)
+const seriesAutomationRefs = spec => spec.automationRefs !== undefined ? spec.automationRefs
+  : spec.automationRef === undefined ? [] : [spec.automationRef]
 
 function malformedFlowFields(spec) {
   const errors = [], seen = new Set(), pending = [{ value: spec, path: 'spec' }]
@@ -252,12 +254,19 @@ function validateSeries(spec, errors, references) {
   if (spec.seriesType === 'sales' && !(spec.messages || []).some(m => m.cta)) errors.push('В продающей серии нужен хотя бы один обоснованный следующий шаг к покупке.')
   if (spec.deliveryMode && !['automation', 'manual'].includes(spec.deliveryMode))
     errors.push('deliveryMode серии: нужен automation или manual.')
+  const automationRefs = seriesAutomationRefs(spec)
+  if (spec.automationRef !== undefined && spec.automationRefs !== undefined)
+    errors.push('Укажите automationRef или automationRefs, но не оба поля.')
+  if (!Array.isArray(automationRefs) || automationRefs.length > 12 || !unique(automationRefs) ||
+      automationRefs.some(ref => !text(ref)))
+    errors.push('automationRefs: нужны уникальные непустые пути, не более 12.')
   if (spec.deliveryMode === 'manual') {
-    if (spec.automationRef) errors.push('Ручная серия не должна ссылаться на фиктивную автоматизацию.')
+    if (Array.isArray(automationRefs) && automationRefs.length) errors.push('Ручная серия не должна ссылаться на фиктивную автоматизацию.')
     for (const field of ['caller', 'trigger', 'recipient', 'stop'])
       if (!text(spec.manualInvocation?.[field])) errors.push(`Ручная серия: нужен manualInvocation.${field}.`)
   } else {
-    if (!text(spec.automationRef)) errors.push('Автоматической серии нужна automationRef для проверки запуска и остановки.')
+    if (!Array.isArray(automationRefs) || !automationRefs.length)
+      errors.push('Автоматической серии нужна automationRef или automationRefs для проверки запуска и остановки.')
     if (Array.isArray(spec.messages) && spec.messages.length > 1) {
       const stop = spec.automationStop
       if (!Array.isArray(stop?.reasons) || !stop.reasons.length || stop.reasons.length > 12 ||
@@ -349,36 +358,38 @@ export function creativePacket({ root, slug, nodeId }) {
     referenceFiles.push({ path: ref.startsWith('creative/') ? `.agents/skills/processes/${ref}` : ref,
       content: readFileSync(path, 'utf8') })
   } catch (error) { errors.push(`Референс ${ref}: ${error.message}`) }
-  let automationFile = null
-  if (spec?.kind === 'series' && text(spec.automationRef)) try {
-    const file = safeTaskPath(root, spec.automationRef)
-    if (statSync(file).size > 256 * 1024) throw Error('слишком большой файл автоматизации')
-    const content = readFileSync(file)
-    automationFile = { path: spec.automationRef, sha256: hash(content) }
-  } catch (error) { errors.push(`Автоматизация: ${error.message}`) }
+  const automationFiles = []
+  if (spec?.kind === 'series' && Array.isArray(seriesAutomationRefs(spec)))
+    for (const ref of seriesAutomationRefs(spec)) if (text(ref)) try {
+      const file = safeTaskPath(root, ref)
+      if (statSync(file).size > 256 * 1024) throw Error('слишком большой файл автоматизации')
+      const content = readFileSync(file)
+      automationFiles.push({ path: ref, sha256: hash(content) })
+    } catch (error) { errors.push(`Автоматизация ${ref}: ${error.message}`) }
   const parts = [{ path: specPath, sha256: hash(readFileSync(safeTaskPath(root, specPath))) },
     { node: hash(JSON.stringify(node)) },
     ...sources.map(s => ({ path: s.path, sha256: hash(s.content) })),
     ...copyFiles.map(file => ({ path: file.path, sha256: hash(file.content) })), ...assetFiles,
     ...(original?.path ? [{ path: original.path, sha256: original.sha256 }] : []),
-    ...(automationFile ? [automationFile] : []),
+    ...automationFiles,
     ...referenceFiles.map(r => ({ path: r.path, sha256: hash(r.content) })),
     { selectedCatalog: hash(JSON.stringify(guidance)) }]
   const inputDigest = hash(JSON.stringify(parts))
   const buildPath = `${slug}/creative/${nodeId}/build.md`
-  return { node, spec, specPath, sources, copyFiles, assetFiles, original, automationFile, referenceFiles, guidance, errors, inputDigest, buildPath }
+  return { node, spec, specPath, sources, copyFiles, assetFiles, original, automationFile: automationFiles[0] || null,
+    automationFiles, referenceFiles, guidance, errors, inputDigest, buildPath }
 }
 
 export function compileCreative(packet) {
   if (packet.errors.length) throw Error(packet.errors.join('\n'))
-  const { spec, node, guidance, sources, copyFiles, assetFiles, automationFile, referenceFiles, inputDigest } = packet
+  const { spec, node, guidance, sources, copyFiles, assetFiles, automationFiles, referenceFiles, inputDigest } = packet
   const requiredReferences = referenceFiles.map(r => r.path)
   const inputList = [{ kind: 'spec', path: packet.specPath },
     ...sources.map(s => ({ kind: 'knowledge', path: s.path })),
     ...copyFiles.map(f => ({ kind: 'reference', path: f.path })),
     ...assetFiles.map(f => ({ kind: 'asset', path: f.path })),
     ...(packet.original?.path ? [{ kind: 'asset', path: packet.original.path }] : []),
-    ...(automationFile ? [{ kind: 'code', path: automationFile.path }] : [])]
+    ...automationFiles.map(file => ({ kind: 'code', path: file.path }))]
   const requiredInputs = [...new Map(inputList.map(item => [item.path, item])).values()]
     .sort((a, b) => a.path.localeCompare(b.path))
   const header = `<!-- creative-build-v1 ${JSON.stringify({ generated: true, targetNode: node.id,
@@ -422,7 +433,7 @@ export function compileCreative(packet) {
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')
     if (spec.deliveryMode === 'manual') lines.push('## Ручной запуск', json(spec.manualInvocation))
-    else lines.push('## Автоматизация', spec.automationRef,
+    else lines.push('## Автоматизации', ...automationFiles.map(file => `- ${file.path}`),
       ...(spec.automationStop ? ['## Остановка следующих касаний', json(spec.automationStop)] : []))
   }
   lines.push('', '## Критерии приёмки', ...spec.acceptance.map(a => `- ${a}`), '',

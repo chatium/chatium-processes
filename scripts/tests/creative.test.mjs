@@ -529,6 +529,50 @@ test('series keeps each email distinct and checks its automation dependency', t 
   assert.ok(creativePacket(args).errors.some(e => e.includes('следующий шаг')))
 })
 
+test('separate outcome automations are all required and all invalidate the creative build', t => {
+  const f = fixture(t)
+  const args = { root: f.root, slug: 'demo', nodeId: 'decision' }
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'decision', kind: 'series', title: 'Исход заявки',
+    source: '.mailings/storage/processes/demo/decision/', creativeRef: 'demo/creative/decision/spec.yaml' }] })
+  const confirmed = 'demo/automation/confirmed.automationConfig.json'
+  const declined = 'demo/automation/declined.automationConfig.json'
+  f.put(confirmed, { eventUrls: ['event://confirmed'] })
+  f.put(declined, { eventUrls: ['event://declined'] })
+  const spec = { version: 1, kind: 'series', targetNode: 'decision', seriesType: 'follow_up',
+    objective: 'Сообщить исход', audience: 'Оставившие заявку',
+    sources: [{ id: 'offer', path: '.knowledge-base/processes/demo/offer.md' }],
+    voice: { addressing: 'вы', character: 'деловой', emotionality: 'сдержанно', example: 'Решение принято.' },
+    emailDesign: { layout: 'Одна колонка', components: 'Исход и шаг', colors: 'Тёмный текст', mobile: 'Одна колонка' },
+    messages: [
+      { id: 'confirmed', path: '.mailings/storage/processes/demo/decision/confirmed.message.yaml',
+        goal: 'Назвать подтверждение', mainIdea: 'Заявка подтверждена', subject: 'Подтверждено',
+        blocks: [{ type: 'outcome', text: 'Заявка подтверждена', sourceRef: 'offer' }] },
+      { id: 'declined', path: '.mailings/storage/processes/demo/decision/declined.message.yaml',
+        goal: 'Назвать отказ', mainIdea: 'Мест нет', subject: 'Мест нет',
+        blocks: [{ type: 'outcome', text: 'Мест нет', sourceRef: 'offer' }] },
+    ],
+    automationRefs: [confirmed, declined],
+    automationStop: { reasons: [{ when: 'Решение уже отправлено', stateSource: 'Заявка' }],
+      replyHandling: 'Ответ читает сотрудник', checkBeforeSend: 'Проверка заявки перед отправкой' },
+    openQuestions: [], acceptance: ['Один исход на заявку'],
+  }
+  f.put('demo/creative/decision/spec.yaml', spec)
+  assert.deepEqual(creativePacket(args).errors, [])
+  const first = writeCreativeBuild(args)
+  const build = readFileSync(join(f.root, first.path), 'utf8')
+  assert.match(build, /confirmed\.automationConfig\.json/)
+  assert.match(build, /declined\.automationConfig\.json/)
+  assert.equal(creativeStatus(args).status, 'ready')
+  f.put(declined, { eventUrls: ['event://declined'], enabled: false })
+  assert.equal(creativeStatus(args).status, 'stale')
+  rmSync(join(f.root, declined))
+  assert.match(creativePacket(args).errors.join('\n'), /declined\.automationConfig\.json/)
+  f.put(declined, { eventUrls: ['event://declined'] })
+  spec.automationRefs.push(confirmed)
+  f.put('demo/creative/decision/spec.yaml', spec)
+  assert.match(creativePacket(args).errors.join('\n'), /уникальные/)
+})
+
 test('manual series has a real invocation contract without a fake automation', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'followup', kind: 'series', title: 'Сообщение после разговора',
