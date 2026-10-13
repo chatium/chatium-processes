@@ -80,7 +80,7 @@ export function makeCodeReviewPacket({ root, slug }) {
   const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
   const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
-  if (rubric.version !== 4 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 5 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
     throw Error('Некорректная рубрика ревью реализации.')
   let paymentNode = false
