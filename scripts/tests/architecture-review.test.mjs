@@ -164,6 +164,14 @@ test('covered data answer requires citations from plan, workspace, table, event 
   dataAnswer.evidence.push({ path: 'demo/.workspace.json', quote: '"variables":{}' })
   dataAnswer.evidence.push({ path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' })
   assert.equal(validateReview(report, packet).status, 'ready')
+  const links = report.answers.find(answer => answer.id === 'links')
+  Object.assign(links, { status: 'covered', reason: 'Переходы якобы согласованы.',
+    evidence: [{ path: 'demo/process.yaml', quote: 'title: Demo' }] })
+  delete links.priority
+  delete links.nextAction
+  assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
+  links.evidence.push({ path: 'demo/specs/events.yaml', quote: 'visitorUid: uid' })
+  assert.equal(validateReview(report, packet).status, 'ready')
   dataAnswer.status = 'not-applicable'
   assert.throws(() => validateReview(report, packet), /нельзя объявить неприменимым/)
   dataAnswer.status = 'covered'
