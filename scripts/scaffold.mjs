@@ -216,5 +216,8 @@ for (const f of updated) console.log(`  ~ ${f}`)
 for (const f of skipped) console.log(`  = ${f} (уже есть)`)
 console.log(`Письма серий кладите в .mailings/storage/processes/${slug}/<series>/`)
 if (accountId === null) {
-  console.log('accountId в process.yaml пуст: узнайте его через chatium exec (return ctx.account.id)')
+  console.log('accountId в process.yaml пока пуст; каркас готов. Узнайте ID через chatium exec (return ctx.account.id) перед проверкой проекта.')
 }
+console.log(`Дальше: заполните созданные .knowledge-base/processes/${slug}/ и ${slug}/PLAN.md, process.yaml, specs/events.yaml одним связным черновиком.`)
+console.log(`После черновика: node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage design --knowledge-stage design --no-snapshot`)
+console.log('Соберите все замечания проверки; отсутствие заключений до комиссии ожидаемо. Исходники валидаторов и соседние процессы читайте только при конкретной неразрешённой ошибке.')

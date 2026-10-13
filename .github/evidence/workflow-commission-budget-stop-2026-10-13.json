@@ -18,6 +18,6 @@
     ".knowledge-base/processes/ceramics-trial/overview.md"
   ],
   "finding": "The skill says to use a short router and scaffold first, but the agent still explored check/scaffold internals and sibling processes before building the package. This is a live negative example for R16 and the grouped-work budget rule; it is not evidence that the commission works.",
-  "mitigation": "The source skill now explicitly tells the agent to run scaffold immediately, use generated templates and one check on the complete draft, and inspect validator source or sibling examples only for a concrete unresolved error. The mitigation needs one future grouped acceptance, not a micro-retry now.",
+  "mitigation": "The source skill now explicitly tells the agent to run scaffold immediately, use generated templates and one check on the complete draft, and inspect validator source or sibling examples only for a concrete unresolved error. Scaffold stdout now gives the next design command and the same bounded discovery rule. The mitigation needs one future grouped acceptance, not a micro-retry now.",
   "limits": "No owner decision, board-authority case, accepted review, full design check or launch was observed. R16/R44/R46/R50/M20 remain open pending the next bounded workflow acceptance."
 }
