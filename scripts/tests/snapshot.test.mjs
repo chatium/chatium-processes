@@ -12,6 +12,17 @@ writeFileSync(join(root,'demo/automations/test.automationConfig.json'),JSON.stri
 const build=(extra={})=>buildSnapshot({root,slug:'demo',map,checks:[],branch:'process/demo',commit:'a'.repeat(40),...extra})
 test('letters, action branches and needs-input survive in snapshot',()=>{const s=build();assert.equal(s.nodes[1].status,'needs-input');assert.equal(s.nodes[1].letters[0].subject,'Your booking');assert.equal(s.links[0].steps.length,4);assert.match(s.links[0].steps[2].title,/Thank you/);assert.match(s.links[0].steps[3].title,/Reminder/);assert.doesNotMatch(s.links[0].steps[0].detail,/[{}]/)})
 test('automation file paths survive in snapshot',()=>{assert.deepEqual(build().links[0].automationFiles,['demo/automations/test.automationConfig.json'])})
+
+test('manual handler path survives without invented automation steps',()=>{
+  const handler='demo/api/retry.ts'
+  mkdirSync(join(root,'demo/api'),{recursive:true})
+  writeFileSync(join(root,handler),'export const retry = true\n')
+  const manual={...map,links:[{...map.links[0],via:handler}]}
+  const link=build({map:manual}).links[0]
+  assert.equal(link.via,handler)
+  assert.deepEqual(link.automationFiles,[])
+  assert.deepEqual(link.steps,[])
+})
 test('planned automation link survives in the design snapshot before its source exists',()=>{
   const planned={...map,links:[{...map.links[0],via:'demo/automations/planned/'}]}
   const link=build({map:planned}).links[0]

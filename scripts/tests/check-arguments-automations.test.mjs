@@ -109,6 +109,23 @@ test('planned automation edge stays on the map during design and requires code d
   assert.equal(implemented.ok, true, implemented.errors.join('\n'))
 })
 
+test('manual series edge points to a real handler, never a fictional automation', t => {
+  const f = fixture(t)
+  const mapPath = 'demo/process.yaml'
+  const base = 'title: Demo\nknowledge: .knowledge-base/processes/demo/\nstages: [Lead]\nnodes:\n  - {id: queue, kind: page, stage: Lead, title: Queue, purpose: Decide, source: demo/admin/}\n  - {id: message, kind: series, stage: Lead, title: Message, purpose: Notify, source: .mailings/storage/processes/demo/message/}\nlinks:\n  - {from: queue, to: message, when: Admin retries, via: demo/api/retry.ts}\n'
+  f.put(mapPath, base)
+  const map = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'map')
+  assert.match(map('--task-stage', 'design').warnings.join('\n'), /нет исходника ручного перехода/)
+  assert.match(map('--task-stage', 'build').errors.join('\n'), /нет исходника ручного перехода/)
+  f.put('demo/api/retry.ts', "export const retry = app.function('/retry', async () => ({ success: true }))\n")
+  const implemented = map('--task-stage', 'build')
+  assert.equal(implemented.ok, true, implemented.errors.join('\n'))
+  f.put(mapPath, base.replace('when: Admin retries,', 'when: Admin retries, signal: "event:retry",'))
+  assert.match(map('--task-stage', 'build').errors.join('\n'), /событийный переход требует via автоматизации/)
+  f.put(mapPath, base.replace('demo/api/retry.ts', 'demo/../secrets.ts'))
+  assert.match(map('--task-stage', 'build').errors.join('\n'), /Некорректный путь задачи/)
+})
+
 test('map accepts a matching event in any automation within the linked folder', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\naccountId: 123\nknowledge: .knowledge-base/processes/demo\nstages: [Flow]\nnodes:\n  - {id: a, kind: page, stage: Flow, title: A, purpose: Start, source: demo/a}\n  - {id: b, kind: page, stage: Flow, title: B, purpose: Finish, source: demo/b}\nlinks:\n  - {from: a, to: b, when: after event, signal: "event:finished", via: demo/automations/flow/}\n')

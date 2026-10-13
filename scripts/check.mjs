@@ -377,15 +377,27 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     }
     if (l?.via !== undefined) {
       const via = norm(l.via)
-      const matching = automations.filter(x => rel(root, dirname(x.file)) === via || rel(root, x.file) === via)
-      if (!matching.length) {
-        const message = `${where}: в ${via} нет *.automationConfig.json`
-        if (options['task-stage'] === 'design') warn(`${message}; исходник появится на этапе сборки`)
-        else error(message)
-      } else if (l.signal) {
-        const ev = eventByKey.get(String(l.signal).replace(/^event:/, ''))
-        if (ev && !matching.some(a => (a.config?.eventUrls || []).includes(eventUrl(ev)))) {
-          error(`${where}: автоматизация ${via} не слушает ${eventUrl(ev)}`)
+      if (/\.tsx?$/.test(via)) {
+        try {
+          const source = safeTaskPath(root, via, { mayBeMissing: true })
+          if (!isFile(source)) {
+            const message = `${where}: нет исходника ручного перехода ${via}`
+            if (options['task-stage'] === 'design') warn(`${message}; исходник появится на этапе сборки`)
+            else error(message)
+          }
+        } catch (cause) { error(`${where}: ${cause.message}`) }
+        if (l.signal) error(`${where}: событийный переход требует via автоматизации, а не исходника ${via}`)
+      } else {
+        const matching = automations.filter(x => rel(root, dirname(x.file)) === via || rel(root, x.file) === via)
+        if (!matching.length) {
+          const message = `${where}: в ${via} нет *.automationConfig.json`
+          if (options['task-stage'] === 'design') warn(`${message}; исходник появится на этапе сборки`)
+          else error(message)
+        } else if (l.signal) {
+          const ev = eventByKey.get(String(l.signal).replace(/^event:/, ''))
+          if (ev && !matching.some(a => (a.config?.eventUrls || []).includes(eventUrl(ev)))) {
+            error(`${where}: автоматизация ${via} не слушает ${eventUrl(ev)}`)
+          }
         }
       }
     }
