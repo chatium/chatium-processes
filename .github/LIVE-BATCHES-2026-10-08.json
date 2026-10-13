@@ -10,6 +10,7 @@
       "ids": [
         "R18",
         "R23",
+        "R51",
         "D10",
         "C12",
         "E07",
@@ -23,7 +24,7 @@
       "latestOfflineEvidence": ".github/evidence/customer-delivery-offline-2026-10-13.md",
       "offlinePreparation": "account3/main@2138365: повтор второго платежа сохраняет duplicate_payment при retry без ложного paid_without_lessons; см. .github/evidence/architecture-analytics-offline-2026-10-13.md. Проверить один раз в этом пакете, не отдельной оплатой.",
       "status": "partial",
-      "latestExecution": "13.10: на account3/main@94fcf11 повтор заявки не создал нового письма; 401 на анонимной смене цены, публичная цена 3900, одно обращение о возврате связано с точным sandbox paymentId. Pay refund и полная остановка остаются открытыми. Evidence: plant-care/tests/customer-delivery-grouped-2026-10-13.json.",
+      "latestExecution": "13.10: один новый sandbox Pay платёж L71Pd4eeUg1JXeHMUTo0funne получил Succeeded, но order_paid и payment-course не появились. SDK-чтение на account3/main@b0b6cd3 обнаружило строковый Payment.attempt; guard callback ошибочно ожидал объект .id. Исправление account3/main@ec78432 прошло 9 тестов, typecheck и Source Build. Все пять подписок plant-care выключены. Callback предыдущего платежа Pay не повторяет автоматически; нового платежа до следующего единого батча не делать. Evidence: plant-care/tests/customer-delivery-sandbox-payment-2026-10-13.json.",
       "latestOfflineCorrection": "13.10: account3/main@7dca0c7 исправил два случая нескольких заявок одного контакта: остановка всех существующих серий и выбор точного Pay-платежа по его предмету. 9 локальных тестов, typecheck и Source Build прошли; живые исходы остаются для общего customer-delivery. Evidence: .github/evidence/customer-delivery-offline-2026-10-13.md."
     },
     {
