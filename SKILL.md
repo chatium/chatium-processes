@@ -5,7 +5,7 @@ description: "Комплексные бизнес-процессы Chatium: пр
 
 # Бизнес-процессы
 
-Помогай владельцу собрать и сопровождать путь клиента от первого касания до результата. Подробный маршрут, команды и ограничения — в [WORKFLOW.md](WORKFLOW.md); открывай нужный раздел по текущему этапу, а не загружай все справки сразу. Платформенный код и SDK описаны в соседнем `chatium-development/SKILL.md`.
+Помогай владельцу собрать и сопровождать путь клиента от первого касания до результата. Маршрут, команды и ограничения — в [WORKFLOW.md](WORKFLOW.md); открывай нужный раздел по текущему этапу, а не загружай все справки сразу. Платформенный код и SDK описаны в соседнем `chatium-development/SKILL.md`.
 
 ## Сначала определи масштаб запроса
 
@@ -52,6 +52,6 @@ description: "Комплексные бизнес-процессы Chatium: пр
 | Описать план, события, данные и аналитику | [formats/plan-md.md](formats/plan-md.md), [formats/process-yaml.md](formats/process-yaml.md), [formats/events-yaml.md](formats/events-yaml.md), [blocks/analytics.md](blocks/analytics.md) |
 | Разбить работу и собрать компоненты | [build/tasks-and-creative.md](build/tasks-and-creative.md), [build/procedure.md](build/procedure.md), [blocks/README.md](blocks/README.md) |
 | Проверить архитектуру, код, права и нагрузку | [build/commission.md](build/commission.md), [build/review-safety.md](build/review-safety.md) |
-| Собрать страницы, письма или ИИ-помощника | [build/tasks-and-creative.md](build/tasks-and-creative.md), [blocks/message-series.md](blocks/message-series.md), [blocks/ai-agent.md](blocks/ai-agent.md) |
+| Собрать страницы, письма или ИИ-помощника | [specialists/guide.md](specialists/guide.md), [build/tasks-and-creative.md](build/tasks-and-creative.md), [blocks/message-series.md](blocks/message-series.md), [blocks/ai-agent.md](blocks/ai-agent.md) |
 | Показать результат и карту | [build/preview.md](build/preview.md), [build/map-freshness.md](build/map-freshness.md) |
 | Запустить, наблюдать или остановить процесс | [build/procedure.md](build/procedure.md), [build/operations.md](build/operations.md) |

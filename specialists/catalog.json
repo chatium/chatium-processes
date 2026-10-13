@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "profiles": {
+    "marketing": { "version": 1, "path": "specialists/profiles/marketing.md" },
+    "copywriting": { "version": 1, "path": "specialists/profiles/copywriting.md" },
+    "design": { "version": 1, "path": "specialists/profiles/design.md" },
+    "communications": { "version": 1, "path": "specialists/profiles/communications.md" },
+    "product": { "version": 1, "path": "specialists/profiles/product.md" },
+    "dialogue": { "version": 1, "path": "specialists/profiles/dialogue.md" }
+  },
+  "roles": {
+    "landing": { "family": "page", "path": "specialists/roles/landing.md", "profiles": ["marketing", "copywriting", "design"], "references": ["creative/catalog/landing-quality.md"] },
+    "site": { "family": "page", "path": "specialists/roles/landing.md", "profiles": ["marketing", "copywriting", "design", "product"], "references": ["creative/catalog/landing-quality.md"] },
+    "confirmation": { "family": "page", "path": "specialists/roles/landing.md", "profiles": ["copywriting", "design"], "references": ["creative/catalog/landing-quality.md"] },
+    "email": { "family": "series", "path": "specialists/roles/email.md", "profiles": ["marketing", "copywriting", "communications"], "references": ["creative/catalog/email-quality.md", "creative/catalog/email-design.md"] },
+    "message": { "path": "specialists/roles/message.md", "profiles": ["copywriting", "communications"], "references": [] },
+    "agent": { "path": "specialists/roles/agent.md", "profiles": ["product", "dialogue", "copywriting"], "references": ["build/agent-instructions.md"] },
+    "consultant": { "path": "specialists/roles/consultant.md", "profiles": [], "references": [] },
+    "marketing": { "path": "specialists/roles/marketing.md", "profiles": ["marketing"], "references": [] },
+    "copywriter": { "path": "specialists/roles/copywriter.md", "profiles": ["copywriting"], "references": [] },
+    "reviewer": { "path": "specialists/roles/reviewer.md", "profiles": [], "references": [] }
+  }
+}

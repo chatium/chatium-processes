@@ -7,16 +7,16 @@ import { creativeReviewStatus } from './creative-review.mjs'
 import { architectureReviewStatus } from './architecture-review.mjs'
 import { analyticsReviewStatus } from './analytics-review.mjs'
 import { agentReviewStatus } from './agent-review.mjs'
-import { isProcessSlug, SKILL_DIR } from './project.mjs'
+import { isProcessSlug } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 import { needsCreativeReview } from './page-mode.mjs'
+import { specialistContract, specialistResponseErrors } from './specialists.mjs'
 
 export const TASK_STAGES = ['design', 'build', 'test', 'launch']
 export const TASK_STATUSES = ['queued', 'running', 'needs-input', 'ready-to-resume', 'result-ready', 'done', 'failed', 'cancelled']
 const KINDS = new Set(['knowledge', 'contract', 'spec', 'build', 'reference', 'code', 'asset', 'report'])
 const MODES = new Set(['implement', 'consult', 'produce', 'review', 'verify'])
 const EVIDENCE_KINDS = new Set(['test', 'artifact', 'inspection', 'review'])
-const SPECIALIST_ROLES = new Set(['marketing', 'copywriter', 'landing', 'email', 'reviewer'])
 const str = value => typeof value === 'string' && value.trim().length > 0
 const hash = value => createHash('sha256').update(value).digest('hex')
 const digest = value => hash(JSON.stringify(value))
@@ -25,15 +25,6 @@ const inside = (base, target) => target === base || target.startsWith(base + sep
 const sensitive = path => path.split(/[\\/]/).some(part =>
   ['.git', 'node_modules', '.cache', '.typings'].includes(part) ||
   /^\.env(?:\.|$)|^(?:credentials|secrets?)\.(?:json|ya?ml|txt|md)$/i.test(part))
-
-export function specialistRolePath(role) {
-  if (!SPECIALIST_ROLES.has(role)) throw Error(`Неизвестная роль специалиста: ${role}`)
-  const base = realpathSync(join(SKILL_DIR, 'specialists/roles'))
-  const path = join(base, `${role}.md`)
-  if (!inside(base, canonicalTarget(path)) || !existsSync(path) || !statSync(path).isFile())
-    throw Error(`Не найдена безопасная методика роли ${role}`)
-  return path
-}
 
 export function safeTaskPath(root, path, { mayBeMissing = false } = {}) {
   if (!str(path) || path.includes('\\') || path.startsWith('/') || path.split('/').some(part => !part || part === '..' || part === '.'))
@@ -125,8 +116,10 @@ function taskErrors(task, plan) {
   need(/^T\d+$/.test(task?.planTask || '') && plan.some(t => t.id === task.planTask), 'нет T-задачи в PLAN.md')
   need(str(task?.title) && str(task?.objective), 'нужны название и цель')
   need(['main', 'specialist'].includes(task?.executor?.kind) &&
-    /^[a-z][a-z0-9-]{0,40}$/.test(task?.executor?.role || '') &&
-    (task?.executor?.kind !== 'specialist' || SPECIALIST_ROLES.has(task.executor.role)), 'нужен известный безопасный исполнитель')
+    /^[a-z][a-z0-9-]{0,40}$/.test(task?.executor?.role || ''), 'нужен известный безопасный исполнитель')
+  if (task?.executor?.kind === 'specialist') {
+    try { specialistContract(task.executor) } catch (error) { need(false, `нужен известный безопасный исполнитель: ${error.message}`) }
+  } else need(task?.executor?.profiles === undefined, 'executor.profiles применяются только к specialist')
   need(MODES.has(task?.mode), 'неизвестный режим')
   if (task?.executor?.kind === 'specialist')
     need(task.mode !== 'implement', 'специалист не реализует код или итоговые файлы процесса; используй consult/produce/review/verify, реализация — задача main')
@@ -224,8 +217,18 @@ export function taskInputDigest(root, task) {
   const answers = (task.questions || []).filter(q => q.status === 'resolved')
     .map(q => ({ id: q.id, summary: q.answer?.summary, sourceRefs: q.answer?.sourceRefs }))
   const role = task.executor?.kind === 'specialist' ?
-    { name: task.executor.role, sha256: hash(readFileSync(specialistRolePath(task.executor.role))) } : null
+    { name: task.executor.role, sha256: specialistContract(task.executor).digest } : null
   return digest({ parts, answers, role })
+}
+
+export function specialistProposal(root, outputs) {
+  let bytes = 0
+  return outputs.map(output => {
+    const file = safeTaskPath(root, output.path)
+    bytes += statSync(file).size
+    if (bytes > 512 * 1024) throw Error('Предложение специалиста превышает 512 КБ.')
+    return readFileSync(file, 'utf8')
+  }).join('\n')
 }
 
 export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache = new Map()) {
@@ -237,6 +240,12 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
   if (task.executor?.kind === 'specialist') {
     const attempt = task.attempts?.find(a => a.id === task.result.attemptId)
     if (!str(attempt?.session?.agentId) || !str(attempt?.responseRef)) add('нет привязанного вызова и ответа специалиста')
+    if (attempt?.specialistContract) {
+      try {
+        const proposal = specialistProposal(root, task.result.outputs || [])
+        for (const error of specialistResponseErrors({ ...task.result.specialistEvidence, proposal }, specialistContract(task.executor))) add(error)
+      } catch (error) { add(error.message) }
+    }
   }
   if (task.questions?.some(q => q.status !== 'resolved')) add('остались открытые вопросы')
   if (task.steps?.some(s => s.status !== 'done' && s.status !== 'skipped')) add('остались незавершённые шаги')
@@ -312,9 +321,18 @@ export function creativeOutput(node, path) {
 export function creativeTaskChain({ root, slug, node, tasks }) {
   const errors = [], role = node.kind === 'page' ? 'landing' : 'email'
   const active = tasks.filter(task => task.status !== 'cancelled' && task.targetNode === node.id)
-  const experts = active.filter(task => task.executor?.kind === 'specialist' && task.executor.role === role && task.mode === 'produce')
+  const experts = active.filter(task => task.executor?.kind === 'specialist' && task.mode === 'produce' &&
+    (node.kind === 'page' ? ['landing', 'site', 'confirmation'].includes(task.executor.role) : task.executor.role === role))
   if (!experts.length) errors.push(`${node.id}: нет задачи специалиста ${role} на подготовку материала`)
   const specPath = `${slug}/creative/${node.id}/spec.yaml`
+  if (experts.some(task => task.executor.role === 'confirmation')) {
+    const file = safeTaskPath(root, specPath, { mayBeMissing: true })
+    if (existsSync(file)) {
+      if (statSync(file).size > 512 * 1024) throw Error('Слишком большой конфигуратор.')
+      if (parseYaml(readFileSync(file, 'utf8'))?.landingType !== 'thankyou')
+        errors.push(`${node.id}: confirmation подходит только для landingType: thankyou; для продающей страницы нужен landing`)
+    }
+  }
   const specTask = active.find(task => task.executor?.kind === 'main' && task.mode === 'produce' &&
     task.expectedOutputs?.some(output => output.path === specPath))
   if (!specTask) errors.push(`${node.id}: нет задачи main на итоговый ${specPath}`)
