@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const expectedIds = [
-  ...Array.from({ length: 54 }, (_, index) => `R${String(index + 1).padStart(2, '0')}`),
+  ...Array.from({ length: 61 }, (_, index) => `R${String(index + 1).padStart(2, '0')}`),
   ...Array.from({ length: 12 }, (_, index) => `F${String(index + 1).padStart(2, '0')}`),
   ...Object.entries({ M: 20, A: 13, D: 13, C: 14, E: 14, I: 12, Q: 14, N: 5 })
     .flatMap(([prefix, count]) => Array.from({ length: count }, (_, index) => `${prefix}${String(index + 1).padStart(2, '0')}`)),
@@ -19,7 +19,7 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   const extra = ids.filter(id => !expected.has(id))
   const repeated = ids.filter((id, index) => ids.indexOf(id) !== index)
   if (missing.length || extra.length || repeated.length)
-    errors.push(`Реестр 171 пунктов нарушен: отсутствуют ${missing.join(', ') || '—'}; лишние ${extra.join(', ') || '—'}; повторные ${repeated.join(', ') || '—'}.`)
+    errors.push(`Реестр ${expectedIds.length} пунктов нарушен: отсутствуют ${missing.join(', ') || '—'}; лишние ${extra.join(', ') || '—'}; повторные ${repeated.join(', ') || '—'}.`)
   const pending = rows.filter(row => row.status !== 'закрыто' &&
     !(row.status === 'отложено' && ['R20', 'E11', 'I10'].includes(row.id)))
   if (pending.length) errors.push(`Не закрыты ${pending.length} обязательных замечаний: ${pending.map(row => row.id).join(', ')}.`)

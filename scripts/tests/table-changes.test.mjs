@@ -111,3 +111,25 @@ test('comments cannot hide a physical rename and code outside the table is ignor
   assert.match(errors, /физического имени.*миграц/)
   assert.doesNotMatch(errors, /смена типа поля status/)
 })
+
+test('display-title-only edits do not require a live row check', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-table-title-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const file = join(root, 'demo/tables/orders.table.ts')
+  mkdirSync(dirname(file), { recursive: true })
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  writeFileSync(file, "export default Heap.Table('t_orders', { status: Heap.String({ customMeta: { title: 'Старый статус' } }) })\n")
+  git('init', '-q'); git('config', 'user.email', 'test@example.invalid'); git('config', 'user.name', 'Test')
+  git('add', '.'); git('commit', '-qm', 'existing table')
+  const changed = "export default Heap.Table('t_orders', { status: Heap.String({ customMeta: { title: 'Новый статус' } }) })\n"
+  writeFileSync(file, changed); git('add', '.'); git('commit', '-qm', 'rename display title')
+  assert.deepEqual(tableChangeStatus({ root, slug: 'demo' }).changed, [])
+  assert.equal(tableChangeStatus({ root, slug: 'demo', stage: 'launch' }).status, 'ready')
+  writeFileSync(file, changed.replace('Heap.String(', 'Heap.Number('))
+  assert.equal(tableChangeStatus({ root, slug: 'demo' }).status, 'missing')
+  writeFileSync(file, changed.replace("title: 'Новый статус'", "title: 'Новый статус', description: 'Смысл'"))
+  assert.equal(tableChangeStatus({ root, slug: 'demo' }).status, 'missing')
+})

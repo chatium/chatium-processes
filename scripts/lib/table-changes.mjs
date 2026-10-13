@@ -57,6 +57,15 @@ function schemaRisks(previous, current) {
   return { unknown: false, nameChanged: before.name !== after.name, changedFields, addedRequired }
 }
 
+function displayTitleOnly(previous, current) {
+  const before = tableShape(previous), after = tableShape(current)
+  if (!before || !after || before.name !== after.name || before.fields.size !== after.fields.size ||
+      [...before.fields].some(([name, type]) => after.fields.get(name) !== type)) return false
+  const title = /(\bcustomMeta\s*:\s*\{\s*title\s*:\s*)(?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")(\s*\})/g
+  const withoutTitles = source => source.replace(title, '$1__DISPLAY_TITLE__$2')
+  return withoutTitles(previous) === withoutTitles(current)
+}
+
 function git(root, args) {
   const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000,
     maxBuffer: 2 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
@@ -86,7 +95,7 @@ export function tableChangeStatus({ root, slug, stage = 'build' }) {
     const latest = revisions[0] ? git(root, ['show', `${revisions[0]}:${path}`]) : null
     const prior = revisions[1] ? git(root, ['show', `${revisions[1]}:${path}`]) : null
     const previous = latest === current ? prior : latest
-    if (previous !== null && previous !== current) {
+    if (previous !== null && previous !== current && !displayTitleOnly(previous, current)) {
       changed.push({ path, currentSha256, previousSha256: sha(previous) })
       risks.set(path, schemaRisks(previous, current))
     }
