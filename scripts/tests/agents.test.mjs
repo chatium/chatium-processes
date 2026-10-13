@@ -311,27 +311,37 @@ test('agent edit review includes the committed prior instructions and requires c
   const f = fixture()
   try {
     f.run()
+    f.map.nodes[0].agentId = 'a-1'
+    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml(f.map))
     execFileSync('git', ['init', '--quiet'], { cwd: f.root })
-    execFileSync('git', ['add', 'demo/agents/helper.agent.json'], { cwd: f.root })
+    execFileSync('git', ['add', 'demo'], { cwd: f.root })
     execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
       'commit', '--quiet', '-m', 'Initial agent'], { cwd: f.root })
     const path = join(f.root, 'demo/agents/helper.agent.json')
     writeFileSync(path, JSON.stringify({ title: 'Helper', model: 'model',
       instructions: ['Serve the client', 'Never promise a booking'], enabledTools: [] }))
+    f.map.nodes[0].agentId = 'a-2'
+    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml(f.map))
     const packet = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
-    const baseline = packet.revisionBaselines[0]
-    assert.equal(baseline.currentPath, 'demo/agents/helper.agent.json')
-    assert.match(packet.files.find(file => file.path === baseline.previousPath).content, /Serve the client/)
+    const configBaseline = packet.revisionBaselines.find(item => item.currentPath === 'demo/agents/helper.agent.json')
+    const mapBaseline = packet.revisionBaselines.find(item => item.currentPath === 'demo/process.yaml')
+    assert.match(packet.files.find(file => file.path === configBaseline.previousPath).content, /Serve the client/)
+    assert.match(packet.files.find(file => file.path === mapBaseline.previousPath).content, /a-1/)
     const answer = { id: 'agent.instructions', status: 'covered', evidence: [] }
-    assert.throws(() => validateAgentRevisionEvidence(packet, [answer]), /прежний конфиг/)
-    answer.evidence.push({ path: baseline.previousPath, quote: 'Serve the client' })
+    assert.throws(() => validateAgentRevisionEvidence(packet, [answer]), /прежний источник/)
+    answer.evidence.push({ path: configBaseline.previousPath, quote: 'Serve the client' })
+    assert.throws(() => validateAgentRevisionEvidence(packet, [answer]), /прежний источник/)
+    answer.evidence.push({ path: mapBaseline.previousPath, quote: 'a-1' })
     assert.doesNotThrow(() => validateAgentRevisionEvidence(packet, [answer]))
-    execFileSync('git', ['add', 'demo/agents/helper.agent.json'], { cwd: f.root })
+    assert.throws(() => validateAgentRevisionEvidence(packet, [{ ...answer, status: 'gap', priority: 'advisory', evidence: [] }]), /прежний источник/)
+    assert.doesNotThrow(() => validateAgentRevisionEvidence(packet, [{ ...answer, status: 'gap', priority: 'blocking', evidence: [] }]))
+    execFileSync('git', ['add', 'demo'], { cwd: f.root })
     execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
       'commit', '--quiet', '-m', 'Edit agent'], { cwd: f.root })
     const committed = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
-    assert.equal(committed.revisionBaselines[0].previousPath, baseline.previousPath)
-    assert.match(committed.files.find(file => file.path === baseline.previousPath).content, /Serve the client/)
+    assert.equal(committed.revisionBaselines.length, 2)
+    assert.match(committed.files.find(file => file.path === configBaseline.previousPath).content, /Serve the client/)
+    assert.match(committed.files.find(file => file.path === mapBaseline.previousPath).content, /a-1/)
   } finally { f.cleanup() }
 })
 

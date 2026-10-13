@@ -21,14 +21,15 @@ function gitText(root, args) {
   return result.status === 0 ? result.stdout : null
 }
 
-function previousAgentConfigs(root, slug, agents, files) {
+function previousAgentSources(root, slug, agents, files) {
   const gitRoot = gitText(root, ['rev-parse', '--show-toplevel'])?.trim()
   if (!gitRoot || realpathSync(gitRoot) !== realpathSync(root)) return { files: [], baselines: [] }
   const previousFiles = [], baselines = []
-  for (const agent of agents) {
-    const path = agent?.config
+  const paths = new Set([...agents.map(agent => agent?.config),
+    `${slug}/agents/spec.yaml`, `${slug}/process.yaml`])
+  for (const path of paths) {
     const current = files.find(file => file.path === path)
-    if (!current || !path.startsWith(`${slug}/agents/`)) continue
+    if (!current || !(path.startsWith(`${slug}/agents/`) || path === `${slug}/process.yaml`)) continue
     const committed = gitText(root, ['show', `HEAD:${path}`])
     if (committed === null) continue // A newly created role has no earlier configuration.
     let fromCommit, previous
@@ -126,7 +127,7 @@ export function makeAgentReviewPacket({ root, slug }) {
   }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются ID вопросов ревью помощников.')
   const subject = agentSubject(corpus, slug, agents)
-  const revisions = previousAgentConfigs(root, slug, agents, subject.files)
+  const revisions = previousAgentSources(root, slug, agents, subject.files)
   const staticChecks = [{ id: 'agent-source-scope', title: 'Полнота исходников помощника', ok: !subject.errors.length,
     errors: subject.errors, warnings: [] }, { id: 'agents', title: 'Агенты процесса', ok: !validation.errors.length,
     errors: validation.errors, warnings: validation.warnings }]
@@ -140,9 +141,10 @@ export function makeAgentReviewPacket({ root, slug }) {
 export function validateAgentRevisionEvidence(packet, answers) {
   if (!packet.revisionBaselines?.length) return
   const answer = answers.find(item => item.id === 'agent.instructions')
-  if (answer?.status === 'covered' && packet.revisionBaselines.some(baseline =>
-    !answer.evidence.some(item => item.path === baseline.previousPath)))
-    throw Error('При правке роли заключение должно сослаться на прежний конфиг каждой изменённой роли.')
+  if (answer?.status === 'gap' && answer.priority === 'blocking') return
+  if (answer?.status === 'not-applicable' || packet.revisionBaselines.some(baseline =>
+    !answer?.evidence?.some(item => item.path === baseline.previousPath)))
+    throw Error('При правке роли заключение должно сослаться на прежний источник каждой изменённой роли или ID.')
 }
 
 export function recordAgentReview({ root, slug, packet, report, agentReference, packetDirectory }) {
