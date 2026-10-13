@@ -473,7 +473,8 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const routeTests = join(privateDir, 'contacts.json')
     writeFileSync(routeTests, JSON.stringify({ routes: [{ channel: 'test channel',
       testNewContacts: [{ type: 'email', value: 'test@example.com' }],
-      testExistingContacts: [{ type: 'email', value: 'existing@example.com' }] }] }))
+      testExistingContacts: [{ type: 'email', value: 'existing@example.com' }],
+      testIgnoredText: 'Позови сотрудника' }] }))
     const processYaml = join(f.root, 'demo/process.yaml')
     writeFileSync(join(f.root, 'demo/.workspace.json'), JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
     writeFileSync(processYaml, stringifyYaml({ title: 'Demo', accountId: 1, knowledge: '.knowledge-base/processes/demo/',
@@ -488,8 +489,9 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     writeFileSync(chatium, '#!/bin/sh\ncat >"$FAKE_RUNTIME_INPUT"\necho "Executed commit: $FAKE_RUNTIME_COMMIT" >&2\ncat "$FAKE_RUNTIME_RESPONSE"\n')
     chmodSync(chatium, 0o755)
     const response = { accountId: 1, agents: [{ key: 'helper', value: publishedAgentVersion(f.root), toolChecks: [] }],
-      routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 0 }, linkedAgentIds: ['a-1'] },
-        dryRun: { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }, existingDryRun: null }] }
+      routes: [{ index: 0, value: { config: { enabled: true, defaultAgentId: 'a-1', rulesCount: 1 }, linkedAgentIds: ['a-1'] },
+        dryRun: { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }, existingDryRun: null,
+        ignoredDryRun: { mode: 'selected', reason: 'default-agent' } }] }
     const run = (contactsFile = routeTests) => {
       writeFileSync(responseFile, JSON.stringify(response))
       const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
@@ -505,6 +507,7 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     assert.match(code, /contacts: item.contacts/)
     assert.match(code, /"contacts":\[\{"type":"email","value":"test@example.com"\}\]/)
     assert.match(code, /"existingContacts":\[\{"type":"email","value":"existing@example.com"\}\]/)
+    assert.match(code, /"ignoreText":"Позови сотрудника"/)
     assert.doesNotMatch(code, /chainKey/)
     assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'missing')
     response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1', reason: 'default-agent' }
@@ -512,11 +515,16 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     assert.equal(withoutExisting.report.status, 'unverified')
     assert.match(withoutExisting.report.errors.join('\n'), /CRM-цепочка/)
     response.routes[0].existingDryRun = { mode: 'selected', agentId: 'a-1', reason: 'active-chain-last-touch' }
+    const notIgnored = run()
+    assert.equal(notIgnored.report.status, 'unverified')
+    assert.match(notIgnored.report.errors.join('\n'), /служебная фраза не исключена/)
+    response.routes[0].ignoredDryRun = { mode: 'ignored', reason: 'rule' }
     const passed = run()
     assert.equal(passed.exit, 0, JSON.stringify(passed.report))
     assert.equal(passed.report.status, 'verified')
     assert.ok(passed.report.recordedPath)
     assert.doesNotMatch(JSON.stringify(passed.report), /test@example.com|existing@example.com/)
+    assert.doesNotMatch(JSON.stringify(passed.report), /Позови сотрудника/)
     assert.doesNotMatch(readFileSync(passed.report.recordedPath, 'utf8'), /test@example.com|existing@example.com/)
     assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'ready')
     const trackedContacts = join(f.root, 'route-tests.json')

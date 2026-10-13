@@ -25,7 +25,8 @@
       "offlinePreparation": "account3/main@2138365: повтор второго платежа сохраняет duplicate_payment при retry без ложного paid_without_lessons; см. .github/evidence/architecture-analytics-offline-2026-10-13.md. Проверить один раз в этом пакете, не отдельной оплатой.",
       "status": "partial",
       "latestExecution": "13.10: один новый sandbox Pay платёж L71Pd4eeUg1JXeHMUTo0funne получил Succeeded, но order_paid и payment-course не появились. SDK-чтение на account3/main@b0b6cd3 обнаружило строковый Payment.attempt; guard callback ошибочно ожидал объект .id. Исправление account3/main@ec78432 прошло 9 тестов, typecheck и Source Build. Все пять подписок plant-care выключены. Callback предыдущего платежа Pay не повторяет автоматически; нового платежа до следующего единого батча не делать. Evidence: plant-care/tests/customer-delivery-sandbox-payment-2026-10-13.json.",
-      "latestOfflineCorrection": "13.10: account3/main@7dca0c7 исправил два случая нескольких заявок одного контакта: остановка всех существующих серий и выбор точного Pay-платежа по его предмету. 9 локальных тестов, typecheck и Source Build прошли; живые исходы остаются для общего customer-delivery. Evidence: .github/evidence/customer-delivery-offline-2026-10-13.md."
+      "latestOfflineCorrection": "13.10: account3/main@7dca0c7 исправил два случая нескольких заявок одного контакта: остановка всех существующих серий и выбор точного Pay-платежа по его предмету. 9 локальных тестов, typecheck и Source Build прошли; живые исходы остаются для общего customer-delivery. Evidence: .github/evidence/customer-delivery-offline-2026-10-13.md.",
+      "latestLocalCheck": "13.10 на установленном кандидате processes@8977dda account3/main@f7cb24a: test check 29/38; красны старая таблица решений, карточки, творческие/знаниевые/кодовые ревью и согласование. Нового платежа, отправки или возврата не было."
     },
     {
       "id": "site-data-creative",
@@ -50,7 +51,8 @@
         "A09",
         "D09"
       ],
-      "latestExecution": "13.10: на account3/main@9806d58 связанная пара lead_created→booking_confirmed подтверждена независимым CRM-журналом; тестовый маршрут удалён. Формальные заключения и media/role остаются открытыми. Evidence: site-agent-control/tests/site-data-linked-crm-pair-2026-10-13.json."
+      "latestExecution": "13.10: на account3/main@9806d58 связанная пара lead_created→booking_confirmed подтверждена независимым CRM-журналом; тестовый маршрут удалён. Формальные заключения и media/role остаются открытыми. Evidence: site-agent-control/tests/site-data-linked-crm-pair-2026-10-13.json.",
+      "latestVisualBatch": "13.10: шесть актуальных desktop/mobile PNG опубликованы; единый независимый result-review принял 4 страницы, оставил 3 письма needs-work до проверки полученных писем и вложения. Test check 29/38. Evidence: .github/evidence/site-data-creative-grouped-2026-10-13.md."
     },
     {
       "id": "ai-routing",
@@ -68,7 +70,8 @@
       "latestAttempt": "После двух одинаковых отказов модели детерминированный вход подготовлен без нового сообщения. AI Agents main@706df39 и account3/main@7a437a6 прошли Source Build. Правило exact-ignore для «Позови сотрудника» установлено с CAS; dryRun вернул ignored для команды и selected для обычного вопроса. Sender-обработчик включён, локальные тесты и typecheck прошли. Реальная постановка обращения и перенос контекста ещё не проверены; следующий шаг — один общий AI-пакет, не третий модельный микропрогон. Evidence: .github/evidence/ai-handoff-grouped-2026-10-13.md.",
       "evidence": "site-agent-control/tests/ai-model-context-batch-2026-10-12.json",
       "status": "partial",
-      "latestExecution": "13.10: на account3/main@dc706ec один синтетический CRM-клиент получил queued; намеренный повтор сохранил тот же requestId, многозаявочный контакт получил multiple-leads. Временный allowlist удалён в main@b1f9b84. Реальный Telegram-вход и перенос контекста ещё открыты. Evidence: site-agent-control/tests/ai-queue-grouped-2026-10-13.json."
+      "latestExecution": "13.10: на account3/main@dc706ec один синтетический CRM-клиент получил queued; намеренный повтор сохранил тот же requestId, многозаявочный контакт получил multiple-leads. Временный allowlist удалён в main@b1f9b84. Реальный Telegram-вход и перенос контекста ещё открыты. Evidence: site-agent-control/tests/ai-queue-grouped-2026-10-13.json.",
+      "latestPublishedRuntime": "13.10 account3/main@fe9707f: 10/10 профильных вопросов, 0 блокеров; опубликованный SDK подтвердил 4/4 инструмента и новый/существующий CRM-маршруты. Статус partial только из-за одного дополнительного правила; локальный исходник processes добавил тест testIgnoredText (21/21 тест), ещё не установлен. Реальное входящее Telegram-сообщение не повторяли. Evidence: .github/evidence/ai-handoff-grouped-2026-10-13.md."
     },
     {
       "id": "workflow-commission",
@@ -86,10 +89,11 @@
       "positive": "Регион уточнён, все явно запрошенные касания и адресаты сохранены в плане и карте, Store не навязан; заключения действуют на верном объёме; агент собирает замечания и проверяет пакет исправлений, останавливает повторяющийся блокер и ясно объясняет его владельцу.",
       "prerequisite": "Первый контроль на processes@bd5e6de создал красный design-пакет commission-sample. Фактический ввод не назвал получателя операционного письма; исходное обвинение в пропуске явно заказанного письма клиенту снято. Остальные замечания и границы результата — в локальном WORKFLOW-COMMISSION-REVIEW-2026-10-12.md. Повторять прогон после каждой правки нельзя: новый контроль только на одной зафиксированной версии после завершения остального кодового блока. R40 исключён до нового образа платформы. Для R50 достаточно одного контролируемого раунда замечаний; третий запуск специально не создавать.",
       "evidence": ".github/evidence/workflow-commission-grouped-2026-10-13.json",
-      "status": "executed-needs-work",
+      "status": "design-ready-build-pending",
       "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock.",
       "latestExecution": "13.10: на candidate processes@919316f первый пакет дошёл до обоих независимых заключений за 35 вызовов (36 всего); check 32/34, методолог 4 блокера, архитектор 6. Затем 18 причин исправлены одной пачкой; в той же локальной DSH-сессии только эти две роли повторили ревью за 20 вызовов, check 33/34. Методолог ready без блокеров, архитектор needs-work с двумя блокерами: непроверенный путь отправки и невыданные прикладные роли. Третий раунд не запускался. Это положительный сценарий группировки R50, но не общая приёмка. Evidence: .github/evidence/workflow-commission-grouped-2026-10-13.json.",
-      "latestOfflineCorrection": "13.10: в учебной ветке process/commission-control-v4@3697f9e одним офлайн-пакетом исправлены оба блокера в плане, знаниях, карте и карточках; проверка design 32/34, красны только устаревшие заключения. Нового DSH-раунда, отправок и публикации не было. Следующее ревью — в общем пакетном проходе; details: .github/evidence/workflow-commission-grouped-2026-10-13.json."
+      "latestOfflineCorrection": "13.10: в учебной ветке process/commission-control-v4@3697f9e одним офлайн-пакетом исправлены оба блокера в плане, знаниях, карте и карточках; проверка design 32/34, красны только устаревшие заключения. Нового DSH-раунда, отправок и публикации не было. Следующее ревью — в общем пакетном проходе; details: .github/evidence/workflow-commission-grouped-2026-10-13.json.",
+      "latestDesignCommission": "13.10 process/commission-control-v4@91757a8: методология 19/19 и архитектура 12/12 приняты; design check 34/34, Source Build success. Build/test/launch и решения для них остаются впереди. Evidence: .github/evidence/four-grouped-checks-2026-10-13.md."
     }
   ],
   "preflight": {

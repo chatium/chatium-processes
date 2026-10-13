@@ -38,13 +38,16 @@ function routeTestContacts(file, root, routes) {
   for (const row of parsed.routes) {
     if (!row || typeof row.channel !== 'string' || !channels.has(row.channel) || result.has(row.channel))
       throw Error('В --route-tests найден неизвестный или повторный канал.')
-    for (const key of Object.keys(row)) if (!['channel', 'testNewContacts', 'testExistingContacts'].includes(key))
+    for (const key of Object.keys(row)) if (!['channel', 'testNewContacts', 'testExistingContacts', 'testIgnoredText'].includes(key))
       throw Error(`Неизвестное поле --route-tests: ${key}.`)
     for (const key of ['testNewContacts', 'testExistingContacts']) if (row[key] !== undefined &&
         (!Array.isArray(row[key]) || !row[key].length || row[key].length > 5 ||
           row[key].some(contact => typeof contact?.type !== 'string' || !contact.type.trim() || contact.type.length > 100 ||
             typeof contact?.value !== 'string' || !contact.value.trim() || contact.value.length > 500)))
       throw Error(`${key} в --route-tests должен содержать 1–5 контактов с type и value.`)
+    if (row.testIgnoredText !== undefined &&
+        (typeof row.testIgnoredText !== 'string' || !row.testIgnoredText.trim() || row.testIgnoredText.length > 500 || !row.testNewContacts))
+      throw Error('testIgnoredText требует непустую фразу до 500 символов и testNewContacts.')
     result.set(row.channel, row)
   }
   return result
@@ -87,6 +90,7 @@ try {
   const input = { branch, agents: agents.map(({ key, config, enabledTools }) => ({ key, config, enabledTools })),
     routes: routes.map((route, index) => ({ index, channel: route.channel,
       contacts: contacts.get(route.channel)?.testNewContacts || route.testNewContacts || null, text: route.sampleText || 'Проверка маршрута',
+      ignoreText: contacts.get(route.channel)?.testIgnoredText || null,
       startParam: route.testStartParam || undefined,
       existingContacts: contacts.get(route.channel)?.testExistingContacts || route.testExistingContacts || null })) }
   const code = `import { getPublishedAgentVersionBySourcePath, getProcessChannelRouting, dryRunProcessChannelRouting, getAllAvailableTools, getEnabledToolEntry } from '@ai-agents/sdk/process'\n` +
@@ -95,7 +99,7 @@ try {
     `for (const item of input.agents) { try { agents.push({ key: item.key, value: await getPublishedAgentVersionBySourcePath(ctx, item.config, input.branch), enabledTools: item.enabledTools }) } catch (error) { agents.push({ key: item.key, error: String(error?.message || error) }) } }\n` +
     `try { const catalog = await getAllAvailableTools(ctx); for (const row of agents) { if (!row.value) continue; const refs = row.enabledTools || []; row.toolChecks = []; if (refs.length > 40 || catalog.tools.length > 1000) { row.toolError = 'tool catalog limit exceeded'; continue } for (const ref of refs) { const candidates = catalog.tools.filter(item => Array.isArray(item.nativeJson) && Number(item.nativeJson[0]) === (ref.isWorkspaceTool ? ctx.account.id : ref.accountId) && String(item.nativeJson[1] || '').replace(/^\\/+/, '').includes(String(ref.path || '').replace(/^\\/+/, ''))); if (candidates.length > 10) { row.toolChecks.push({ ref, status: 'unverified', reason: 'ambiguous catalog entry' }); continue } let found = false; for (const item of candidates) { const entry = await getEnabledToolEntry(ctx, item.nativeJson, row.value.workspacePath ?? undefined); if (entry && entry.isWorkspaceTool === ref.isWorkspaceTool && (entry.accountId ?? null) === (ref.accountId ?? null) && entry.path === ref.path && entry.pattern === ref.pattern) { found = true; break } } row.toolChecks.push({ ref, status: found ? 'available' : 'missing' }) } } } catch (error) { for (const row of agents) if (row.value) row.toolError = String(error?.message || error) }\n` +
     `const routes = []\n` +
-    `for (const item of input.routes) { try { routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text, startParam: item.startParam }) : null, existingDryRun: item.existingContacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.existingContacts, text: item.text, startParam: item.startParam }) : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
+    `for (const item of input.routes) { try { const ignored = item.ignoreText && item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.ignoreText, startParam: item.startParam }) : null; routes.push({ index: item.index, value: await getProcessChannelRouting(ctx, item.channel), dryRun: item.contacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.contacts, text: item.text, startParam: item.startParam }) : null, existingDryRun: item.existingContacts ? await dryRunProcessChannelRouting(ctx, { channelId: item.channel, contacts: item.existingContacts, text: item.text, startParam: item.startParam }) : null, ignoredDryRun: ignored ? { mode: ignored.mode, reason: ignored.reason } : null }) } catch (error) { routes.push({ index: item.index, error: String(error?.message || error) }) } }\n` +
     `return { accountId: ctx.account.id, agents, routes }`
   const run = spawnSync('chatium', ['exec'], { cwd: root, input: code, encoding: 'utf8', timeout: 60_000, maxBuffer: 4 * 1024 * 1024 })
   if (run.error || run.status !== 0) throw Error(`Не удалось проверить опубликованное состояние: ${run.error?.message || run.stderr.trim()}`)
@@ -144,7 +148,11 @@ try {
           !['active-chain-last-touch', 'active-assignment', 'authoritative-assignment'].includes(row.existingDryRun?.reason))
         errors.push(`routes[${index}]: тестовая CRM-цепочка не продолжила разговор с ${route.expectedExistingAgent}`)
     }
-    if (row.value.config?.rulesCount) warnings.push(`routes[${index}]: в канале есть дополнительные правила; проверь отдельные случаи в интерфейсе`)
+    if (input.routes[index].ignoreText && row.ignoredDryRun?.mode !== 'ignored')
+      errors.push(`routes[${index}]: служебная фраза не исключена из ответа агента`)
+    const rulesCount = Number(row.value.config?.rulesCount || 0)
+    if (rulesCount && !(rulesCount === 1 && input.routes[index].ignoreText && row.ignoredDryRun?.mode === 'ignored'))
+      warnings.push(`routes[${index}]: в канале есть дополнительные непроверенные правила`)
   }
   const status = errors.length ? 'unverified' : warnings.length ? 'partial' : 'verified'
   const report = { process: slug, root, accountId: published.accountId, branch, commit, executedCommit, checkedAt: new Date().toISOString(),
