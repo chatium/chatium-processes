@@ -35,7 +35,6 @@
         "F02",
         "F09",
         "A12",
-        "D09",
         "C11",
         "C13"
       ],
@@ -48,7 +47,8 @@
       "status": "partial",
       "closedIds": [
         "F06",
-        "A09"
+        "A09",
+        "D09"
       ],
       "latestExecution": "13.10: на account3/main@9806d58 связанная пара lead_created→booking_confirmed подтверждена независимым CRM-журналом; тестовый маршрут удалён. Формальные заключения и media/role остаются открытыми. Evidence: site-agent-control/tests/site-data-linked-crm-pair-2026-10-13.json."
     },
