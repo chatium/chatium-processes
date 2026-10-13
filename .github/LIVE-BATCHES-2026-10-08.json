@@ -42,6 +42,7 @@
       "prerequisite": "В account3/main@7c60940 шесть заданий привязаны только к относящимся к ним разделам знаний и пересобраны одним пакетом; все семь creative briefs имеют статус ready. Правка раздела помощника больше не устаревает страницы и письма. Прежние заключения по изменённым spec закономерно stale; обновить их один раз после общего site-data-creative прогона, не повторять браузер ради смены отпечатка.",
       "evidence": "site-agent-control/tests/site-data-run.json",
       "offlinePreparation": "account3/main@2138365: архитектура и аналитика сверены по исходникам; согласованы 30-дневное окно операционной метрики и локальная когорта. Нужны одна совпадающая CRM-пара, роль Admin/не-Admin, отрицательный direct caller и настоящий ход помощника; см. .github/evidence/architecture-analytics-offline-2026-10-13.md.",
+      "latestRouteAudit": ".github/evidence/route-access-offline-2026-10-13.md: на account3/main@aa78187 все персональные/служебные маршруты двух пилотов имеют проверку роли, доверенного caller или принадлежности; опубликованный отказ не-Admin и Telegram-вход остаются в общем runtime-пакете.",
       "latestIndependentReview": ".github/evidence/four-grouped-checks-2026-10-13.md",
       "status": "partial",
       "closedIds": [
