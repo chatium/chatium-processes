@@ -16,6 +16,15 @@ function validTokenLimit(value) {
     Number.isFinite(value.periodValue) && value.periodValue > 0 && TOKEN_PERIODS.has(value.periodUnit))
 }
 
+function validKnowledgeBaseConfig(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (value.mode === 'allAvailableToAgents') return Object.keys(value).length === 1
+  return value.mode === 'ids' && Object.keys(value).length === 2 &&
+    Array.isArray(value.ids) && value.ids.length > 0 && value.ids.length <= 50 &&
+    value.ids.every(id => typeof id === 'string' && Boolean(id.trim())) &&
+    new Set(value.ids).size === value.ids.length
+}
+
 function validAutonomyPlan(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   if (!['first-message', 'only_if_no_reply', 'even_if_they_reply', 'repeat_until_cancelled'].includes(value.mode)) return false
@@ -62,6 +71,37 @@ function loadYaml(path, errors, label) {
   }
   try { return parseYaml(readFileSync(path, 'utf8')) }
   catch (error) { errors.push(`${label}: ${error.message}`); return null }
+}
+
+function validateKnowledgeAccess(root, sources, config, where, errors) {
+  const seen = new Set()
+  for (const [index, source] of sources.entries()) {
+    const label = `${where}.knowledge[${index}]`, path = typeof source === 'string' ? source : source?.path
+    const file = localFile(root, path)
+    if (!file || !existsSync(file)) { errors.push(`${label}: нет локального источника ${path || '?'}`); continue }
+    if (seen.has(path)) errors.push(`${label}: повторный источник ${path}`)
+    seen.add(path)
+    if (!isFile(file)) { errors.push(`${label}: источник не является файлом`); continue }
+    let content
+    try { content = readFileSync(file, 'utf8') }
+    catch (error) { errors.push(`${label}: источник не читается: ${error.message}`); continue }
+    if (!content.trim()) { errors.push(`${label}: источник пуст`); continue }
+    if (source.via === 'instructions') {
+      if (typeof source.sourceQuote !== 'string' || source.sourceQuote.trim().length < 12 ||
+          typeof source.instructionQuote !== 'string' || source.instructionQuote.trim().length < 12 ||
+          !content.includes(source.sourceQuote) ||
+          !Array.isArray(config.instructions) ||
+          !config.instructions.some(instruction => typeof instruction === 'string' && instruction.includes(source.instructionQuote)))
+        errors.push(`${label}: для via: instructions нужны настоящие цитаты из статьи и фактической инструкции агента.`)
+    } else if (source.via === 'knowledge-base') {
+      if (typeof source.baseId !== 'string' || !source.baseId.trim() ||
+          !config.knowledgeBase ||
+          (config.knowledgeBase.mode !== 'allAvailableToAgents' &&
+           (config.knowledgeBase.mode !== 'ids' || !Array.isArray(config.knowledgeBase.ids) ||
+            !config.knowledgeBase.ids.includes(source.baseId))))
+        errors.push(`${label}: база ${source.baseId || '?'} не подключена в .agent.json; доступ к статье проверь отдельно в рантайме.`)
+    } else errors.push(`${label}: укажи via: instructions или knowledge-base; ссылка в spec не даёт агенту доступ к статье.`)
+  }
 }
 
 /** Local, read-only checks. Published agents, routing and tool availability require separate verification. */
@@ -130,6 +170,8 @@ export function validateProcessAgents({ root, slug, map }) {
           typeof ref.path !== 'string' || !ref.path || typeof ref.pattern !== 'string' || !ref.pattern ||
           (!ref.isWorkspaceTool && !Number.isInteger(ref.accountId)))))
           errors.push(`${where}: enabledTools должен содержать канонические ссылки на инструменты`)
+        if (config.knowledgeBase !== undefined && !validKnowledgeBaseConfig(config.knowledgeBase))
+          errors.push(`${where}: knowledgeBase должен быть allAvailableToAgents либо ids с 1–50 уникальными ID баз.`)
         if (!validTokenLimit(config.tokensLimitPerChain))
           errors.push(`${where}: tokensLimitPerChain должен быть объектом {kind: "const", value: число} либо {kind: "hard"|"soft", value: число, periodValue: число, periodUnit}`)
         if (config.waitingToolEnabled === true || config.scheduleMessagesEnabled === true) {
@@ -139,6 +181,7 @@ export function validateProcessAgents({ root, slug, map }) {
             errors.push(`${where}: инициативные касания требуют timeZone и действительный tokensLimitPerChain в .agent.json`)
         }
         for (const field of ['department', 'specialists', 'supervisorAgentId']) if (field in config) errors.push(`${where}: ${field} относится к старой схеме отделов`)
+        validateKnowledgeAccess(root, Array.isArray(agent?.knowledge) ? agent.knowledge : [], config, where, errors)
       } catch (error) { errors.push(`${where}: ${agent.config} не разбирается как JSON: ${error.message}`) }
     }
     const node = agentNodes.find(node => node.id === agent?.node)
@@ -146,11 +189,6 @@ export function validateProcessAgents({ root, slug, map }) {
     else if (configPath && resolve(root, node.source || '') !== configPath) errors.push(`${where}: source узла ${agent.node} не совпадает с config`)
     if (byNode.has(agent?.node)) errors.push(`${where}: узел ${agent.node} назначен дважды`)
     byNode.set(agent?.node, agent)
-    for (const [j, source] of (Array.isArray(agent?.knowledge) ? agent.knowledge : []).entries()) {
-      const file = localFile(root, source)
-      if (!file || !existsSync(file)) errors.push(`${where}.knowledge[${j}]: нет локального источника ${source}`)
-      else if (!isFile(file) || !readFileSync(file, 'utf8').trim()) errors.push(`${where}.knowledge[${j}]: источник пуст или не является файлом`)
-    }
   }
   for (const node of agentNodes) if (!byNode.has(node.id)) errors.push(`узел ${node.id} не описан в agents/spec.yaml`)
   for (const path of configs) if (!byConfig.has(path)) errors.push(`конфиг ${relative(root, path)} не описан в agents/spec.yaml`)

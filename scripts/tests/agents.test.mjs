@@ -25,7 +25,7 @@ function fixture() {
   writeFileSync(join(root, '.knowledge-base/processes/demo/offer.md'), 'Offer')
   writeFileSync(join(dir, 'helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Serve the client'], enabledTools: [] }))
   const map = { accountId: 1, nodes: [{ id: 'helper', kind: 'agent', source: 'demo/agents/helper.agent.json' }] }
-  const spec = { version: 1, opportunities: [{ id: 'help', decision: 'accepted', need: 'Client question', reason: 'Owner approved' }], agents: [{ key: 'helper', config: 'demo/agents/helper.agent.json', node: 'helper', opportunity: 'help', role: 'Consultant', outcome: 'Qualified request', boundary: 'Escalate uncertainty', inputs: [{ kind: 'sender', source: 'test channel' }], knowledge: ['.knowledge-base/processes/demo/offer.md'], tools: [], cases: ['first-contact'] }], routes: [{ channel: 'test channel', firstAgent: 'helper', existingConversation: 'Current chain', testNewContacts: [{ type: 'email', value: 'test@example.com' }] }], handoffs: [] }
+  const spec = { version: 1, opportunities: [{ id: 'help', decision: 'accepted', need: 'Client question', reason: 'Owner approved' }], agents: [{ key: 'helper', config: 'demo/agents/helper.agent.json', node: 'helper', opportunity: 'help', role: 'Consultant', outcome: 'Qualified request', boundary: 'Escalate uncertainty', inputs: [{ kind: 'sender', source: 'test channel' }], knowledge: [], tools: [], cases: ['first-contact'] }], routes: [{ channel: 'test channel', firstAgent: 'helper', existingConversation: 'Current chain', testNewContacts: [{ type: 'email', value: 'test@example.com' }] }], handoffs: [] }
   const cases = { version: 1, cases: [{ id: 'first-contact', agent: 'helper', situation: 'New lead', expected: 'Qualify', evidence: 'CRM test record' }] }
   const run = () => {
     writeFileSync(join(dir, 'spec.yaml'), stringifyYaml(spec))
@@ -118,11 +118,42 @@ test('agent inputs, tools and referenced knowledge have useful local shape', () 
   try {
     f.spec.agents[0].inputs = [{ kind: 'sender' }]
     f.spec.agents[0].tools = [{ name: 'Check time' }]
+    f.spec.agents[0].knowledge = [{ path: '.knowledge-base/processes/demo/offer.md', via: 'instructions',
+      sourceQuote: 'Confirmed offer details', instructionQuote: 'Confirmed offer details' }]
     writeFileSync(join(f.root, '.knowledge-base/processes/demo/offer.md'), '   ')
     const errors = f.run().errors.join('\n')
     assert.match(errors, /inputs\[0\]: нужны kind и source/)
     assert.match(errors, /tools\[0\]: нужны name и source/)
     assert.match(errors, /knowledge\[0\]: источник пуст/)
+  } finally { f.cleanup() }
+})
+
+test('a referenced article must actually reach the agent instructions or configured knowledge base', () => {
+  const f = fixture()
+  try {
+    const path = '.knowledge-base/processes/demo/offer.md'
+    const configPath = join(f.root, 'demo/agents/helper.agent.json')
+    writeFileSync(join(f.root, path), 'Confirmed offer details for the demo service.')
+    f.spec.agents[0].knowledge = [path]
+    assert.match(f.run().errors.join('\n'), /ссылка в spec не даёт агенту доступ/)
+    f.spec.agents[0].knowledge = [{ path, via: 'instructions',
+      sourceQuote: 'Confirmed offer details', instructionQuote: 'Offer is available to the client' }]
+    assert.match(f.run().errors.join('\n'), /цитаты из статьи и фактической инструкции/)
+    writeFileSync(configPath, JSON.stringify({ title: 'Helper', model: 'model',
+      instructions: ['Offer is available to the client'], enabledTools: [] }))
+    assert.deepEqual(f.run().errors, [])
+    assert.ok(makeAgentReviewPacket({ root: f.root, slug: 'demo' }).files.some(file => file.path === path))
+    f.spec.agents[0].knowledge = [{ path, via: 'knowledge-base', baseId: 'kb-demo' }]
+    assert.match(f.run().errors.join('\n'), /база kb-demo не подключена/)
+    writeFileSync(configPath, JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Serve the client'],
+      enabledTools: [], knowledgeBase: { mode: 'ids', ids: ['other-base'] } }))
+    assert.match(f.run().errors.join('\n'), /база kb-demo не подключена/)
+    writeFileSync(configPath, JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Serve the client'],
+      enabledTools: [], knowledgeBase: { mode: 'ids', ids: ['kb-demo'] } }))
+    assert.deepEqual(f.run().errors, [])
+    writeFileSync(configPath, JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Serve the client'],
+      enabledTools: [], knowledgeBase: { mode: 'ids', ids: [] } }))
+    assert.match(f.run().errors.join('\n'), /knowledgeBase должен быть/)
   } finally { f.cleanup() }
 })
 

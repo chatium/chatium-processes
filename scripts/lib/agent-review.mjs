@@ -37,7 +37,7 @@ function agentSubject(corpus, slug, agents) {
       /\/(?:ai|agent)[^/]*\.(?:json|ya?ml|md)$/i.test(file.path)) selected.add(file.path)
   for (const agent of agents.filter(value => value && typeof value === 'object')) {
     include(agent.config, true)
-    for (const source of (Array.isArray(agent.knowledge) ? agent.knowledge : [])) include(source, true)
+    for (const source of (Array.isArray(agent.knowledge) ? agent.knowledge : [])) include(source?.path, true)
     for (const tool of (Array.isArray(agent.tools) ? agent.tools : []))
       if (typeof tool?.source === 'string' && !/^(?:@|[a-z][a-z0-9+.-]*:)/i.test(tool.source)) include(tool.source, true)
     if (agent.delivery?.handler) include(agent.delivery.handler, true)
