@@ -119,6 +119,13 @@ function resultDependencies(corpus, source) {
   const selected = new Set([...corpus.files, ...corpus.assets]
     .filter(file => file.path === source || file.path.startsWith(prefix)).map(file => file.path))
   const queue = [...selected]
+  const linkedRoutes = new Set()
+  const pagePart = path => /^([^/]+)\/pages\/([^/]+)\//.exec(path)
+  const isOtherPageRoute = (from, target) => {
+    const origin = pagePart(from), destination = pagePart(target)
+    return origin && destination && origin[1] === destination[1] && origin[2] !== destination[2] &&
+      /\/index\.[cm]?[jt]sx?$/.test(target)
+  }
   const links = new Map()
   for (const dependency of corpus.dependencies) {
     if (!dependency.target || !['local', 'configured-local'].includes(dependency.kind)) continue
@@ -126,10 +133,14 @@ function resultDependencies(corpus, source) {
     links.get(dependency.source).push(dependency.target)
   }
   for (let i = 0; i < queue.length; i++) {
+    // A route imported to build a link can affect this page's URL, but its own
+    // view and server dependencies do not affect this page's rendered image.
+    if (linkedRoutes.has(queue[i])) continue
     for (const target of links.get(queue[i]) || []) {
       if (selected.has(target)) continue
       selected.add(target)
       queue.push(target)
+      if (isOtherPageRoute(queue[i], target)) linkedRoutes.add(target)
     }
     for (const entry of corpus.scope.dynamic || []) {
       if (entry.source !== queue[i]) continue

@@ -818,6 +818,37 @@ test('result screenshots are tied to a committed, unchanged implementation', t =
   assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
 })
 
+test('a linked page view does not stale screenshots, but its route or the current page does', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Получить материал',
+    source: 'demo/pages/home/', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
+  f.put('demo/pages/home/index.tsx', 'import { catalogRoute } from "../catalog"\nexport const link = catalogRoute\n')
+  f.put('demo/pages/catalog/index.tsx', 'import { view } from "./view"\nexport const catalogRoute = "/catalog"\nexport { view }\n')
+  f.put('demo/pages/catalog/view.ts', 'export const view = "Каталог"\n')
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==', 'base64')
+  f.put('demo/reviews/creative/desktop.png', png)
+  f.put('demo/reviews/creative/mobile.png', png)
+  writeCreativeBuild(f.args)
+  const git = (...args) => spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+  assert.equal(git('init', '-q').status, 0)
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'initial').status, 0)
+  const version = git('rev-parse', 'HEAD').stdout.trim()
+  f.put('demo/reviews/creative/lead-page-visual.json', { captures: ['desktop', 'mobile'].map(viewport => ({
+    path: `demo/reviews/creative/${viewport}.png`, viewport, codeVersion: version,
+  })) })
+  const args = { ...f.args, stage: 'result' }
+  const original = creativeReviewPacket(args)
+  f.put('demo/pages/catalog/view.ts', 'export const view = "Новый каталог"\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'catalog content').status, 0)
+  assert.equal(creativeReviewPacket(args).inputDigest, original.inputDigest)
+  f.put('demo/pages/catalog/index.tsx', 'import { view } from "./view"\nexport const catalogRoute = "/new-catalog"\nexport { view }\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'route URL').status, 0)
+  assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
+})
+
 test('owner-confirmed live preview is accepted only for the reviewed code and both viewports', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Получить материал',
