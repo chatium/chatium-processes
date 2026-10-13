@@ -43,7 +43,9 @@ try {
       const roleScripts = { methodology: 'kb-review.mjs', implementation: 'code-review.mjs', creative: 'creative-review.mjs', agents: 'agent-review.mjs' }
       const script = roleScripts[role]
       if (!script || !existsSync(join(import.meta.dirname, script))) throw Error(`Роль ${role} ещё не подключена.`)
-      const args = [join(import.meta.dirname, script), command, slug, '--root', root, '--json']
+      const args = [join(import.meta.dirname, script), command, slug, '--root', root]
+      // creative-review.mjs prints JSON already, but has no --json option.
+      if (role !== 'creative') args.push('--json')
       if (role === 'methodology') args.push('--stage', stage === 'launch' ? 'launch' : stage === 'design' ? 'design' : 'build')
       if (role === 'creative') {
         if (!options.node) throw Error('Для creative нужен --node ID.')

@@ -13,6 +13,8 @@ import { SKILL_DIR } from '../lib/project.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { parseYaml } from '../lib/yaml.mjs'
 
+const reviewsCli = fileURLToPath(new URL('../reviews.mjs', import.meta.url))
+
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-creative-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -44,6 +46,18 @@ function fixture(t) {
   put('demo/creative/lead-page/spec.yaml', spec)
   return { root, put, spec, args: { root, slug: 'demo', nodeId: 'lead-page' } }
 }
+
+test('central commission prepares a creative spec review', t => {
+  const f = fixture(t)
+  writeCreativeBuild(f.args)
+  const out = mkdtempSync(join(tmpdir(), 'process-creative-commission-'))
+  t.after(() => rmSync(out, { recursive: true, force: true }))
+  const result = spawnSync(process.execPath, [reviewsCli, 'prepare', 'demo', '--stage', 'build',
+    '--role', 'creative', '--node', 'lead-page', '--root', f.root, '--out', out],
+  { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(JSON.parse(readFileSync(join(out, 'packet.json'), 'utf8')).nodeId, 'lead-page')
+})
 
 test('documented page and manual-series specifications compile from their examples', t => {
   const f = fixture(t)
