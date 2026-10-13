@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve, sep } from 'node:path'
 import { validateProcessAgents } from './agents.mjs'
 import { collectImplementation } from './implementation.mjs'
@@ -13,6 +14,39 @@ export function agentReviewPath(root, slug) {
   const base = realpathSync(root), target = canonicalTarget(path)
   if (!target.startsWith(base + sep)) throw Error('Путь отчёта выходит за пределы аккаунта.')
   return path
+}
+
+function gitText(root, args) {
+  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 })
+  return result.status === 0 ? result.stdout : null
+}
+
+function previousAgentConfigs(root, slug, agents, files) {
+  const gitRoot = gitText(root, ['rev-parse', '--show-toplevel'])?.trim()
+  if (!gitRoot || realpathSync(gitRoot) !== realpathSync(root)) return { files: [], baselines: [] }
+  const previousFiles = [], baselines = []
+  for (const agent of agents) {
+    const path = agent?.config
+    const current = files.find(file => file.path === path)
+    if (!current || !path.startsWith(`${slug}/agents/`)) continue
+    const committed = gitText(root, ['show', `HEAD:${path}`])
+    if (committed === null) continue // A newly created role has no earlier configuration.
+    let fromCommit, previous
+    if (committed !== current.content) {
+      fromCommit = gitText(root, ['rev-parse', 'HEAD'])?.trim()
+      previous = committed
+    } else {
+      const changedAt = gitText(root, ['log', '-1', '--format=%H', '--', path])?.trim()
+      if (!changedAt) continue
+      fromCommit = `${changedAt}^`
+      previous = gitText(root, ['show', `${fromCommit}:${path}`])
+    }
+    if (previous === null || previous === current.content) continue
+    const previousPath = `review-baseline/${path}`
+    previousFiles.push({ path: previousPath, content: previous })
+    baselines.push({ currentPath: path, previousPath, fromCommit })
+  }
+  return { files: previousFiles, baselines }
 }
 
 function agentSubject(corpus, slug, agents) {
@@ -73,7 +107,7 @@ export function makeAgentReviewPacket({ root, slug }) {
   const validation = validateProcessAgents({ root, slug, map })
   if (!validation.enabled) throw Error('В процессе нет помощников для отдельного ревью.')
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/agent-review-questions.json'), 'utf8'))
-  if (rubric.version !== 5 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 6 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question) ||
       new Set(rubric.questions.map(q => q.id)).size !== rubric.questions.length)
     throw Error('Некорректная рубрика ревью помощников.')
@@ -92,13 +126,23 @@ export function makeAgentReviewPacket({ root, slug }) {
   }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются ID вопросов ревью помощников.')
   const subject = agentSubject(corpus, slug, agents)
+  const revisions = previousAgentConfigs(root, slug, agents, subject.files)
   const staticChecks = [{ id: 'agent-source-scope', title: 'Полнота исходников помощника', ok: !subject.errors.length,
     errors: subject.errors, warnings: [] }, { id: 'agents', title: 'Агенты процесса', ok: !validation.errors.length,
     errors: validation.errors, warnings: validation.warnings }]
   const base = { version: 1, process: slug, stage: 'agents', rubricVersion: rubric.version, questions,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/agent-reviewer.md'), 'utf8'),
-    files: subject.files, assets: subject.assets, dependencies: subject.dependencies, staticChecks }
+    files: [...subject.files, ...revisions.files], revisionBaselines: revisions.baselines,
+    assets: subject.assets, dependencies: subject.dependencies, staticChecks }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'agents' }))
+}
+
+export function validateAgentRevisionEvidence(packet, answers) {
+  if (!packet.revisionBaselines?.length) return
+  const answer = answers.find(item => item.id === 'agent.instructions')
+  if (answer?.status === 'covered' && packet.revisionBaselines.some(baseline =>
+    !answer.evidence.some(item => item.path === baseline.previousPath)))
+    throw Error('При правке роли заключение должно сослаться на прежний конфиг каждой изменённой роли.')
 }
 
 export function recordAgentReview({ root, slug, packet, report, agentReference, packetDirectory }) {
@@ -111,6 +155,7 @@ export function recordAgentReview({ root, slug, packet, report, agentReference, 
   const changed = changedInspectedReferences({ referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests }, current.referenceLibrary)
   if (changed.length) throw Error(`Прочитанные справки изменились: ${changed.join(', ')}`)
   const result = validateReview(report, current)
+  validateAgentRevisionEvidence(current, result.answers)
   const path = agentReviewPath(root, slug)
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify({ version: 1, process: slug, stage: 'agents', status: result.status,
@@ -138,7 +183,9 @@ export function agentReviewStatus({ root, slug }) {
     error: `Изменились прочитанные справки: ${changedReferences.join(', ')}` }
   if (report.inputDigest !== packet.inputDigest) return { status: 'stale', path,
     error: 'Инструкции, знания, инструменты, сценарии или обязательные правила изменились после ревью помощников.' }
-  return { ...validateReview(report, packet), path, inputDigest: packet.inputDigest,
+  const result = validateReview(report, packet)
+  validateAgentRevisionEvidence(packet, result.answers)
+  return { ...result, path, inputDigest: packet.inputDigest,
     informationalReferences: informationalReferenceChanges(report, packet.referenceLibrary),
     reviewedAt: report.reviewedAt, reviewer: report.reviewer }
 }

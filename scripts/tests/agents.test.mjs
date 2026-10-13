@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseYaml, stringifyYaml } from '../lib/yaml.mjs'
 import { validateProcessAgents } from '../lib/agents.mjs'
-import { makeAgentReviewPacket, agentReviewStatus } from '../lib/agent-review.mjs'
+import { makeAgentReviewPacket, agentReviewStatus, validateAgentRevisionEvidence } from '../lib/agent-review.mjs'
 import { agentRuntimeEvidenceStatus, writeAgentRuntimeEvidence } from '../lib/agent-runtime-evidence.mjs'
 
 function publishedAgentVersion(root) {
@@ -288,7 +288,7 @@ test('independent review packet binds role instructions and reference snapshot',
     f.run()
     const first = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(first.questions.some(question => question.id === 'role.helper'))
-    assert.equal(first.rubricVersion, 5)
+    assert.equal(first.rubricVersion, 6)
     assert.ok(first.questions.some(question => question.id === 'agent.tool-flow' && /classId/.test(question.lookFor)))
     assert.match(first.reviewerInstructions, /Отсутствие ещё не выполненного прогона.*не является само по себе `blocking`/)
     assert.ok(first.referenceLibrary.required.some(path => [
@@ -304,6 +304,34 @@ test('independent review packet binds role instructions and reference snapshot',
     const withObservation = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
     assert.ok(withObservation.files.some(file => file.path === 'demo/tests/ai-grouped-result.json'))
     assert.notEqual(withObservation.inputDigest, changed.inputDigest)
+  } finally { f.cleanup() }
+})
+
+test('agent edit review includes the committed prior instructions and requires citing them', () => {
+  const f = fixture()
+  try {
+    f.run()
+    execFileSync('git', ['init', '--quiet'], { cwd: f.root })
+    execFileSync('git', ['add', 'demo/agents/helper.agent.json'], { cwd: f.root })
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+      'commit', '--quiet', '-m', 'Initial agent'], { cwd: f.root })
+    const path = join(f.root, 'demo/agents/helper.agent.json')
+    writeFileSync(path, JSON.stringify({ title: 'Helper', model: 'model',
+      instructions: ['Serve the client', 'Never promise a booking'], enabledTools: [] }))
+    const packet = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
+    const baseline = packet.revisionBaselines[0]
+    assert.equal(baseline.currentPath, 'demo/agents/helper.agent.json')
+    assert.match(packet.files.find(file => file.path === baseline.previousPath).content, /Serve the client/)
+    const answer = { id: 'agent.instructions', status: 'covered', evidence: [] }
+    assert.throws(() => validateAgentRevisionEvidence(packet, [answer]), /прежний конфиг/)
+    answer.evidence.push({ path: baseline.previousPath, quote: 'Serve the client' })
+    assert.doesNotThrow(() => validateAgentRevisionEvidence(packet, [answer]))
+    execFileSync('git', ['add', 'demo/agents/helper.agent.json'], { cwd: f.root })
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+      'commit', '--quiet', '-m', 'Edit agent'], { cwd: f.root })
+    const committed = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
+    assert.equal(committed.revisionBaselines[0].previousPath, baseline.previousPath)
+    assert.match(committed.files.find(file => file.path === baseline.previousPath).content, /Serve the client/)
   } finally { f.cleanup() }
 })
 
