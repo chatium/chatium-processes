@@ -49,7 +49,8 @@
       "closedIds": [
         "F06",
         "A09",
-        "D09"
+        "D09",
+        "C13"
       ],
       "latestExecution": "13.10: на account3/main@9806d58 связанная пара lead_created→booking_confirmed подтверждена независимым CRM-журналом; тестовый маршрут удалён. Формальные заключения и media/role остаются открытыми. Evidence: site-agent-control/tests/site-data-linked-crm-pair-2026-10-13.json.",
       "latestVisualBatch": "13.10: шесть актуальных desktop/mobile PNG опубликованы; единый независимый result-review принял 4 страницы, оставил 3 письма needs-work до проверки полученных писем и вложения. Test check 29/38. Evidence: .github/evidence/site-data-creative-grouped-2026-10-13.md."
