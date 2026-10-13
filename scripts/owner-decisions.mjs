@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs'
-import { prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { boardDecisionDigest, prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { commissionStatus } from './lib/commission.mjs'
+import { readProcessBoard } from './lib/board.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'],
@@ -38,7 +39,13 @@ try {
   let result
   if (command === 'prepare') {
     const boardRevision = options['board-revision'] === 'none' ? null : Number(options['board-revision'])
-    result = prepareOwnerDecision({ root, slug, kind, boardRevision })
+    let boardContentDigest = null
+    if (boardRevision !== null) {
+      const board = await readProcessBoard(root, slug)
+      if (board.boardRevision !== boardRevision) throw Error('Доска изменилась после чтения. Прочитайте её заново.')
+      boardContentDigest = boardDecisionDigest(board)
+    }
+    result = prepareOwnerDecision({ root, slug, kind, boardRevision, boardContentDigest })
     if (options.out) writeFileSync(options.out, JSON.stringify(result, null, 2) + '\n', { flag: 'wx' })
   } else if (command === 'record') {
     result = recordOwnerDecision({ root, slug, kind,

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { approvalScope, ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { approvalScope, boardDecisionDigest, ownerDecisionForCurrentBoard, ownerDecisionStatus, prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { fileURLToPath } from 'node:url'
 
 const contextCli = fileURLToPath(new URL('../context.mjs', import.meta.url))
@@ -139,6 +139,22 @@ test('build transition reads the current board revision before trusting plan app
   assert.match(stale.error, /ревизия 4.*5/)
   assert.equal((await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
     readBoard: async () => { throw Error('SDK unavailable') } })).status, 'unavailable')
+})
+
+test('snapshot-only board revision does not invalidate a content-bound decision', async t => {
+  const f = fixture(t)
+  const board = { boardRevision: 4, elements: { blocks: [{ id: 'note-1', text: 'Проверить форму' }], connections: [] }, notes: [] }
+  const boardContentDigest = boardDecisionDigest(board)
+  const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 4, boardContentDigest })
+  recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', packet, response: answer() })
+  const snapshotOnly = await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
+    readBoard: async () => ({ ...board, boardRevision: 5 }) })
+  assert.equal(snapshotOnly.status, 'ready')
+  const changedNote = await ownerDecisionForCurrentBoard({ root: f.root, slug: 'demo', kind: 'plan',
+    readBoard: async () => ({ ...board, boardRevision: 6,
+      elements: { ...board.elements, blocks: [{ id: 'note-1', text: 'Отправлять всем клиентам' }] } }) })
+  assert.equal(changedNote.status, 'stale')
+  assert.match(changedNote.error, /заметки или материалы/)
 })
 
 test('the approved launch survives only the testOnly deployment switch', t => {

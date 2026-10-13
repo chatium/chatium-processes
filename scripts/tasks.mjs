@@ -139,21 +139,22 @@ try {
   if (command === 'context') { show(context(task, planTask)); process.exit(0) }
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
-    if (task.mode === 'implement') {
+    const markedProcess = existsSync(join(root, slug, '.workspace.json'))
+    if (task.mode === 'implement' || (markedProcess && task.stage !== 'design')) {
       const mapPath = join(root, slug, 'process.yaml')
       if (existsSync(mapPath)) {
         const pending = inputBlockers(parseYaml(readFileSync(mapPath, 'utf8')), task.stage)
         if (pending.errors.length || pending.pending.length)
-          throw Error(`Начать реализацию нельзя: ${[...pending.errors,
+          throw Error(`Начать задачу ${task.stage} нельзя: ${[...pending.errors,
             ...pending.pending.map(item => `${item.kind === 'question' ? 'нужно решение владельца' : 'не закрыта зависимость'}: ${item.title}`)].join('; ')}`)
       }
       const decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
-      if (decision.status !== 'ready') throw Error(`Начать реализацию нельзя: ${decision.error || decision.status}`)
-      // Marked v2 processes must pass independent design review before code work.
-      if (existsSync(join(root, slug, '.workspace.json'))) {
+      if (decision.status !== 'ready') throw Error(`Начать задачу ${task.stage} нельзя: ${decision.error || decision.status}`)
+      // All build-stage work must start from the accepted design, including proposals.
+      if (markedProcess) {
         assertSkillProcess(root, slug)
         const design = commissionStatus({ root, slug, stage: 'design' })
-        if (design.status !== 'ready') throw Error(`Начать реализацию нельзя: независимое ревью design не принято — ${design.requirements
+        if (design.status !== 'ready') throw Error(`Начать задачу ${task.stage} нельзя: независимое ревью design не принято — ${design.requirements
           .filter(item => item.status !== 'ready').map(item => `${item.id}: ${item.status}`).join(', ')}`)
       }
     }

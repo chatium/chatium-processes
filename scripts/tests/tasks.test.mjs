@@ -155,6 +155,36 @@ test('v2 implementation cannot start before independent design conclusions', t =
   assert.match(result.stderr, /ревью.*design|архитектур/i)
 })
 
+test('v2 specialist proposal cannot start before design and owner approval', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', { type: 'process', processEngine: 'processes-v2' })
+  f.put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\nlinks: []\n')
+  f.approve()
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.executor = { kind: 'specialist', role: 'landing' }
+  task.mode = 'produce'
+  task.expectedOutputs = [{ path: 'demo/creative/form/proposals/landing.md', purpose: 'Предложение' }]
+  task.acceptanceCriteria[0].verification = { kind: 'inspection', instruction: 'Сверить предложение со знаниями' }
+  f.put('proposal.json', task)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'proposal.json')).status, 0)
+  const blocked = f.run('start', 'W001')
+  assert.equal(blocked.status, 1)
+  assert.match(blocked.stderr, /ревью design не принято/)
+})
+
+test('specialist proposal cannot request unsupported independent review of Markdown', t => {
+  const f = fixture(t)
+  const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  task.executor = { kind: 'specialist', role: 'landing' }
+  task.mode = 'produce'
+  task.expectedOutputs = [{ path: 'demo/creative/form/proposals/landing.md', purpose: 'Предложение' }]
+  task.acceptanceCriteria[0].verification = { kind: 'review', instruction: 'Сверить предложение со знаниями' }
+  f.put('proposal.json', task)
+  const blocked = f.run('create', 'W001', '--file', join(f.root, 'proposal.json'))
+  assert.equal(blocked.status, 1)
+  assert.match(blocked.stderr, /verification.kind: inspection/)
+})
+
 test('implementation waits for a deferred business answer at its dependent stage', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', { title: 'Demo', nodes: [], needsInput: [{ title: 'Нужна ли ручная проверка заявки?',
@@ -322,6 +352,7 @@ test('specialist receives an isolated bounded packet with role instructions', t 
   f.put('.knowledge-base/processes/demo/voice.md', 'Тон спокойный и конкретный.\n')
   f.put('answer.json', { summary: 'Спокойный тон', sourceRefs: ['.knowledge-base/processes/demo/voice.md'] })
   assert.equal(f.run('resolve', 'W001', '--question', 'Q1', '--file', join(f.root, 'answer.json')).status, 0)
+  f.approve()
   assert.equal(f.run('start', 'W001').status, 0)
   const resumedDir = mkdtempSync(join(tmpdir(), 'specialist-resumed-'))
   t.after(() => rmSync(resumedDir, { recursive: true, force: true }))

@@ -147,6 +147,10 @@ function taskErrors(task, plan) {
     task.acceptanceCriteria.every(c => str(c.id) && str(c.condition) && Array.isArray(c.planCriteria) &&
       c.planCriteria.every(id => /^T\d+\.A\d+$/.test(id)) && EVIDENCE_KINDS.has(c.verification?.kind) && str(c.verification?.instruction)) &&
     uniq((task.acceptanceCriteria || []).map(c => c.id)), 'нужны конкретные критерии приёмки')
+  if (task?.executor?.kind === 'specialist' && task.mode === 'produce' &&
+      task.expectedOutputs?.some(output => /\/proposals\/[^/]+\.md$/.test(output.path)) &&
+      task.acceptanceCriteria?.some(criterion => criterion.verification?.kind === 'review'))
+    errors.push(`${task.id}: предложение специалиста проверяет основной агент (verification.kind: inspection); независимое ревью требуется для итогового spec.yaml и результата`)
   need(Array.isArray(task?.questions) && task.questions.every(q => str(q.id) && str(q.question) && str(q.why) && typeof q.blocking === 'boolean' && ['open', 'resolved'].includes(q.status)) && uniq((task.questions || []).map(q => q.id)), 'неверные вопросы')
   need(Array.isArray(task?.drafts) && Array.isArray(task?.attempts), 'нужны drafts и attempts')
   const t = plan.find(t => t.id === task?.planTask)
@@ -262,7 +266,9 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
           if (!report.checks?.some(c => c.id === evidence.locator && c.status === 'pass')) add(`${criterion.id}: отчёт не содержит пройденную проверку ${evidence.locator}`)
         }
         if (criterion.verification.kind === 'review') {
-          const report = JSON.parse(readFileSync(safeTaskPath(root, evidence.path), 'utf8'))
+          let report
+          try { report = JSON.parse(readFileSync(safeTaskPath(root, evidence.path), 'utf8')) }
+          catch { add(`${criterion.id}: для review нужен JSON-отчёт независимого ревьюера, а не Markdown-предложение`); continue }
           if (report.status !== 'ready' || report.reviewer?.kind !== 'subagent' || !str(report.reviewer?.reference)) add(`${criterion.id}: нет независимого положительного ревью`)
           else {
             try {
