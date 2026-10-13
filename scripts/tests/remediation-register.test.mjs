@@ -5,13 +5,13 @@ import { fileURLToPath } from 'node:url'
 
 const register = fileURLToPath(new URL('../../.github/REMEDIATION-REGISTER-2026-10-07.md', import.meta.url))
 const expected = [
-  ...Array.from({ length: 56 }, (_, i) => `R${String(i + 1).padStart(2, '0')}`),
+  ...Array.from({ length: 57 }, (_, i) => `R${String(i + 1).padStart(2, '0')}`),
   ...Array.from({ length: 12 }, (_, i) => `F${String(i + 1).padStart(2, '0')}`),
   ...Object.entries({ M: 20, A: 13, D: 13, C: 14, E: 14, I: 12, Q: 14, N: 5 })
     .flatMap(([prefix, count]) => Array.from({ length: count }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`)),
 ]
 
-test('the remediation register retains all 173 findings and evidence for closed rows',
+test('the remediation register retains all 174 findings and evidence for closed rows',
   { skip: !existsSync(register) }, () => {
   const lines = readFileSync(register, 'utf8').split(/\r?\n/)
   const rows = lines.filter(line => /^\| (?:R|F|M|A|D|C|E|I|Q|N)\d{2} \|/.test(line))
