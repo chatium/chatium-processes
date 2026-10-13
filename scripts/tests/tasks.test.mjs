@@ -367,7 +367,7 @@ test('test evidence for old output cannot accept changed implementation', t => {
 test('specialist receives an isolated bounded packet with role instructions', t => {
   const f = fixture(t)
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
-  task.executor = { kind: 'specialist', role: 'copywriter' }
+  task.executor = { kind: 'specialist', role: 'consultant', profiles: ['copywriting'] }
   task.mode = 'produce'
   task.expectedOutputs = [{ path: 'demo/creative/form/proposals/copy.md', purpose: 'Предложение текста' }]
   f.put('task.json', task)
@@ -380,7 +380,8 @@ test('specialist receives an isolated bounded packet with role instructions', t 
   const packet = JSON.parse(readFileSync(prepared.json.packet, 'utf8'))
   assert.equal(packet.task.executor.kind, 'specialist')
   assert.equal(packet.materials[0].path, '.knowledge-base/processes/demo/form.md')
-  assert.match(packet.roleInstructions, /Копирайтер/)
+  assert.deepEqual(packet.competencies.profiles.map(profile => profile.id), ['copywriting'])
+  assert.ok(readFileSync(prepared.json.prompt, 'utf8').includes(readFileSync(join(SKILL_DIR, 'specialists/profiles/copywriting.md'), 'utf8').trim()))
   assert.match(readFileSync(prepared.json.prompt, 'utf8'), /run|JSON|специалист/)
   f.put('question.json', { questions: [{ id: 'Q1', question: 'Какой тон?', why: 'Нужен текст', blocking: true }] })
   assert.equal(f.run('ask', 'W001', '--file', join(f.root, 'question.json')).status, 0)
@@ -538,7 +539,7 @@ test('existing output must match its start version before applying changes', t =
 test('specialist result requires bound run and saved response', t => {
   const f = fixture(t)
   const task = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
-  task.executor = { kind: 'specialist', role: 'copywriter' }
+  task.executor = { kind: 'specialist', role: 'consultant', profiles: ['copywriting'] }
   task.mode = 'produce'
   task.expectedOutputs = [{ path: 'demo/creative/form/proposals/copy.md', purpose: 'Предложение текста' }]
   f.put('task.json', task)
@@ -571,11 +572,22 @@ test('specialist result requires bound run and saved response', t => {
     brief: 'Заявка требует email; источник: .knowledge-base/processes/demo/form.md.',
     proposal: 'Текст формы и подтверждения.',
     profileApplications: [{ id: 'copywriting', decision: 'Точный текст состояния после отправки', proposalQuote: 'Текст формы и подтверждения.' }] }))
+  const started = f.task(), incomplete = structuredClone(started)
+  delete incomplete.attempts.at(-1).specialistContract
+  f.put('demo/tasks/W001.json', incomplete)
+  const missingContract = f.run('record', 'W001', '--file', join(f.root, 'result.json'))
+  assert.equal(missingContract.status, 1)
+  assert.match(missingContract.stderr, /Нет актуального контракта компетенций/)
+  f.put('demo/tasks/W001.json', started)
   assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).status, 0)
   assert.equal(f.task().attempts.at(-1).responseRef, responseRef)
   assert.equal(f.task().result.specialistEvidence.profileApplications[0].id, 'copywriting')
   assert.equal(f.run('accept', 'W001').status, 0)
   const saved = f.task()
+  const acceptedWithoutContract = structuredClone(saved)
+  delete acceptedWithoutContract.attempts.at(-1).specialistContract
+  f.put('demo/tasks/W001.json', acceptedWithoutContract)
+  assert.match(f.run('status').stdout, /нет актуального контракта компетенций/)
   saved.result.specialistEvidence.profileApplications = []
   f.put('demo/tasks/W001.json', saved)
   assert.match(f.run('status').stdout, /каждого выбранного профиля/)

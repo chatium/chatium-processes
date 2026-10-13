@@ -239,7 +239,7 @@ try {
     if (existsSync(packetPath) || existsSync(promptPath)) throw Error('Пакет уже существует; нужна новая папка.')
     const packet = { version: 1, process: slug, taskId: id, attemptId: attempt.id,
       definitionDigest: attempt.definitionDigest, inputDigest: attempt.inputDigest,
-      baseInputs: attempt.baseInputs, roleInstructions: contract.role.content,
+      baseInputs: attempt.baseInputs,
       competencies: specialistManifest(contract), task: context(task, planTask), materials }
     const prompt = specialistPrompt(contract, packetPath)
     writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
@@ -317,20 +317,18 @@ try {
           canonicalTarget(result.responseRef).startsWith(realpathSync(root) + sep))
         throw Error('Для специалиста нужен сохранённый ответ responseRef вне репозитория (до 512 КБ).')
       attempt.responseRef = result.responseRef
-      if (attempt.specialistContract) {
-        let response
-        try { response = JSON.parse(readFileSync(result.responseRef, 'utf8')) }
-        catch { throw Error('Ответ специалиста должен быть JSON по схеме prompt.md.') }
-        if (response.status !== 'result') throw Error('Специалист не вернул result; вопросы обработайте через tasks ask.')
-        const contract = specialistContract(task.executor)
-        const problems = specialistResponseErrors(response, contract)
-        if (attempt.specialistContract.digest !== contract.digest) problems.push('Методики изменились после start; нужна новая попытка.')
-        const proposal = specialistProposal(root, result.outputs)
-        problems.push(...specialistResponseErrors({ ...response, proposal }, contract))
-        if (problems.length) throw Error([...new Set(problems)].join('; '))
-        result.specialistEvidence = { contractDigest: response.contractDigest, brief: response.brief,
-          profileApplications: response.profileApplications, responseSha256: sha(readFileSync(result.responseRef)) }
-      }
+      let response
+      try { response = JSON.parse(readFileSync(result.responseRef, 'utf8')) }
+      catch { throw Error('Ответ специалиста должен быть JSON по схеме prompt.md.') }
+      if (response.status !== 'result') throw Error('Специалист не вернул result; вопросы обработайте через tasks ask.')
+      const contract = specialistContract(task.executor)
+      const problems = specialistResponseErrors(response, contract)
+      if (attempt.specialistContract?.digest !== contract.digest) problems.push('Нет актуального контракта компетенций попытки; начните новую попытку.')
+      const proposal = specialistProposal(root, result.outputs)
+      problems.push(...specialistResponseErrors({ ...response, proposal }, contract))
+      if (problems.length) throw Error([...new Set(problems)].join('; '))
+      result.specialistEvidence = { contractDigest: response.contractDigest, brief: response.brief,
+        profileApplications: response.profileApplications, responseSha256: sha(readFileSync(result.responseRef)) }
     }
     const boundedHash = path => {
       const file = safeTaskPath(root, path)

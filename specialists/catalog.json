@@ -16,8 +16,6 @@
     "message": { "path": "specialists/roles/message.md", "profiles": ["copywriting", "communications"], "references": [] },
     "agent": { "path": "specialists/roles/agent.md", "profiles": ["product", "dialogue", "copywriting"], "references": ["build/agent-instructions.md"] },
     "consultant": { "path": "specialists/roles/consultant.md", "profiles": [], "references": [] },
-    "marketing": { "path": "specialists/roles/marketing.md", "profiles": ["marketing"], "references": [] },
-    "copywriter": { "path": "specialists/roles/copywriter.md", "profiles": ["copywriting"], "references": [] },
     "reviewer": { "path": "specialists/roles/reviewer.md", "profiles": [], "references": [] }
   }
 }

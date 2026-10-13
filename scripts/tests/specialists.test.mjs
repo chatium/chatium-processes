@@ -16,7 +16,7 @@ test('entity recipes include mandatory competencies; additions cannot remove the
   assert.deepEqual(ids(contract('confirmation')), ['copywriting', 'design'])
   assert.deepEqual(ids(contract('agent', ['marketing'])), ['copywriting', 'dialogue', 'marketing', 'product'])
   assert.deepEqual(ids(contract('consultant', ['marketing', 'product'])), ['marketing', 'product'])
-  assert.deepEqual(ids(contract('copywriter')), ['copywriting'])
+  assert.deepEqual(ids(contract('consultant', ['copywriting'])), ['copywriting'])
   assert.equal(contract('site').role.family, 'page')
 })
 
@@ -24,7 +24,8 @@ test('unknown, duplicate or unsafe profile choices fail without fallback', () =>
   for (const profiles of [['design', 'design'], ['../../secrets'], ['invented'], '__proto__', [null]])
     assert.throws(() => specialistContract({ role: 'landing', profiles }), /profiles/)
   assert.throws(() => contract('consultant'), /хотя бы один/)
-  for (const role of ['../../private', 'unknown', '__proto__']) assert.throws(() => contract(role), /Неизвестная роль/)
+  for (const role of ['../../private', 'unknown', '__proto__', 'marketing', 'copywriter'])
+    assert.throws(() => contract(role), /Неизвестная роль/)
 })
 
 test('the actual start prompt contains all selected instructions and required guides', () => {

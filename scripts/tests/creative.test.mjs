@@ -12,6 +12,7 @@ import { expandedTaskInputs, parseTaskPlan, taskDefinitionDigest, taskInputDiges
 import { SKILL_DIR } from '../lib/project.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
 import { parseYaml } from '../lib/yaml.mjs'
+import { specialistContract, specialistManifest } from '../lib/specialists.mjs'
 
 const reviewsCli = fileURLToPath(new URL('../reviews.mjs', import.meta.url))
 
@@ -1114,7 +1115,12 @@ test('creative implementation starts after accepted expert and spec tasks with c
   f.put('demo/process.yaml', { nodes: [{ id: 'lead-page', kind: 'page', title: 'Получить материал',
     source: 'demo/page.ts', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
   writeCreativeBuild(f.args)
-  f.put('demo/creative/lead-page/proposals/landing.md', 'Конкретная структура страницы с источниками.\n')
+  const profileApplications = [
+    { id: 'marketing', decision: 'Снять барьер первого шага', proposalQuote: 'Пример материала показывает пользу до отправки заявки.' },
+    { id: 'copywriting', decision: 'Точно назвать результат действия', proposalQuote: 'Кнопка «Получить материал» объясняет результат отправки формы.' },
+    { id: 'design', decision: 'Сделать условия заметными', proposalQuote: 'Условия выдачи расположены рядом с формой на телефоне.' },
+  ]
+  f.put('demo/creative/lead-page/proposals/landing.md', profileApplications.map(item => item.proposalQuote).join('\n'))
   f.put('demo/PLAN.md', '# Демо\n\n## Задачи\n- [ ] T1 Собрать страницу\n  - T1.A1 [build] Материал выдаётся после заявки.\n  - Рабочие задачи: [W010](tasks/W010.json), [W011](tasks/W011.json), [W001](tasks/W001.json)\n')
   f.put('demo/tasks/index.json', { version: 1 })
   const criterion = { id: 'C1', planCriteria: ['T1.A1'], condition: 'Результат конкретен',
@@ -1139,6 +1145,11 @@ test('creative implementation starts after accepted expert and spec tasks with c
       criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{ path, sha256: sha(path), locator: 'file', observation: 'Содержание проверено' }] }] }
     task.attempts = [{ id: 'R001', session: task.executor.kind === 'specialist' ? { agentId: 'expert-1' } : null,
       responseRef: task.executor.kind === 'specialist' ? '/external/response.json' : null, baseInputs: [] }]
+    if (task.executor.kind === 'specialist') {
+      const contract = specialistContract(task.executor)
+      task.attempts[0].specialistContract = specialistManifest(contract)
+      task.result.specialistEvidence = { contractDigest: contract.digest, brief: 'Посетитель оставляет контакт для получения материала.', profileApplications }
+    }
     task.acceptance = { decision: 'accepted', definitionDigest: taskDefinitionDigest(task, planTask),
       inputDigest: taskInputDigest(f.root, task), resultDigest: createHash('sha256').update(JSON.stringify(task.result)).digest('hex') }
     f.put(`demo/tasks/${task.id}.json`, task)

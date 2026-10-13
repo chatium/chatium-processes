@@ -240,12 +240,12 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
   if (task.executor?.kind === 'specialist') {
     const attempt = task.attempts?.find(a => a.id === task.result.attemptId)
     if (!str(attempt?.session?.agentId) || !str(attempt?.responseRef)) add('нет привязанного вызова и ответа специалиста')
-    if (attempt?.specialistContract) {
-      try {
-        const proposal = specialistProposal(root, task.result.outputs || [])
-        for (const error of specialistResponseErrors({ ...task.result.specialistEvidence, proposal }, specialistContract(task.executor))) add(error)
-      } catch (error) { add(error.message) }
-    }
+    try {
+      const contract = specialistContract(task.executor)
+      if (attempt?.specialistContract?.digest !== contract.digest) add('нет актуального контракта компетенций попытки')
+      const proposal = specialistProposal(root, task.result.outputs || [])
+      for (const error of specialistResponseErrors({ ...task.result.specialistEvidence, proposal }, contract)) add(error)
+    } catch (error) { add(error.message) }
   }
   if (task.questions?.some(q => q.status !== 'resolved')) add('остались открытые вопросы')
   if (task.steps?.some(s => s.status !== 'done' && s.status !== 'skipped')) add('остались незавершённые шаги')
