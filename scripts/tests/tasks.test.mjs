@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { acceptanceErrors, creativeTaskChain, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
@@ -55,6 +55,27 @@ test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness
   const unready = f.run('status')
   assert.equal(unready.status, 1)
   assert.ok(JSON.parse(unready.stdout).errors.some(error => /задача не завершена/.test(error)))
+})
+
+test('task status writes complete JSON when a large stdout pipe is read late', async t => {
+  const f = fixture(t)
+  const template = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))
+  for (let i = 1; i <= 80; i += 1) {
+    const id = `W${String(i).padStart(3, '0')}`
+    f.put(`demo/tasks/${id}.json`, { ...template, id })
+  }
+  const child = spawn(process.execPath, [cli, 'status', 'demo', '--root', f.root],
+    { stdio: ['ignore', 'pipe', 'pipe'] })
+  let stdout = '', stderr = ''
+  child.stdout.on('data', chunk => { stdout += chunk })
+  child.stderr.on('data', chunk => { stderr += chunk })
+  const closed = new Promise(resolve => child.once('close', resolve))
+  child.stdout.pause()
+  await new Promise(resolve => setTimeout(resolve, 100))
+  child.stdout.resume()
+  const code = await closed
+  assert.equal(code, 1, stderr)
+  assert.equal(JSON.parse(stdout).tasks.length, 80)
 })
 
 test('batch creation validates every card before changing task files or plan', t => {

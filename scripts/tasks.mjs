@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Единые рабочие задачи основного агента и специалистов.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
@@ -45,7 +45,16 @@ const root = findRoot(options.root)
 const now = () => new Date().toISOString()
 const sha = content => createHash('sha256').update(content).digest('hex')
 const digest = value => sha(JSON.stringify(value))
-const show = value => console.log(JSON.stringify(value, null, 2))
+const show = value => {
+  // Команды ниже завершаются сразу после вывода. Асинхронная запись console.log
+  // в медленный pipe могла обрывать большой JSON при process.exit().
+  const output = Buffer.from(JSON.stringify(value, null, 2) + '\n')
+  for (let offset = 0; offset < output.length;) {
+    const written = writeSync(1, output, offset, output.length - offset)
+    if (!written) throw Error('Не удалось записать результат команды в stdout.')
+    offset += written
+  }
+}
 const input = () => {
   try { return JSON.parse(readFileSync(options.file, 'utf8')) }
   catch { throw Object.assign(Error(`${command}: файл --file не содержит корректный JSON.`), { cliUsage: true }) }
