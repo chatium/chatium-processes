@@ -84,10 +84,10 @@
       "negative": "Неизвестный автор доски принят; при явно указанном письме клиенту агент заменяет его сообщением сотруднику; после одинакового красного заключения запускает третий идентичный раунд или живой тест на каждую микроправку.",
       "positive": "Регион уточнён, все явно запрошенные касания и адресаты сохранены в плане и карте, Store не навязан; заключения действуют на верном объёме; агент собирает замечания и проверяет пакет исправлений, останавливает повторяющийся блокер и ясно объясняет его владельцу.",
       "prerequisite": "Первый контроль на processes@bd5e6de создал красный design-пакет commission-sample. Фактический ввод не назвал получателя операционного письма; исходное обвинение в пропуске явно заказанного письма клиенту снято. Остальные замечания и границы результата — в локальном WORKFLOW-COMMISSION-REVIEW-2026-10-12.md. Повторять прогон после каждой правки нельзя: новый контроль только на одной зафиксированной версии после завершения остального кодового блока. R40 исключён до нового образа платформы. Для R50 достаточно одного контролируемого раунда замечаний; третий запуск специально не создавать.",
-      "evidence": ".github/evidence/workflow-commission-run.json",
-      "status": "needs-work",
+      "evidence": ".github/evidence/workflow-commission-grouped-2026-10-13.json",
+      "status": "executed-needs-work",
       "latestAttempt": "13.10: installed processes@a8ff9d2/account3@c5304f4; local ACP initialized but first prompt failed before model because standalone CLI lacked a provider key. Chatium Code UI was unavailable while Mac locked. No agent steps or review; see .github/evidence/workflow-commission-acp-preflight-2026-10-13.md. Retry only once through authorized desktop after unlock.",
-      "latestExecution": "13.10: Chatium Code на installed processes@cba5e73, ветка process/commission-control-v4. До первого ревью UI показал 83 шага разведки, только каркас и одна статья; сеанс остановлен один раз из-за расхода лимита. Источник скилла теперь требует scaffold сразу и запрещает исследовать валидаторы/соседние процессы без конкретной ошибки. Красный результат R16, остальные workflow ID не проверены. Evidence: .github/evidence/workflow-commission-budget-stop-2026-10-13.json."
+      "latestExecution": "13.10: на candidate processes@919316f агент собрал проектный пакет за 35 вызовов до записи обеих независимых заключений, всего 36. Читающий design check 32/34; методолог нашёл 10 пробелов (4 блокирующих), архитектор 10 (6 блокирующих). Комиссия закономерно оставила этап красным. Один общий список правок, затем повтор только затронутых ролей; отдельные живые микроповторы не делать. Evidence: .github/evidence/workflow-commission-grouped-2026-10-13.json."
     }
   ],
   "preflight": {
