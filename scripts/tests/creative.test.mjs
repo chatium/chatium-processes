@@ -847,6 +847,18 @@ test('a linked page view does not stale screenshots, but its route or the curren
   assert.equal(git('add', '.').status, 0)
   assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'route URL').status, 0)
   assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
+  f.put('demo/pages/home/index.tsx', 'import { view } from "../catalog"\nexport const content = view\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'embed catalog content').status, 0)
+  const embeddedVersion = git('rev-parse', 'HEAD').stdout.trim()
+  f.put('demo/reviews/creative/lead-page-visual.json', { captures: ['desktop', 'mobile'].map(viewport => ({
+    path: `demo/reviews/creative/${viewport}.png`, viewport, codeVersion: embeddedVersion,
+  })) })
+  assert.doesNotThrow(() => creativeReviewPacket(args))
+  f.put('demo/pages/catalog/view.ts', 'export const view = "Изменён встроенный каталог"\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'embedded content').status, 0)
+  assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
 })
 
 test('owner-confirmed live preview is accepted only for the reviewed code and both viewports', t => {

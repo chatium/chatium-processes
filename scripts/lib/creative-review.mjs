@@ -120,27 +120,33 @@ function resultDependencies(corpus, source) {
     .filter(file => file.path === source || file.path.startsWith(prefix)).map(file => file.path))
   const queue = [...selected]
   const linkedRoutes = new Set()
+  const sources = new Map(corpus.files.map(file => [file.path, file.content]))
   const pagePart = path => /^([^/]+)\/pages\/([^/]+)\//.exec(path)
-  const isOtherPageRoute = (from, target) => {
+  const isOtherPageRoute = dependency => {
+    const { source: from, target, specifier } = dependency
     const origin = pagePart(from), destination = pagePart(target)
-    return origin && destination && origin[1] === destination[1] && origin[2] !== destination[2] &&
-      /\/index\.[cm]?[jt]sx?$/.test(target)
+    if (!origin || !destination || origin[1] !== destination[1] || origin[2] === destination[2] ||
+        !/\/index\.[cm]?[jt]sx?$/.test(target)) return false
+    const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const named = new RegExp(`\\bimport\\s*\\{([^}]+)\\}\\s*from\\s*['"]${escaped}['"]`).exec(sources.get(from) || '')?.[1]
+    return Boolean(named && named.split(',').every(part => /(?:^|\s)[A-Za-z_$][\w$]*Route(?:\s+as\s+[A-Za-z_$][\w$]*)?\s*$/.test(part.trim())))
   }
   const links = new Map()
   for (const dependency of corpus.dependencies) {
     if (!dependency.target || !['local', 'configured-local'].includes(dependency.kind)) continue
     if (!links.has(dependency.source)) links.set(dependency.source, [])
-    links.get(dependency.source).push(dependency.target)
+    links.get(dependency.source).push(dependency)
   }
   for (let i = 0; i < queue.length; i++) {
     // A route imported to build a link can affect this page's URL, but its own
     // view and server dependencies do not affect this page's rendered image.
     if (linkedRoutes.has(queue[i])) continue
-    for (const target of links.get(queue[i]) || []) {
+    for (const dependency of links.get(queue[i]) || []) {
+      const { target } = dependency
       if (selected.has(target)) continue
       selected.add(target)
       queue.push(target)
-      if (isOtherPageRoute(queue[i], target)) linkedRoutes.add(target)
+      if (isOtherPageRoute(dependency)) linkedRoutes.add(target)
     }
     for (const entry of corpus.scope.dynamic || []) {
       if (entry.source !== queue[i]) continue
