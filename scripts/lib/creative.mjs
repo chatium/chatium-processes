@@ -197,7 +197,19 @@ function validateLanding(spec, errors, references) {
   const ab = spec.abTesting
   if (!ab || !['none', 'design', 'text', 'design_and_text'].includes(ab.mode)) errors.push('Нужен корректный режим abTesting.')
   else if (ab.mode !== 'none') {
-    for (const field of ['hypothesis', 'experimentKey', 'assignment', 'metric', 'tracking']) if (!text(ab[field])) errors.push(`A/B: нужно ${field}.`)
+    for (const field of ['hypothesis', 'experimentKey', 'metric', 'tracking']) if (!text(ab[field])) errors.push(`A/B: нужно ${field}.`)
+    const assignment = ab.assignment
+    if (!assignment || typeof assignment !== 'object' || Array.isArray(assignment) ||
+        assignment.strategy !== 'stable-hash' ||
+        !['crm-customer-id', 'first-party-cookie'].includes(assignment.identity) ||
+        Object.keys(assignment).some(key => !['strategy', 'identity', 'cookieName', 'cookieMaxAgeDays'].includes(key)))
+      errors.push('A/B: assignment должен назначать вариант по stable-hash от постоянного CRM ID или first-party cookie.')
+    else if (assignment.identity === 'first-party-cookie') {
+      if (!/^[A-Za-z_][A-Za-z0-9_-]{2,63}$/.test(assignment.cookieName || '') ||
+          !Number.isInteger(assignment.cookieMaxAgeDays) || assignment.cookieMaxAgeDays < 1 || assignment.cookieMaxAgeDays > 365)
+        errors.push('A/B: для first-party-cookie нужны cookieName и cookieMaxAgeDays от 1 до 365.')
+    } else if (assignment.cookieName !== undefined || assignment.cookieMaxAgeDays !== undefined)
+      errors.push('A/B: параметры cookie не относятся к назначению по CRM ID.')
     if (!Array.isArray(ab.variants) || ab.variants.length < 2 || !unique(ab.variants.map(v => v.key)) ||
         ab.variants.some(v => !text(v.key) || !text(v.changes))) errors.push('A/B: нужны два различающихся варианта с уникальными ключами и описанными отличиями.')
   }

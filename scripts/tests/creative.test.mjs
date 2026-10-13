@@ -355,12 +355,17 @@ test('sales permits author-selected sections, keeps a real conversion path and d
     covers: ['приглашение на занятие'], purpose: 'Пригласить на занятие с понятными условиями', mechanicRefs: ['signup'] }]
   f.spec.mechanics[0].placement = 'workshop-invitation'
   f.spec.abTesting = { mode: 'text', hypothesis: 'Другой заголовок помогает понять ценность',
-    experimentKey: 'heading-test', assignment: 'Закрепить вариант за контактом',
+    experimentKey: 'heading-test', assignment: 'Случайно при каждом входе',
     metric: 'Заявки', tracking: 'Событие с variantKey', variants: [{ key: 'A', changes: 'Заголовок A' }, { key: 'A', changes: 'Заголовок B' }] }
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   const packet = creativePacket(f.args)
   assert.ok(packet.errors.some(e => e.includes('уникальными ключами')))
+  assert.ok(packet.errors.some(e => e.includes('stable-hash')))
   f.spec.abTesting.variants[1].key = 'B'
+  f.spec.abTesting.assignment = { strategy: 'stable-hash', identity: 'first-party-cookie', cookieName: 'lead_variant_id' }
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.ok(creativePacket(f.args).errors.some(e => e.includes('cookieMaxAgeDays')))
+  f.spec.abTesting.assignment.cookieMaxAgeDays = 30
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   assert.deepEqual(creativePacket(f.args).errors, [])
   const built = writeCreativeBuild(f.args)
@@ -662,8 +667,24 @@ test('email-only series does not require SMS copy or messenger review', t => {
     path: `demo/reviews/creative/value-${view}.png`, viewport: `email-${view}`,
     messageId: 'value', codeVersion: version })) })
   const packet = creativeReviewPacket({ ...args, stage: 'result' })
-  assert.ok(packet.questions.some(question => question.id === 'message.value.email'))
+  assert.match(packet.questions.find(question => question.id === 'message.value.email').question, /без изображений/)
   assert.ok(!packet.questions.some(question => question.id === 'message.value.short' || question.id === 'message.value.messenger'))
+  const specEvidence = packet.files.find(file => file.path === specPath).content.split('\n').filter(line => line.trim().length > 9)
+  const report = { version: 1, process: 'demo', nodeId: 'followup', stage: 'result',
+    inputDigest: packet.inputDigest, inspectedFiles: packet.files.map(file => file.path),
+    inspectedVisuals: packet.visuals.map(visual => visual.path),
+    answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass',
+      reason: 'Проверен текст и рендер письма.', evidence: [{ path: specPath, quote: specEvidence[index % specEvidence.length] }] })) }
+  report.answers.find(answer => answer.id === 'message.value.email').evidence =
+    [{ path: messagePath, quote: 'Первый шаг' }]
+  report.answers.find(answer => answer.id === 'message.value.render').evidence =
+    [{ path: messagePath, quote: 'Отдать материал' }]
+  assert.throws(() => recordCreativeReview({ ...args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }), /цитата из версии plain/)
+  report.answers.find(answer => answer.id === 'message.value.email').evidence =
+    [{ path: messagePath, quote: 'Откройте материал.' }]
+  assert.equal(recordCreativeReview({ ...args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }).status, 'ready')
 })
 
 test('messenger-only series requires plain but no email images or subject', t => {
@@ -900,7 +921,7 @@ test('A/B previews cover every variant and targeted page review includes the act
   f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'lead-page', kind: 'page', title: 'Страница',
     source: 'demo/page.ts', creativeRef: 'demo/creative/lead-page/spec.yaml' }] })
   f.spec.abTesting = { mode: 'text', hypothesis: 'Сравнить ясность заголовка',
-    experimentKey: 'heading', assignment: 'Один вариант на клиента', metric: 'Заявки',
+    experimentKey: 'heading', assignment: { strategy: 'stable-hash', identity: 'crm-customer-id' }, metric: 'Заявки',
     tracking: 'Событие с ключом варианта', variants: [{ key: 'A', changes: 'Первый заголовок' },
       { key: 'B', changes: 'Второй заголовок' }] }
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
@@ -940,6 +961,7 @@ test('A/B previews cover every variant and targeted page review includes the act
   f.put(visualPath, { captures })
   const packet = creativeReviewPacket({ ...f.args, stage: 'result' })
   assert.ok(packet.questions.some(question => question.id === 'preservation'))
+  assert.ok(packet.questions.some(question => question.id === 'ab.assignment'))
   const diff = packet.files.find(file => file.path === packet.revisionDiffPath)
   assert.match(diff.content, /Новый материал/)
   assert.doesNotMatch(diff.content, /\+export const footer/)
@@ -950,10 +972,18 @@ test('A/B previews cover every variant and targeted page review includes the act
     inspectedVisuals: packet.visuals.map(visual => visual.path),
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'pass',
       reason: 'Проверены файл, снимки и область изменения.', evidence: [{ path: specPath, quote: quotes[index] }] })) }
+  report.answers.find(answer => answer.id === 'ab.assignment').evidence = [
+    { path: 'demo/page.ts', quote: 'export const heading = "Новый материал"' }]
   assert.throws(() => recordCreativeReview({ ...f.args, stage: 'result', packet, report,
     agentReference: 'unit-test-only' }), /цитата из Git-разницы/)
   report.answers.find(answer => answer.id === 'preservation').evidence = [
     { path: packet.revisionDiffPath, quote: '+export const heading = "Новый материал"' }]
+  report.answers.find(answer => answer.id === 'ab.assignment').evidence = [
+    { path: specPath, quote: '"experimentKey": "heading"' }]
+  assert.throws(() => recordCreativeReview({ ...f.args, stage: 'result', packet, report,
+    agentReference: 'unit-test-only' }), /цитата из исходника страницы/)
+  report.answers.find(answer => answer.id === 'ab.assignment').evidence = [
+    { path: 'demo/page.ts', quote: 'export const heading = "Новый материал"' }]
   assert.equal(recordCreativeReview({ ...f.args, stage: 'result', packet, report,
     agentReference: 'unit-test-only' }).status, 'ready')
   f.put('demo/page.ts', 'export const heading = "Новый материал"\nexport const footer = "Другие условия"\n')

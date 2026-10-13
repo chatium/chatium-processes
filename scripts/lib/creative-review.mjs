@@ -39,7 +39,7 @@ function adjacentCreativeFiles(root, slug, nodeId) {
   }
   return { files, missing }
 }
-const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email'], original = null, revision = null) => [
+const questions = (kind, stage, guidance, messages = [], visualMode = 'png', images = [], formats = ['email'], original = null, revision = null, abTesting = null) => [
   { id: 'task', question: 'Верно ли выбрана задача, аудитория и тип материала?' },
   { id: 'truth', question: 'Подтверждены ли ключевые обещания, цена, условия, сроки и доказательства?' },
   { id: 'depth', question: 'Достаточны ли содержание и аргументы для этой задачи, без пустоты и повторов?' },
@@ -49,6 +49,8 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png', ima
   ...(kind === 'landing' ? [
     { id: 'structure', question: 'Раскрыты ли нужные смысловые функции, механики и возражения?' },
     { id: 'design', question: 'Конкретны ли композиция, дизайн-система, изображения и мобильная версия?' },
+    ...(stage === 'result' && abTesting?.mode !== 'none' ? [{ id: 'ab.assignment',
+      question: 'Проверены ли в коде и повторным входом одной и той же личности постоянное назначение A/B-варианта, доступность выбранного CRM ID или cookie и отсутствие новой случайной жеребьёвки при каждом входе?' }] : []),
     ...(original ? [{ id: 'original', question: 'Открыта ли настоящая исходная страница или её PNG-снимок и сохранены ли факты, условия и действия после редизайна?' }] : []),
     ...(images.length ? [{ id: 'image-sources', question: 'Просмотрены ли используемые изображения, подходят ли они задаче и подтверждено ли право их использования по указанному источнику?' }] : []),
   ] : [
@@ -62,7 +64,7 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png', ima
       question: `Достаточно ли конкретно задано сообщение ${message.id}: новая польза, факты и основа для выбранных форматов (${formats.join(', ')})?` },
   ] : [
     ...(formats.includes('email') ? [{ id: `message.${message.id}.email`, messageId: message.id,
-      question: `Даёт ли email-версия ${message.id} обещанную пользу, точные факты и уместное действие?` },
+      question: `Даёт ли email-версия ${message.id} обещанную пользу, точные факты и действие даже без изображений: сохраняется ли смысл в plain, а HTML и alt согласованы с ним?` },
     { id: `message.${message.id}.render`, messageId: message.id,
       question: visualMode === 'owner-preview'
         ? `Подтвердил ли владелец вид email ${message.id} на desktop/mobile в живом превью текущей версии?`
@@ -370,7 +372,7 @@ export function creativeReviewPacket({ root, slug, nodeId, stage = 'spec' }) {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0)
   if (files.length > 200 || total > 4 * 1024 * 1024) throw Error('Пакет ревью слишком большой; разделите материал.')
   const packet = { version: 1, process: slug, nodeId, stage, kind: creative.spec.kind,
-    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats, creative.original, creative.spec.revision),
+    visualMode, questions: questions(creative.spec.kind, stage, creative.guidance, creative.spec.messages || [], visualMode, creative.spec.images || [], formats, creative.original, creative.spec.revision, creative.spec.abTesting),
     files, adjacentMissing: adjacent?.missing || [], assets: creative.assetFiles,
     original: creative.original, visuals, messageFiles, implementation, revisionDiffPath,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'creative/reviewer.md'), 'utf8') }
@@ -404,7 +406,19 @@ function validateReport(report, packet) {
         packet.messageFiles.filter(file => file.messageId === target.messageId).map(file => file.path)
       if (!answer.evidence.some(item => related.includes(item.path)))
         throw Error(`${answer.id}: нужен пример именно из проверяемого письма или его спецификации.`)
+      if (packet.stage === 'result' && answer.id.endsWith('.email')) {
+        const hasPlainEvidence = answer.evidence.some(item => {
+          if (!related.includes(item.path)) return false
+          const plain = parseYaml(files.get(item.path))?.plain
+          return text(plain) && plain.includes(item.quote)
+        })
+        if (!hasPlainEvidence) throw Error(`${answer.id}: для письма без изображений нужна цитата из версии plain.`)
+      }
     }
+    if (answer.status === 'pass' && answer.id === 'ab.assignment' &&
+        !answer.evidence.some(item => packet.implementation.some(file => file.path === item.path) &&
+          /\.(?:[cm]?[jt]sx?|vue|html?)$/i.test(item.path)))
+      throw Error('A/B: для назначения варианта нужна цитата из исходника страницы, а не только из задания.')
     if (packet.stage === 'result' && packet.visualMode === 'owner-preview' &&
         answer.status === 'pass' && (answer.id === 'visual' || answer.id.endsWith('.render')) &&
         !answer.evidence.some(item => item.path === `${packet.process}/reviews/creative/${packet.nodeId}-visual.json`))
