@@ -12,7 +12,7 @@ const liveBatches = JSON.parse(readFileSync(`${root}/.github/LIVE-BATCHES-2026-1
 test('tester handoff explicitly accounts for every unresolved audit item', () => {
   const result = assessTesterCandidate({ rows, deferrals })
   assert.deepEqual(result.errors, [])
-  assert.equal(rows.length, 183)
+  assert.equal(rows.length, 184)
   assert.ok(result.pendingCount > 0, 'tester candidate must not impersonate final release')
 })
 

@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const expectedIds = [
-  ...Array.from({ length: 66 }, (_, index) => `R${String(index + 1).padStart(2, '0')}`),
+  ...Array.from({ length: 67 }, (_, index) => `R${String(index + 1).padStart(2, '0')}`),
   ...Array.from({ length: 12 }, (_, index) => `F${String(index + 1).padStart(2, '0')}`),
   ...Object.entries({ M: 20, A: 13, D: 13, C: 14, E: 14, I: 12, Q: 14, N: 5 })
     .flatMap(([prefix, count]) => Array.from({ length: count }, (_, index) => `${prefix}${String(index + 1).padStart(2, '0')}`)),
