@@ -37,7 +37,7 @@ import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
-import { scanJsSource, balancedObjectEnd, hasExportedGetRoute } from './lib/source-lex.mjs'
+import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCount } from './lib/source-lex.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
 
@@ -476,6 +476,13 @@ check('map.sources', 'Узлы карты построены', ({ error, warn })
     if (n.kind === 'series' && walk(abs).filter(f => f.endsWith('.message.yaml')).length === 0) {
       error(`${n.id}: в ${src} нет ни одного *.message.yaml`)
     }
+  }
+})
+
+check('route.files', 'Один маршрут на исходный файл', ({ error }) => {
+  for (const file of walk(dir).filter(path => /\.tsx?$/.test(path))) {
+    const count = routeDefinitionCount(readFileSync(file, 'utf8'))
+    if (count > 1) error(`${rel(root, file)}: объявлено ${count} маршрута app.*; Chatium требует один маршрут на файл`)
   }
 })
 

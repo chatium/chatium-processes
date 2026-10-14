@@ -35,6 +35,11 @@ export function hasExportedGetRoute(source) {
   return [...code.matchAll(exportedGet)].some(match => /^\s*(['"`])\/\1/.test(clean.slice(match.index + match[0].length)))
 }
 
+export function routeDefinitionCount(source) {
+  const { code } = scanJsSource(source)
+  return [...code.matchAll(/(?<![\w$.])app\.(?:get|post|put|patch|delete)\s*\(/g)].length
+}
+
 export function balancedObjectEnd(code, opening) {
   if (code[opening] !== '{') return -1
   let depth = 0
