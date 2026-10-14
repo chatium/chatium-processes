@@ -7,6 +7,17 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { tableChangeStatus } from '../lib/table-changes.mjs'
 
+test('new Heap table rejects explicit system fields before any migration decision', t => {
+  const root = mkdtempSync(join(tmpdir(), 'process-table-system-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const path = 'demo/tables/requests.table.ts'
+  mkdirSync(dirname(join(root, path)), { recursive: true })
+  writeFileSync(join(root, path), "export default Heap.Table('t_requests', { createdAt: Heap.DateTime(), name: Heap.String() })\n")
+  const result = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(tableChangeStatus({ root, slug: 'demo' }).errors.join('\n'), /системное поле createdAt/)
+})
+
 test('changed existing table needs occupancy and migration evidence tied to both source versions', t => {
   const root = mkdtempSync(join(tmpdir(), 'process-table-change-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))

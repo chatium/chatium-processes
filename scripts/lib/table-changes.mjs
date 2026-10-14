@@ -90,6 +90,9 @@ export function tableChangeStatus({ root, slug, stage = 'build' }) {
   if (existsSync(join(root, slug))) visit(join(root, slug))
   for (const file of files) {
     const path = rel(root, file), current = readFileSync(file, 'utf8'), currentSha256 = sha(current)
+    const shape = tableShape(current)
+    for (const field of ['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+      if (shape?.fields.has(field)) errors.push(`${path}: системное поле ${field} нельзя объявлять в Heap.Table.`)
     const revisions = git(root, ['log', '--format=%H', '--max-count=2', '--', path])?.split('\n').filter(Boolean)
     if (!revisions) { errors.push(`${path}: история Git недоступна; сравнение схемы не подтверждено.`); continue }
     const latest = revisions[0] ? git(root, ['show', `${revisions[0]}:${path}`]) : null

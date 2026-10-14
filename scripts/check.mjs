@@ -37,7 +37,7 @@ import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
-import { scanJsSource, balancedObjectEnd } from './lib/source-lex.mjs'
+import { scanJsSource, balancedObjectEnd, hasExportedGetRoute } from './lib/source-lex.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
 
@@ -460,11 +460,15 @@ check('map.sources', 'Узлы карты построены', ({ error, warn })
       else error(`${n.id}: не построено — нет ${src}`)
       continue
     }
-    if (n.kind === 'page' && !(isFile(join(abs, 'index.tsx')) || (isFile(abs) && abs.endsWith('.tsx')))) {
-      error(`${n.id}: в ${src} нет index.tsx`)
+    const pageFile = isFile(abs) && abs.endsWith('.tsx') ? abs : join(abs, 'index.tsx')
+    if (n.kind === 'page' && !isFile(pageFile)) error(`${n.id}: в ${src} нет страницы *.tsx`)
+    else if (n.kind === 'page' && !hasExportedGetRoute(readFileSync(pageFile, 'utf8'))) {
+      const message = `${n.id}: ${rel(root, pageFile)} не экспортирует маршрут app.get('/'); файл не станет страницей по одному default function`
+      if (options['task-stage'] === 'design') warn(message)
+      else error(message)
     }
     if (n.pageMode !== undefined) {
-      const pageSource = isFile(join(abs, 'index.tsx')) ? readFileSync(join(abs, 'index.tsx'), 'utf8') : ''
+      const pageSource = isFile(pageFile) ? readFileSync(pageFile, 'utf8') : ''
       for (const issue of internalPageErrors(n, pageSource)) error(issue)
     }
     if (n.kind === 'table' && !src.endsWith('.table.ts')) error(`${n.id}: source таблицы — файл *.table.ts`)

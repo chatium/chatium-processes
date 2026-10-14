@@ -29,6 +29,12 @@ export function scanJsSource(source) {
   return { clean: clean.join(''), code: code.join('') }
 }
 
+export function hasExportedGetRoute(source) {
+  const { clean, code } = scanJsSource(source)
+  const exportedGet = /\bexport\s+(?:(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*|default\s+)app\.get\s*\(/g
+  return [...code.matchAll(exportedGet)].some(match => /^\s*(['"`])\/\1/.test(clean.slice(match.index + match[0].length)))
+}
+
 export function balancedObjectEnd(code, opening) {
   if (code[opening] !== '{') return -1
   let depth = 0
