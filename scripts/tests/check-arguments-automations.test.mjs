@@ -32,6 +32,18 @@ test('unknown option exits before any snapshot or output-file write', t => {
   assert.throws(() => readFileSync(target))
 })
 
+test('source check validates the installed account skill rather than source-only fixtures', t => {
+  const f = fixture(t)
+  f.put('.agents/skills/processes/SKILL.md', '# Processes\n')
+  const skillCheck = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'skill.clean')
+  assert.equal(skillCheck().ok, true)
+
+  f.put('.agents/skills/processes/accidental.ts', 'export const accidental = true\n')
+  const rejected = skillCheck()
+  assert.equal(rejected.ok, false)
+  assert.match(rejected.errors.join('\n'), /\.agents\/skills\/processes\/accidental\.ts/)
+})
+
 test('large JSON result is complete when check exits with failed checks', t => {
   const f = fixture(t)
   f.put('demo/automations/large.automationConfig.json', JSON.stringify({

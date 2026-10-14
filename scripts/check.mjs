@@ -1193,8 +1193,11 @@ if (options['task-stage'] === 'launch') check('automation.smoke', 'Полный 
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
-  const skillRoot = dirname(dirname(dirname(SKILL_DIR))) // <аккаунт>/.agents/skills/<скилл>
-  for (const f of walk(SKILL_DIR)) {
+  const installedSkill = join(root, '.agents/skills/processes')
+  const isInstalled = isDir(installedSkill)
+  const skillDir = isInstalled ? installedSkill : SKILL_DIR
+  const skillRoot = isInstalled ? root : SKILL_DIR
+  for (const f of walk(skillDir)) {
     if (SKILL_FORBIDDEN.some(re => re.test(f))) {
       error(`${rel(skillRoot, f)}: такой файл в скилле подхватит сборка аккаунта — держи его как *.tpl`)
     }
