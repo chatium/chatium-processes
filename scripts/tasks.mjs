@@ -13,28 +13,30 @@ import { inputBlockers } from './lib/input-blockers.mjs'
 import { parseYaml } from './lib/yaml.mjs'
 import { acceptanceErrors, createTasksBatch, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistProposal,
-  taskDefinitionDigest, taskInputDigest, taskReadiness, writeTask } from './lib/tasks.mjs'
+  taskDefinitionDigest, taskInputDigest, taskReadiness, taskReassessmentStatus, writeTask } from './lib/tasks.mjs'
 import { specialistContract, specialistManifest, specialistPrompt, specialistResponseErrors } from './lib/specialists.mjs'
+import { prepareTaskReassessment, recordTaskReassessment } from './lib/task-reassessment.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['help'],
-  ['help', 'root', 'file', 'stage', 'out', 'step', 'status', 'reason', 'harness', 'agent-id', 'question']) }
+  ['help', 'root', 'file', 'stage', 'out', 'base', 'step', 'status', 'reason', 'harness', 'agent-id', 'question']) }
 catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const [command, slug, id] = positional
 if (options.help || !command || !slug) {
-  console.log('Использование: tasks.mjs <create|create-batch|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status> <process> [W001] [--file JSON] [--question Q1] [--step P1] [--status done] [--root DIR]')
+  console.log('Использование: tasks.mjs <create|create-batch|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status|reassess-prepare|reassess-record> <process> [W001] [--file JSON] [--base SHA] [--root DIR]')
   process.exit(options.help ? 0 : 2)
 }
 if (positional.length > 3) { console.error('Лишний аргумент после ID задачи.'); process.exit(2) }
 const commands = new Set(['create', 'create-batch', 'context', 'start', 'verify-base', 'prepare', 'step', 'bind',
-  'ask', 'resolve', 'record', 'accept', 'fail', 'reopen', 'cancel', 'status'])
+  'ask', 'resolve', 'record', 'accept', 'fail', 'reopen', 'cancel', 'status', 'reassess-prepare', 'reassess-record'])
 if (!commands.has(command)) { console.error(`Неизвестная команда ${command}. Запустите --help.`); process.exit(2) }
-if ((['status', 'create-batch'].includes(command) && id) || (!['status', 'create', 'create-batch'].includes(command) && !id)) {
-  console.error(['status', 'create-batch'].includes(command) ? `${command} не принимает ID задачи.` : 'Нужен ID рабочей задачи W….')
+const batchCommands = ['status', 'create-batch', 'reassess-prepare', 'reassess-record']
+if ((batchCommands.includes(command) && id) || (!['status', 'create', 'create-batch', 'reassess-prepare', 'reassess-record'].includes(command) && !id)) {
+  console.error(batchCommands.includes(command) ? `${command} не принимает ID задачи.` : 'Нужен ID рабочей задачи W….')
   process.exit(2)
 }
-const fileCommands = new Set(['create', 'create-batch', 'ask', 'resolve', 'record', 'fail', 'reopen', 'cancel'])
+const fileCommands = new Set(['create', 'create-batch', 'ask', 'resolve', 'record', 'fail', 'reopen', 'cancel', 'reassess-record'])
 if (fileCommands.has(command)) {
   let readableFile = false
   try { readableFile = Boolean(options.file && statSync(options.file).isFile()) } catch {}
@@ -110,10 +112,11 @@ async function creativePrerequisites(task, all, plan) {
     if (!prerequisite) continue
     if (prerequisite.status !== 'done') { problems.push(`${prerequisite.id}: сначала прими результат задачи`); continue }
     const definition = taskDefinitionDigest(prerequisite, plan.find(item => item.id === prerequisite.planTask))
+    const reassessment = taskReassessmentStatus(root, slug, prerequisite)
     if (prerequisite.acceptance?.definitionDigest !== definition ||
-        prerequisite.acceptance?.inputDigest !== taskInputDigest(root, prerequisite) ||
+        !reassessment.valid || !reassessment.current ||
         prerequisite.acceptance?.resultDigest !== digest(prerequisite.result) ||
-        acceptanceErrors(root, slug, prerequisite, plan, all).length)
+        acceptanceErrors(root, slug, prerequisite, plan, all, new Map(), prerequisite.acceptance?.inputDigest).length)
       problems.push(`${prerequisite.id}: приёмка устарела или неподтверждена`)
   }
   if (problems.length) return problems
@@ -131,6 +134,38 @@ try {
     const report = taskReadiness({ root, slug, stage: options.stage || 'build' })
     show(report)
     process.exit(report.errors.length ? 1 : 0)
+  }
+  if (command === 'reassess-prepare') {
+    const packet = prepareTaskReassessment({ root, slug, baselineCommit: options.base })
+    const directory = options.out ? resolve(options.out) : mkdtempSync(join(tmpdir(), `process-reassessment-${slug}-`))
+    const account = realpathSync(root), canonical = canonicalTarget(directory)
+    if (canonical === account || canonical.startsWith(account + sep)) throw Error('Пакет переоценки храните вне репозитория.')
+    mkdirSync(directory, { recursive: true })
+    const packetPath = join(directory, 'packet.json'), promptPath = join(directory, 'prompt.md')
+    if (existsSync(packetPath) || existsSync(promptPath)) throw Error('Пакет уже существует; нужна новая папка.')
+    writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
+    writeFileSync(promptPath, [
+      'Ты независимый ревьюер влияния изменений. Не правь файлы процесса.',
+      `Прочитай входные инструкции ${join(root, '.agents/skills/processes/SKILL.md')} и ${join(root, '.agents/skills/chatium-development/SKILL.md')}; справки открывай выборочно.`,
+      `Прочитай весь пакет ${packetPath}, включая diff каждого изменённого входа.`,
+      'Для каждой eligible карточки прочитай текущие выходы и доказательства по путям из пакета.',
+      'Сравни изменения входов с результатом, целью и каждым критерием; не запускай живые эффекты.',
+      'Если изменение влияет на результат, тест или остаётся сомнение, ставь affected: карточку переоткроют.',
+      'unaffected допустимо лишь с конкретным объяснением по каждому изменённому входу и критерию.',
+      'Верни JSON: {version:1,kind:"task-reassessment",process,baselineCommit,headCommit,packetDigest,',
+      'reviewer:{kind:"subagent",reference:"<твой ID>"},reviewedAt:"<ISO>",findings:[',
+      '{taskId,decision:"unaffected|affected",fromInputDigest,toInputDigest,rationale,',
+      'changedInputs:[{path,reason}],criteria:[{id,reason}]}]}.',
+      'Перенеси digest и версии из пакета без изменения. Содержательную уместность объясни своими словами.',
+    ].join('\n') + '\n', { flag: 'wx' })
+    show({ packet: packetPath, prompt: promptPath, packetDigest: packet.packetDigest,
+      eligible: packet.eligible.map(item => item.taskId), ineligible: packet.ineligible })
+    process.exit(0)
+  }
+  if (command === 'reassess-record') {
+    const result = recordTaskReassessment({ root, slug, report: input() })
+    show(result)
+    process.exit(0)
   }
   if (command === 'create') {
     const task = input()

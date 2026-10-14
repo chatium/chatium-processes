@@ -706,6 +706,116 @@ test('failed attempt retries and accepted card can be reopened with history', t 
   assert.equal(f.run('start', 'W001').json.attemptId, 'R003')
 })
 
+test('one independent batch reassesses unchanged results without rerunning their old tests', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const started = f.run('start', 'W001')
+  assert.equal(started.status, 0, started.stderr)
+  assert.equal(f.run('step', 'W001', '--step', 'P1', '--status', 'done').status, 0)
+  f.put('demo/form.vue', '<template>Форма</template>\n')
+  f.put('demo/reviews/tasks/W001/tests.json', { version: 1, method: 'Локальная проверка формы',
+    inputDigest: started.json.inputDigest,
+    testedFiles: [{ path: 'demo/form.vue', sha256: f.sha('demo/form.vue') }],
+    checks: [{ id: 'C1', status: 'pass' }] })
+  f.put('result.json', { attemptId: started.json.attemptId, summary: 'Форма проверена',
+    outputs: [{ path: 'demo/form.vue' }],
+    criteriaResults: [{ criterionId: 'C1', outcome: 'pass', evidence: [{
+      path: 'demo/reviews/tasks/W001/tests.json', locator: 'C1', observation: 'Локальная проверка прошла',
+    }] }] })
+  assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).status, 0)
+  assert.equal(f.run('accept', 'W001').status, 0)
+  f.put('demo/PLAN.md', readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8').replace('- [ ] T1', '- [x] T1'))
+  const commit = message => {
+    for (const args of [['add', '.'], ['commit', '-qm', message]]) {
+      const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+      assert.equal(result.status, 0, result.stderr)
+    }
+    return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: f.root, encoding: 'utf8' }).stdout.trim()
+  }
+  const baseline = commit('Accepted form')
+  f.put('.knowledge-base/processes/demo/form.md', 'Email обязателен. Уточнили пример, который не меняет форму.\n')
+  commit('Clarify knowledge')
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменились входные материалы/.test(error)))
+  const prepared = f.run('reassess-prepare', '--base', baseline)
+  assert.equal(prepared.status, 0, prepared.stderr)
+  const packet = JSON.parse(readFileSync(prepared.json.packet, 'utf8'))
+  assert.deepEqual(packet.eligible.map(item => item.taskId), ['W001'])
+  assert.deepEqual(packet.eligible[0].changedInputs, ['.knowledge-base/processes/demo/form.md'])
+  const candidate = packet.eligible[0]
+  const report = { version: 1, kind: 'task-reassessment', process: 'demo',
+    baselineCommit: packet.baselineCommit, headCommit: packet.headCommit,
+    packetDigest: packet.packetDigest, reviewedAt: new Date().toISOString(),
+    reviewer: { kind: 'subagent', reference: '/root/independent_reviewer' },
+    findings: [{ taskId: 'W001', decision: 'unaffected',
+      fromInputDigest: candidate.fromInputDigest, toInputDigest: candidate.toInputDigest,
+      rationale: 'Добавлен только пример; поля и проверенное поведение формы остались прежними.',
+      changedInputs: [{ path: candidate.changedInputs[0],
+        reason: 'Уточнение иллюстрации не меняет обязательность email или структуру формы.' }],
+      criteria: [{ id: 'C1', reason: 'Проверка сохранения заявки не зависит от нового примера в статье.' }],
+    }] }
+  const reportDir = mkdtempSync(join(tmpdir(), 'task-reassessment-report-'))
+  t.after(() => rmSync(reportDir, { recursive: true, force: true }))
+  const reportFile = join(reportDir, 'report.json')
+  writeFileSync(reportFile, JSON.stringify({ ...report, reviewer: { kind: 'main', reference: 'main' } }))
+  assert.equal(f.run('reassess-record', '--file', reportFile).status, 1)
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменились входные материалы/.test(error)))
+  writeFileSync(reportFile, JSON.stringify(report))
+  const recorded = f.run('reassess-record', '--file', reportFile)
+  assert.equal(recorded.status, 0, recorded.stderr)
+  assert.deepEqual(recorded.json.accepted, ['W001'])
+  assert.deepEqual(taskReadiness({ root: f.root, slug: 'demo' }).errors, [])
+  f.put('.knowledge-base/processes/demo/form.md', 'Теперь обязателен и телефон.\n')
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменились входные материалы/.test(error)))
+  f.put('.knowledge-base/processes/demo/form.md', 'Email обязателен. Уточнили пример, который не меняет форму.\n')
+  f.put(recorded.json.reportPath, { version: 1, tampered: true })
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /отчёт переоценки изменён/.test(error)))
+})
+
+test('batch reassessment rejects changed outputs and changed criteria', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  const started = f.run('start', 'W001')
+  assert.equal(started.status, 0)
+  assert.equal(f.run('step', 'W001', '--step', 'P1', '--status', 'done').status, 0)
+  f.put('demo/form.vue', '<template>Форма</template>\n')
+  f.put('demo/helper.ts', 'export const label = "email"\n')
+  f.put('demo/reviews/tasks/W001/tests.json', { version: 1, method: 'Локальная проверка формы',
+    inputDigest: started.json.inputDigest,
+    testedFiles: [{ path: 'demo/form.vue', sha256: f.sha('demo/form.vue') },
+      { path: 'demo/helper.ts', sha256: f.sha('demo/helper.ts') }],
+    checks: [{ id: 'C1', status: 'pass' }] })
+  f.put('result.json', { attemptId: started.json.attemptId, summary: 'Форма проверена',
+    outputs: [{ path: 'demo/form.vue' }], criteriaResults: [{ criterionId: 'C1', outcome: 'pass',
+      evidence: [{ path: 'demo/reviews/tasks/W001/tests.json', locator: 'C1', observation: 'Тест прошёл' }] }] })
+  assert.equal(f.run('record', 'W001', '--file', join(f.root, 'result.json')).status, 0)
+  assert.equal(f.run('accept', 'W001').status, 0)
+  const git = (...args) => spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('commit', '-qm', 'Accepted').status, 0)
+  const baseline = git('rev-parse', 'HEAD').stdout.trim()
+  f.put('.knowledge-base/processes/demo/form.md', 'Email и телефон обязательны.\n')
+  f.put('demo/helper.ts', 'export const label = "phone"\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('commit', '-qm', 'Changed input and tested helper').status, 0)
+  const changedHelper = f.run('reassess-prepare', '--base', baseline)
+  assert.equal(changedHelper.status, 0, changedHelper.stderr)
+  const helperPacket = JSON.parse(readFileSync(changedHelper.json.packet, 'utf8'))
+  assert.deepEqual(helperPacket.eligible, [])
+  assert.ok(helperPacket.ineligible[0].reasons.some(reason => /после теста изменился проверенный файл/.test(reason)))
+  f.put('demo/form.vue', '<template>Другая форма</template>\n')
+  assert.equal(git('add', '.').status, 0)
+  assert.equal(git('commit', '-qm', 'Changed output').status, 0)
+  const prepared = f.run('reassess-prepare', '--base', baseline)
+  assert.equal(prepared.status, 0, prepared.stderr)
+  const packet = JSON.parse(readFileSync(prepared.json.packet, 'utf8'))
+  assert.deepEqual(packet.eligible, [])
+  assert.ok(packet.ineligible[0].reasons.some(reason => /неверный хеш результата/.test(reason)))
+  const changedTask = f.task()
+  changedTask.acceptanceCriteria[0].condition = 'Другое условие'
+  f.put('demo/tasks/W001.json', changedTask)
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменилось задание\/критерии/.test(error)))
+})
+
 test('three identical failed attempts require a changed input or work plan', t => {
   const f = fixture(t)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)

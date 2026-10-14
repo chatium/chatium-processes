@@ -231,7 +231,7 @@ export function specialistProposal(root, outputs) {
   }).join('\n')
 }
 
-export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache = new Map()) {
+export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache = new Map(), evidenceInputDigest = taskInputDigest(root, task)) {
   const errors = [], add = value => errors.push(`${task.id}: ${value}`)
   if (!task.result || !str(task.result.summary)) { add('нет результата'); return errors }
   if (!task.attempts?.some(a => a.id === task.result.attemptId)) add('нет попытки результата')
@@ -268,12 +268,17 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
         if (evidence.sha256 !== fileHash(root, evidence.path)) { add(`${criterion.id}: подтверждение изменено`); continue }
         if (criterion.verification.kind === 'test') {
           const report = JSON.parse(readFileSync(safeTaskPath(root, evidence.path), 'utf8'))
-          if (report.version !== 1 || !str(report.method) || report.inputDigest !== taskInputDigest(root, task) ||
+          if (report.version !== 1 || !str(report.method) || report.inputDigest !== evidenceInputDigest ||
               !Array.isArray(report.testedFiles)) add(`${criterion.id}: отчёт не привязан к версии входов и способу проверки`)
           else {
             const files = new Map(report.testedFiles.map(file => [file.path, file.sha256]))
             if (files.size !== report.testedFiles.length || outputs.some(output => files.get(output.path) !== output.sha256))
               add(`${criterion.id}: отчёт не проверял текущие результаты`)
+            for (const file of report.testedFiles) {
+              if (!str(file.path) || !str(file.sha256)) { add(`${criterion.id}: неполный список проверенных файлов`); continue }
+              if (fileHash(root, file.path) !== file.sha256)
+                add(`${criterion.id}: после теста изменился проверенный файл ${file.path}`)
+            }
           }
           if (!report.checks?.some(c => c.id === evidence.locator && c.status === 'pass')) add(`${criterion.id}: отчёт не содержит пройденную проверку ${evidence.locator}`)
         }
@@ -296,6 +301,43 @@ export function acceptanceErrors(root, slug, task, plan, allTasks, reviewCache =
   }
   if (!plan.find(p => p.id === task.planTask)) add('нет T-задачи')
   return errors
+}
+
+// An independent impact review can keep unchanged results accepted after a
+// shared input changes. The original acceptance and test evidence stay pinned
+// to their original inputs; every later input version needs its own report.
+export function taskReassessmentStatus(root, slug, task) {
+  const original = task.acceptance?.inputDigest
+  if (!str(original)) return { valid: false, effectiveInputDigest: null, reason: 'нет исходной приёмки' }
+  let effectiveInputDigest = original
+  for (const item of task.acceptance.reassessments || []) {
+    if (item.fromInputDigest !== effectiveInputDigest || !str(item.toInputDigest) ||
+        item.definitionDigest !== task.acceptance.definitionDigest ||
+        item.resultDigest !== task.acceptance.resultDigest ||
+        !str(item.packetDigest) || !str(item.reportSha256) ||
+        !new RegExp(`^${slug}/reviews/tasks/reassessments/[a-f0-9]{64}\\.json$`).test(item.reportPath || ''))
+      return { valid: false, effectiveInputDigest, reason: 'нарушена цепочка переоценки' }
+    try {
+      const report = JSON.parse(readFileSync(safeTaskPath(root, item.reportPath), 'utf8'))
+      const finding = report.findings?.find(row => row.taskId === task.id)
+      if (fileHash(root, item.reportPath) !== item.reportSha256 ||
+          report.version !== 1 || report.kind !== 'task-reassessment' ||
+          report.process !== slug || report.packetDigest !== item.packetDigest ||
+          report.reviewer?.kind !== 'subagent' || !str(report.reviewer?.reference) ||
+          finding?.decision !== 'unaffected' ||
+          finding.fromInputDigest !== item.fromInputDigest ||
+          finding.toInputDigest !== item.toInputDigest ||
+          !str(finding.rationale) ||
+          !Array.isArray(finding.changedInputs) || !finding.changedInputs.length ||
+          !Array.isArray(finding.criteria) || !finding.criteria.length)
+        return { valid: false, effectiveInputDigest, reason: 'отчёт переоценки изменён или неполон' }
+    } catch (error) {
+      return { valid: false, effectiveInputDigest, reason: `нет отчёта переоценки: ${error.message}` }
+    }
+    effectiveInputDigest = item.toInputDigest
+  }
+  return { valid: true, effectiveInputDigest,
+    current: effectiveInputDigest === taskInputDigest(root, task) }
 }
 
 export function creativeNode(root, slug, nodeId, paths = []) {
@@ -443,10 +485,14 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
     }
     if (task.status !== 'done') { issue(`задача не завершена (${task.status})`); continue }
     try {
-      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks, reviewCache)) issue(error)
+      const reassessment = taskReassessmentStatus(root, slug, task)
+      const evidenceInputDigest = reassessment.valid && reassessment.current ?
+        task.acceptance?.inputDigest : taskInputDigest(root, task)
+      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks, reviewCache, evidenceInputDigest)) issue(error)
       const currentDefinition = taskDefinitionDigest(task, plan.find(p => p.id === task.planTask))
       if (task.acceptance?.definitionDigest !== currentDefinition) issue('изменилось задание/критерии после приёмки')
-      if (task.acceptance?.inputDigest !== taskInputDigest(root, task)) issue('изменились входные материалы после приёмки')
+      if (!reassessment.valid || !reassessment.current)
+        issue(`изменились входные материалы после приёмки${reassessment.reason ? ` (${reassessment.reason})` : ''}`)
       if (!task.result || task.acceptance?.resultDigest !== digest(task.result)) issue('результат изменён после приёмки')
       for (const o of task.result?.outputs || []) if (fileHash(root, o.path) !== o.sha256) issue(`изменён результат ${o.path}`)
       for (const c of task.result?.criteriaResults || []) for (const e of c.evidence || []) if (fileHash(root, e.path) !== e.sha256) issue(`изменено подтверждение ${e.path}`)
