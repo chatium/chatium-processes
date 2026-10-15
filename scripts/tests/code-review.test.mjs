@@ -373,6 +373,15 @@ test('generated trees and reports are excluded while explicit local typings and 
   assert.match(corpus.assets[0].sha256, /^[a-f0-9]{64}$/)
 })
 
+test('executable sources cannot hide in top-level service record directories', async t => {
+  for (const folder of ['tasks', 'reviews', 'decisions']) await t.test(folder, t => {
+    const f = fixture(t)
+    const path = `demo/${folder}/nested/action.ts`
+    f.put(path, 'export const price = 4900\n')
+    assert.match(errors(f.collect()).join('\n'), new RegExp(`Исполняемый исходник в служебном каталоге: ${path}`))
+  })
+})
+
 test('secret configs and size/count bounds produce structural errors instead of silent success', t => {
   const f = fixture(t)
   f.put('demo/.env', 'TOKEN=SHOULD_NOT_LEAK')

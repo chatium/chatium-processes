@@ -127,6 +127,21 @@ test('launch decision detects changed delivery and board revision', t => {
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' }).status, 'stale')
 })
 
+test('launch decision includes code in nested folders named like service records', async t => {
+  for (const folder of ['tasks', 'reviews', 'decisions']) await t.test(folder, t => {
+    const f = fixture(t)
+    const path = `demo/admin/${folder}/action.ts`
+    f.put(path, 'export const price = 3900\n')
+    const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: null })
+    recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
+      response: answer({ message: 'Да, запускаем.', messageReference: 'conversation/message-456' }) })
+    f.put(path, 'export const price = 4900\n')
+    const result = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' })
+    assert.equal(result.status, 'stale')
+    assert.ok(result.changedFiles.includes(path))
+  })
+})
+
 test('build transition reads the current board revision before trusting plan approval', async t => {
   const f = fixture(t)
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 4 })

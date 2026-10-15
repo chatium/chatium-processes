@@ -24,6 +24,7 @@ function delegatedTestIsSafe(root, slug) {
 function approvalFiles(root, directory) {
   if (!existsSync(directory)) return []
   const account = realpathSync(root), files = []
+  const scopeRoot = realpathSync(directory)
   let entries = 0, bytes = 0
   function visit(path) {
     if (++entries > 2000) throw Error('Слишком много файлов в согласуемом объёме.')
@@ -33,7 +34,8 @@ function approvalFiles(root, directory) {
     if (!real.startsWith(account + sep)) throw Error('Согласуемый файл выходит за пределы аккаунта.')
     if (stat.isDirectory()) {
       for (const name of readdirSync(path).sort()) {
-        if (['.git', 'node_modules', 'tasks', 'reviews', 'decisions'].includes(name)) continue
+        if (['.git', 'node_modules'].includes(name) ||
+            (real === scopeRoot && ['tasks', 'reviews', 'decisions'].includes(name))) continue
         visit(join(path, name))
       }
     } else if (stat.isFile()) {
@@ -103,7 +105,8 @@ export function approvalScope({ root, slug, kind, historical = false }) {
     const rootPath = join(root, slug)
     for (const path of approvalFiles(root, rootPath)) {
       const relative = rel(root, path)
-      if (/\/(?:tasks|reviews|decisions)\//.test(relative) || relative.endsWith('/PLAN.md')) continue
+      if (['tasks', 'reviews', 'decisions'].some(name => relative.startsWith(`${slug}/${name}/`)) ||
+          relative === `${slug}/PLAN.md`) continue
       // A launch decision covers executable behavior too: prices, recipients and
       // delivery rules often live in route handlers rather than config files.
       if (!/\.(?:json|ya?ml|md|tpl|[cm]?js|jsx|[cm]?ts|tsx|vue)$/.test(relative)) continue

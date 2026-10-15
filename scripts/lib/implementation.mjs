@@ -74,6 +74,28 @@ export function collectImplementation({ root, slug }) {
       if (CODE.test(real) || real.endsWith('.automationConfig.json')) queue.push(file)
     }
   }
+  // Reports and decisions are omitted from the review digest, so executable
+  // process sources must never be hidden inside those directories.
+  function checkReservedSources(directory) {
+    if (!existsSync(directory)) return
+    const pending = [directory]
+    let scanned = 0
+    while (pending.length) {
+      const current = pending.pop()
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        if (++scanned > IMPLEMENTATION_LIMITS.entries) {
+          addError('Слишком много файлов в служебных каталогах процесса.')
+          return
+        }
+        const path = join(current, entry.name)
+        if (entry.isSymbolicLink()) addError(`Ссылка в служебном каталоге: ${rel(root, path)}`)
+        else if (entry.isDirectory()) pending.push(path)
+        else if (CODE.test(entry.name) || /\.(?:agent|automationConfig)\.json$/.test(entry.name))
+          addError(`Исполняемый исходник в служебном каталоге: ${rel(root, path)}. Перенесите его в обычный исходный каталог процесса.`)
+      }
+    }
+  }
+  for (const name of ['tasks', 'reviews', 'decisions']) checkReservedSources(join(root, slug, name))
   for (const file of knowledge.files) add(join(root, file.path), true)
   add(join(root, slug), true)
   const mapFile = files.get(`${slug}/process.yaml`)
