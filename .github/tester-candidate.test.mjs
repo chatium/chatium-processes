@@ -37,25 +37,23 @@ test('every live finding belongs to exactly one grouped run', () => {
   const ids = deferrals.groups['live-process'].ids
   const grouped = assessLiveBatches(liveBatches.batches, ids)
   assert.deepEqual(grouped.errors, [])
-  assert.equal(grouped.batchCount, 2)
-  assert.equal(grouped.sessionCount, 2)
+  assert.equal(grouped.batchCount, 1)
+  assert.equal(grouped.sessionCount, 1)
   const missing = structuredClone(liveBatches.batches)
   missing[0].ids.pop()
   assert.match(assessLiveBatches(missing, ids).errors.join('\n'), /назначен 0 пакетам/)
   const duplicate = structuredClone(liveBatches.batches)
-  duplicate[1].ids.push(duplicate[0].ids[0])
+  duplicate.push({ ...structuredClone(duplicate[0]), id: 'duplicate-batch' })
   assert.match(assessLiveBatches(duplicate, ids).errors.join('\n'), /назначен 2 пакетам/)
   const inventedStatus = structuredClone(liveBatches.batches)
   inventedStatus[0].status = 'completed'
   assert.match(assessLiveBatches(inventedStatus, ids).errors.join('\n'), /допустимый статус/)
   const mismatched = structuredClone(liveBatches.batches)
   mismatched[0].sharedLiveSession = 'same-session'
-  mismatched[1].sharedLiveSession = 'same-session'
+  mismatched.push({ ...structuredClone(mismatched[0]), id: 'other-process',
+    fixture: 'funnels-git-3/main: other-process', ids: [] })
   assert.match(assessLiveBatches(mismatched, ids).errors.join('\n'), /разные аккаунты или процессы/)
   const separated = structuredClone(liveBatches.batches)
   separated[0].sharedLiveSession = 'same-session'
-  separated[1].sharedLiveSession = 'same-session'
-  separated[1].fixture = separated[0].fixture
-  delete separated[1].sharedLiveSession
   assert.match(assessLiveBatches(separated, ids).errors.join('\n'), /только одному пакету/)
 })
