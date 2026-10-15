@@ -8,7 +8,7 @@ const gate = fileURLToPath(new URL('../../.github/release-check.mjs', import.met
 test('release gate needs one DSH end-to-end run and two code reviews on one candidate',
   { skip: !existsSync(gate) }, async () => {
     const { assessRelease, expectedIds } = await import(gate)
-    const rows = expectedIds.map(id => ({ id, status: ['R20', 'R40', 'E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
+    const rows = expectedIds.map(id => ({ id, status: ['R20', 'E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
       check: 'scripts/tests/example.test.mjs', commit: 'a'.repeat(40) }))
     const evidence = { testedCommit: 'b'.repeat(40), testPlan: { account: 'clean-test-account',
       mode: 'isolated-new-process', reference: 'owner/message/test-plan' },
@@ -26,6 +26,7 @@ test('release gate needs one DSH end-to-end run and two code reviews on one cand
       license: readFileSync(fileURLToPath(new URL('../../LICENSE', import.meta.url)), 'utf8'),
       evidence, changedFiles: [] }
     assert.deepEqual(assessRelease(input), [])
+    assert.match(assessRelease({ ...input, rows: rows.map(row => row.id === 'R40' ? { ...row, status: 'отложено' } : row) }).join('\n'), /R40/)
     assert.match(assessRelease({ ...input, rows: rows.map(row => row.id === 'R01' ? { ...row, status: 'в работе' } : row) }).join('\n'), /R01/)
     assert.match(assessRelease({ ...input, rows: [...rows, rows[0]] }).join('\n'), /повторные R01/)
     assert.match(assessRelease({ ...input, license: '' }).join('\n'), /LICENSE/)
