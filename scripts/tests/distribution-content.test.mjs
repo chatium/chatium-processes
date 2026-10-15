@@ -41,7 +41,7 @@ test('installable instructions contain no developer home paths or legacy V4 jarg
 test('distribution check catches an internal path and V4 jargon outside developer-only files', t => {
   const directory = mkdtempSync(join(tmpdir(), 'processes-distribution-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  writeFileSync(join(directory, 'SKILL.md'), 'См. /Users/ratmir/Projects/chatium accounts/start.chatium.ru; прежний V4.\n')
+  writeFileSync(join(directory, 'SKILL.md'), 'См. /Users/example/private-source; прежний V4.\n')
   writeFileSync(join(directory, 'README.md'), 'Этот файл не входит в установленный скилл.\n')
   assert.deepEqual(leakedFiles(directory), ['SKILL.md'])
 })
