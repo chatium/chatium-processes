@@ -29,6 +29,12 @@
     }
   },
   "testedCommit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
+  "releaseDecision": {
+    "decision": "publish",
+    "commit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
+    "reference": "conversation/question:call_01a121fc4844472a9c6b4fb52887610a:0",
+    "decidedAt": "2026-10-15T13:44:04Z"
+  },
   "runs": {
     "dsh": {
       "status": "pass",

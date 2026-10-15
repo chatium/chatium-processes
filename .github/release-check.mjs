@@ -88,5 +88,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (errors.length) {
     for (const error of errors) console.error(`✘ ${error}`)
     process.exitCode = 1
-  } else console.log('Выпуск готов к отдельному решению о публикации.')
+  } else console.log('Релизный барьер пройден: можно создать тег.')
 }
