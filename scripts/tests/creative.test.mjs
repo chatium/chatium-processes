@@ -910,6 +910,13 @@ test('a linked page view does not stale screenshots, but its route or the curren
   })) })
   const args = { ...f.args, stage: 'result' }
   const original = creativeReviewPacket(args)
+  for (const folder of ['reviews', 'tasks']) {
+    const path = `demo/pages/home/${folder}/card.tsx`
+    f.put(path, 'export const price = 4900\n')
+    assert.throws(() => creativeReviewPacket(args), /Результат изменился/)
+    rmSync(join(f.root, path))
+    assert.equal(creativeReviewPacket(args).inputDigest, original.inputDigest)
+  }
   f.put('demo/pages/catalog/view.ts', 'export const view = "Новый каталог"\n')
   assert.equal(git('add', '.').status, 0)
   assert.equal(git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'catalog content').status, 0)

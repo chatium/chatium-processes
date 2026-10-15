@@ -94,6 +94,7 @@ const questions = (kind, stage, guidance, messages = [], visualMode = 'png', ima
 function outputFiles(root, source) {
   const base = realpathSync(root), target = safeTaskPath(root, source.replace(/\/$/, ''), { mayBeMissing: true })
   if (!existsSync(target)) throw Error(`Нет результата ${source}`)
+  const processRoot = join(base, source.split('/')[0])
   const files = [], seen = new Set()
   let bytes = 0
   function visit(path) {
@@ -105,7 +106,8 @@ function outputFiles(root, source) {
     if (stat.isSymbolicLink()) throw Error(`Символьная ссылка в результате ${path}`)
     if (stat.isDirectory()) {
       for (const name of readdirSync(path).sort()) {
-        if (['node_modules', '.git', 'reviews', 'tasks'].includes(name)) continue
+        if (['node_modules', '.git'].includes(name) ||
+            (real === processRoot && ['reviews', 'tasks'].includes(name))) continue
         visit(join(path, name))
       }
       return
