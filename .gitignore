@@ -1,2 +1,8 @@
 node_modules/
 .DS_Store
+/.local-context/
+/AGENTS.md
+/.github/evidence/
+/.github/fixtures/
+/.github/*.md
+/.github/*.json

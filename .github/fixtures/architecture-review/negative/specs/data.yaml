@@ -1,4 +1,0 @@
-version: 1
-tables:
-  - id: new-requests
-    fields: [email, classId, status]
