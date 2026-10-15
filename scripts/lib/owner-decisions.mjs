@@ -21,7 +21,7 @@ function delegatedTestIsSafe(root, slug) {
   } catch { return false }
 }
 
-function approvalFiles(root, directory) {
+function approvalFiles(root, directory, { skipRootRecords = false } = {}) {
   if (!existsSync(directory)) return []
   const account = realpathSync(root), files = []
   const scopeRoot = realpathSync(directory)
@@ -35,7 +35,7 @@ function approvalFiles(root, directory) {
     if (stat.isDirectory()) {
       for (const name of readdirSync(path).sort()) {
         if (['.git', 'node_modules'].includes(name) ||
-            (real === scopeRoot && ['tasks', 'reviews', 'decisions'].includes(name))) continue
+            (skipRootRecords && real === scopeRoot && ['tasks', 'reviews', 'decisions'].includes(name))) continue
         visit(join(path, name))
       }
     } else if (stat.isFile()) {
@@ -103,7 +103,7 @@ export function approvalScope({ root, slug, kind, historical = false }) {
   const files = new Map(knowledge.files.map(file => [file.path, normalized(file.path, file.content, historical)]))
   if (kind === 'launch') {
     const rootPath = join(root, slug)
-    for (const path of approvalFiles(root, rootPath)) {
+    for (const path of approvalFiles(root, rootPath, { skipRootRecords: true })) {
       const relative = rel(root, path)
       if (['tasks', 'reviews', 'decisions'].some(name => relative.startsWith(`${slug}/${name}/`)) ||
           relative === `${slug}/PLAN.md`) continue

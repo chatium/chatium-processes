@@ -382,6 +382,15 @@ test('executable sources cannot hide in top-level service record directories', a
   })
 })
 
+test('imports of business data from service record directories fail visibly', t => {
+  const f = fixture(t)
+  f.put('demo/reviews/testimonials.json', '{"price":4900}\n')
+  f.put(codePath, "import offer from './reviews/testimonials.json'\nexport const price = offer.price\n")
+  const corpus = f.collect()
+  assert.match(errors(corpus).join('\n'), /Нельзя включить служебный каталог\/отчёт: demo\/reviews\/testimonials\.json/)
+  assert.ok(!paths(corpus).includes('demo/reviews/testimonials.json'))
+})
+
 test('secret configs and size/count bounds produce structural errors instead of silent success', t => {
   const f = fixture(t)
   f.put('demo/.env', 'TOKEN=SHOULD_NOT_LEAK')

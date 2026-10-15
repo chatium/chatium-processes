@@ -142,6 +142,21 @@ test('launch decision includes code in nested folders named like service records
   })
 })
 
+test('launch decision includes letter series named like service records', async t => {
+  for (const folder of ['tasks', 'reviews', 'decisions']) await t.test(folder, t => {
+    const f = fixture(t)
+    const path = `.mailings/storage/processes/demo/${folder}/01.message.yaml`
+    f.put(path, 'subject: Подтверждение\n')
+    const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', boardRevision: null })
+    recordOwnerDecision({ root: f.root, slug: 'demo', kind: 'launch', packet,
+      response: answer({ message: 'Да, запускаем.', messageReference: 'conversation/message-456' }) })
+    f.put(path, 'subject: Другое обещание\n')
+    const result = ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'launch' })
+    assert.equal(result.status, 'stale')
+    assert.ok(result.changedFiles.includes(path))
+  })
+})
+
 test('build transition reads the current board revision before trusting plan approval', async t => {
   const f = fixture(t)
   const packet = prepareOwnerDecision({ root: f.root, slug: 'demo', kind: 'plan', boardRevision: 4 })
