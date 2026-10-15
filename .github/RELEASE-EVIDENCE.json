@@ -26,5 +26,12 @@
       "verification": ".github/evidence/mailings-process-delivery-2026-10-09.json"
     }
   },
-  "runs": {}
+  "runs": {
+    "dsh": {
+      "status": "partial",
+      "account": "funnels-git-3.chatium.ru",
+      "commit": "acd0d57c80b54ef3d589ca800e9cc2e7efd07a2c",
+      "record": ".github/evidence/dsh-published-candidate-2026-10-15.md"
+    }
+  }
 }
