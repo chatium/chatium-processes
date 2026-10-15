@@ -302,8 +302,8 @@ test('independent review packet binds role instructions and reference snapshot',
     mkdirSync(join(f.root, 'demo/tests'), { recursive: true })
     writeFileSync(join(f.root, 'demo/tests/ai-grouped-result.json'), JSON.stringify({ status: 'pending' }))
     const withObservation = makeAgentReviewPacket({ root: f.root, slug: 'demo' })
-    assert.ok(withObservation.files.some(file => file.path === 'demo/tests/ai-grouped-result.json'))
-    assert.notEqual(withObservation.inputDigest, changed.inputDigest)
+    assert.ok(!withObservation.files.some(file => file.path === 'demo/tests/ai-grouped-result.json'))
+    assert.equal(withObservation.inputDigest, changed.inputDigest)
   } finally { f.cleanup() }
 })
 

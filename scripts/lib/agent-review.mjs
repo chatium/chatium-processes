@@ -68,8 +68,6 @@ function agentSubject(corpus, slug, agents) {
     `${slug}/.workspace.json`, `${slug}/PLAN.md`, `${slug}/process.yaml`,
     `${slug}/agents`, `${slug}/specs/services.yaml`, `${slug}/review-scope.json`,
     `.knowledge-base/processes/${slug}/overview.md`]) include(path)
-  for (const file of corpus.files) if (file.path.startsWith(`${slug}/tests/`) &&
-      /\/(?:ai|agent)[^/]*\.(?:json|ya?ml|md)$/i.test(file.path)) selected.add(file.path)
   for (const agent of agents.filter(value => value && typeof value === 'object')) {
     include(agent.config, true)
     for (const source of (Array.isArray(agent.knowledge) ? agent.knowledge : [])) include(source?.path, true)
