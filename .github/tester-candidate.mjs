@@ -54,8 +54,8 @@ export function parseRegister(source) {
 export function assessLiveBatches(batches, liveIds) {
   const errors = [], seen = new Map(), sessions = new Map(), expected = new Set(liveIds)
   const validStatuses = new Set(['pending', 'partial', 'executed-needs-work'])
-  if (!Array.isArray(batches) || batches.length < 1 || batches.length > 4)
-    return { errors: ['Живые проверки должны быть собраны в 1–4 пакета.'] }
+  if (!Array.isArray(batches) || batches.length > 4 || (liveIds.length > 0 && batches.length < 1))
+    return { errors: ['Открытые живые проверки должны быть собраны в 1–4 пакета.'] }
   for (const batch of batches) {
     if (!batch || typeof batch !== 'object') { errors.push('Неверное описание живого пакета.'); continue }
     if (!batch?.id || !batch.fixture || !batch.negative || !batch.positive || !batch.evidence ||
@@ -96,7 +96,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } else {
     console.log(`Кандидат для тестировщика учтён: ${rows.length - result.pendingCount} закрыто, ${result.pendingCount} ожидают проверки.`)
     for (const [group, count] of Object.entries(result.groups)) console.log(`  ${group}: ${count}`)
-    console.log(`Живые проверки собраны в ${live.batchCount} логических пакета и ${live.sessionCount} сеанса; частичные результаты остаются открытыми.`)
+    console.log(`Открытых живых проверок: ${live.batchCount} пакетов, ${live.sessionCount} сеансов.`)
     console.log('Это не разрешение на запуск процесса и не подтверждение готовности выпуска.')
   }
 }

@@ -29,7 +29,7 @@ test('a missing contract or duplicate classification rejects the handoff', () =>
   pending.check = '—'
   assert.match(assessTesterCandidate({ rows: candidate, deferrals }).errors.join('\n'), /нет ссылки/)
   const repeated = structuredClone(deferrals)
-  repeated.groups['production-release'].ids.push(repeated.groups['live-process'].ids[0])
+  repeated.groups['production-release'].ids.push(repeated.groups['owner-deferred'].ids[0])
   assert.match(assessTesterCandidate({ rows, deferrals: repeated }).errors.join('\n'), /двум видам/)
 })
 
@@ -37,23 +37,19 @@ test('every live finding belongs to exactly one grouped run', () => {
   const ids = deferrals.groups['live-process'].ids
   const grouped = assessLiveBatches(liveBatches.batches, ids)
   assert.deepEqual(grouped.errors, [])
-  assert.equal(grouped.batchCount, 1)
-  assert.equal(grouped.sessionCount, 1)
-  const missing = structuredClone(liveBatches.batches)
-  missing[0].ids.pop()
-  assert.match(assessLiveBatches(missing, ids).errors.join('\n'), /назначен 0 пакетам/)
-  const duplicate = structuredClone(liveBatches.batches)
-  duplicate.push({ ...structuredClone(duplicate[0]), id: 'duplicate-batch' })
-  assert.match(assessLiveBatches(duplicate, ids).errors.join('\n'), /назначен 2 пакетам/)
-  const inventedStatus = structuredClone(liveBatches.batches)
-  inventedStatus[0].status = 'completed'
-  assert.match(assessLiveBatches(inventedStatus, ids).errors.join('\n'), /допустимый статус/)
-  const mismatched = structuredClone(liveBatches.batches)
-  mismatched[0].sharedLiveSession = 'same-session'
+  assert.equal(grouped.batchCount, 0)
+  assert.equal(grouped.sessionCount, 0)
+  const synthetic = { id: 'customer-delivery', fixture: 'funnels-git-3/main: plant-care',
+    negative: 'не отправлять после отмены', positive: 'сверить состояние',
+    evidence: 'evidence.md', ids: ['I09'], status: 'pending' }
+  assert.match(assessLiveBatches([], ['I09']).errors.join('\n'), /1–4 пакета/)
+  assert.deepEqual(assessLiveBatches([synthetic], ['I09']).errors, [])
+  assert.match(assessLiveBatches([{ ...synthetic, ids: [] }], ['I09']).errors.join('\n'), /назначен 0 пакетам/)
+  assert.match(assessLiveBatches([synthetic, { ...synthetic, id: 'duplicate-batch' }], ['I09']).errors.join('\n'), /назначен 2 пакетам/)
+  assert.match(assessLiveBatches([{ ...synthetic, status: 'completed' }], ['I09']).errors.join('\n'), /допустимый статус/)
+  const mismatched = [{ ...synthetic, sharedLiveSession: 'same-session' }]
   mismatched.push({ ...structuredClone(mismatched[0]), id: 'other-process',
     fixture: 'funnels-git-3/main: other-process', ids: [] })
-  assert.match(assessLiveBatches(mismatched, ids).errors.join('\n'), /разные аккаунты или процессы/)
-  const separated = structuredClone(liveBatches.batches)
-  separated[0].sharedLiveSession = 'same-session'
-  assert.match(assessLiveBatches(separated, ids).errors.join('\n'), /только одному пакету/)
+  assert.match(assessLiveBatches(mismatched, ['I09']).errors.join('\n'), /разные аккаунты или процессы/)
+  assert.match(assessLiveBatches([{ ...synthetic, sharedLiveSession: 'same-session' }], ['I09']).errors.join('\n'), /только одному пакету/)
 })
