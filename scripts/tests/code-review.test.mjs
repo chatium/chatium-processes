@@ -161,6 +161,27 @@ test('code conclusion ignores bookkeeping and launch toggle but tracks business 
   assert.notEqual(f.packet().inputDigest, before)
 })
 
+test('test reports do not stale code review while test sources and fixtures do', t => {
+  const f = fixture(t)
+  const before = f.packet().inputDigest
+  f.put('demo/tests/W021-live-2026-10-15.md', 'Одна заявка записана.\n')
+  f.put('demo/tests/W021-live-2026-10-15.json', '{"accepted":true}\n')
+  f.put('demo/tests/automation-smoke.json', '{"accepted":true}\n')
+  assert.equal(f.packet().inputDigest, before)
+  f.put('demo/tests/decision.test.mjs', 'export const decision = 1\n')
+  const withTest = f.packet().inputDigest
+  assert.notEqual(withTest, before)
+  f.put('demo/tests/fixtures/decision.json', '{"capacity":6}\n')
+  assert.notEqual(f.packet().inputDigest, withTest)
+  const withFixture = f.packet().inputDigest
+  f.put('demo/tests/decision.test.mjs', "import './decision-case.json'\n")
+  f.put('demo/tests/decision-case.json', '{"capacity":6}\n')
+  const withImported = f.packet().inputDigest
+  assert.notEqual(withImported, withFixture)
+  f.put('demo/tests/decision-case.json', '{"capacity":8}\n')
+  assert.notEqual(f.packet().inputDigest, withImported)
+})
+
 test('no letters is valid without a letters directory; explicit missing letters is an error', t => {
   const f = fixture(t)
   rmSync(join(f.root, '.mailings/storage/processes/demo'), { recursive: true })

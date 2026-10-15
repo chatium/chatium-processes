@@ -68,9 +68,17 @@ export function makeCodeReviewPacket({ root, slug }) {
   const corpus = collectImplementation({ root, slug })
   // Progress and generated prompts must not invalidate a review. Keep only
   // the task requirements and real implementation sources in the packet.
+  // Test run reports are evidence for the test stage, not changed code.
   const planPath = `${slug}/PLAN.md`
+  const testRoot = `${slug}/tests/`
+  const importedTestFiles = new Set(corpus.dependencies.filter(dep =>
+    dep.source?.startsWith(testRoot) && dep.target?.startsWith(testRoot)).map(dep => dep.target))
+  const testSource = path => !path.startsWith(testRoot) ||
+    (path !== `${testRoot}records.ts` && path !== `${testRoot}automation-smoke.json` && (
+      /\.(?:[cm]?[jt]sx?|vue)$/i.test(path) || path.startsWith(`${testRoot}fixtures/`) ||
+      importedTestFiles.has(path)))
   const files = corpus.files.filter(file => !file.path.startsWith(`${slug}/tasks/`) &&
-    file.path !== `${slug}/tests/records.ts` && file.path !== `${slug}/tests/automation-smoke.json` &&
+    testSource(file.path) &&
     !new RegExp(`^${slug}/creative/[^/]+/build\\.md$`).test(file.path))
     .map(file => file.path === planPath ? { ...file, content: reviewPlan(file.content) }
       : file.path === `${slug}/.workspace.json` ? { ...file, content: reviewWorkspace(file.content) }
