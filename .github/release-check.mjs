@@ -38,7 +38,7 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   if (!evidence.testPlan?.account || evidence.testPlan?.mode !== 'isolated-new-process' ||
       !evidence.testPlan?.reference)
     errors.push('Нет актуального согласованного аккаунта и изолированного процесса для сквозных испытаний.')
-  if (!/^[0-9a-f]{40}$/.test(evidence.testedCommit || '')) errors.push('Нет SHA версии, проверенной сквозными прогонами.')
+  if (!/^[0-9a-f]{40}$/.test(evidence.testedCommit || '')) errors.push('Нет SHA версии, проверенной общим приёмочным пакетом.')
   if (evidence.releaseDecision?.decision !== 'publish' ||
       evidence.releaseDecision?.commit !== evidence.testedCommit ||
       !evidence.releaseDecision?.reference ||
@@ -47,11 +47,11 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   if (!/^[0-9a-f]{40}$/.test(evidence.platform?.mailingsProcessDelivery?.commit || '') ||
       !Number.isFinite(Date.parse(evidence.platform?.mailingsProcessDelivery?.verifiedAt)))
     errors.push('Не подтверждён выпуск Mailings с ограничением processDeliveryChannelIds до испытания скилла.')
-  for (const harness of ['dsh', 'claude-code', 'codex']) {
+  for (const [harness, mode] of [['dsh', 'end-to-end'], ['claude-code', 'code-review'], ['codex', 'code-review']]) {
     const run = evidence.runs?.[harness]
-    if (run?.status !== 'pass' || !run.record || run.account !== evidence.testPlan?.account ||
-        run.commit !== evidence.testedCommit)
-      errors.push(`Нет подтверждённого полного прогона ${harness} в согласованном аккаунте на проверенной версии скилла.`)
+    if (run?.status !== 'pass' || run.mode !== mode || !run.record ||
+        run.account !== evidence.testPlan?.account || run.commit !== evidence.testedCommit)
+      errors.push(`Нет принятого заключения ${harness} (${mode}) по проверенной версии скилла в согласованном аккаунте.`)
   }
   if (changedFiles.length) errors.push(`После сквозного прогона изменились файлы скилла: ${changedFiles.join(', ')}.`)
   return errors

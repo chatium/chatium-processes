@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const gate = fileURLToPath(new URL('../../.github/release-check.mjs', import.meta.url))
 
-test('release gate needs closed findings, owner terms and unchanged cross-harness evidence',
+test('release gate needs one DSH end-to-end run and two code reviews on one candidate',
   { skip: !existsSync(gate) }, async () => {
     const { assessRelease, expectedIds } = await import(gate)
     const rows = expectedIds.map(id => ({ id, status: ['R20', 'R40', 'E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
@@ -19,7 +19,8 @@ test('release gate needs closed findings, owner terms and unchanged cross-harnes
       reference: 'owner/message/mit', decidedAt: '2026-10-07T00:00:00Z' }, distribution: { decision: 'public',
       reference: 'owner/message/42', approvedAt: '2026-10-07T00:00:00Z' },
     runs: Object.fromEntries(['dsh', 'claude-code', 'codex'].map(harness =>
-      [harness, { status: 'pass', account: 'clean-test-account', commit: 'b'.repeat(40),
+      [harness, { status: 'pass', mode: harness === 'dsh' ? 'end-to-end' : 'code-review',
+        account: 'clean-test-account', commit: 'b'.repeat(40),
         record: `test-record/${harness}` }])) }
     const input = { rows, version: '1.0.0', licenseId: 'MIT',
       license: readFileSync(fileURLToPath(new URL('../../LICENSE', import.meta.url)), 'utf8'),
@@ -36,6 +37,10 @@ test('release gate needs closed findings, owner terms and unchanged cross-harnes
     assert.match(assessRelease({ ...input, evidence: { ...evidence, testPlan: null } }).join('\n'), /согласованного аккаунта/)
     assert.match(assessRelease({ ...input, changedFiles: ['SKILL.md'] }).join('\n'), /SKILL.md/)
     assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs, dsh: { status: 'missing' } } } }).join('\n'), /dsh/)
+    assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs,
+      dsh: { ...evidence.runs.dsh, mode: 'code-review' } } } }).join('\n'), /dsh/)
+    assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs,
+      'claude-code': { ...evidence.runs['claude-code'], mode: 'end-to-end' } } } }).join('\n'), /claude-code/)
     assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs,
       codex: { ...evidence.runs.codex, account: 'another-account' } } } }).join('\n'), /codex/)
     assert.match(assessRelease({ ...input, evidence: { ...evidence, runs: { ...evidence.runs,

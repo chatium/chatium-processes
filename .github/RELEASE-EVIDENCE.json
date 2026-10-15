@@ -8,6 +8,8 @@
     "account": "funnels-git-3.chatium.ru",
     "mode": "isolated-new-process",
     "reference": "conversation/user:funnels-git-3-for-all-live-tests",
+    "acceptance": "one-dsh-end-to-end-plus-claude-code-and-codex-code-reviews",
+    "acceptanceReference": "conversation/question:call_fcd23d6a131f47d3bd407dc6864d9f82:0",
     "previous": {
       "account": "funnels-git-1.chatium.ru",
       "reference": "conversation/question:call_jmz2TQim56ZuOvyRcJpe2LU6:1"
@@ -26,9 +28,11 @@
       "verification": ".github/evidence/mailings-process-delivery-2026-10-09.json"
     }
   },
+  "testedCommit": "acd0d57c80b54ef3d589ca800e9cc2e7efd07a2c",
   "runs": {
     "dsh": {
       "status": "partial",
+      "mode": "end-to-end",
       "account": "funnels-git-3.chatium.ru",
       "commit": "acd0d57c80b54ef3d589ca800e9cc2e7efd07a2c",
       "record": ".github/evidence/dsh-published-candidate-2026-10-15.md"
