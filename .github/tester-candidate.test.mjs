@@ -37,7 +37,7 @@ test('every live finding belongs to exactly one grouped run', () => {
   const ids = deferrals.groups['live-process'].ids
   const grouped = assessLiveBatches(liveBatches.batches, ids)
   assert.deepEqual(grouped.errors, [])
-  assert.equal(grouped.batchCount, 3)
+  assert.equal(grouped.batchCount, 2)
   assert.equal(grouped.sessionCount, 2)
   const missing = structuredClone(liveBatches.batches)
   missing[0].ids.pop()
@@ -49,9 +49,13 @@ test('every live finding belongs to exactly one grouped run', () => {
   inventedStatus[0].status = 'completed'
   assert.match(assessLiveBatches(inventedStatus, ids).errors.join('\n'), /допустимый статус/)
   const mismatched = structuredClone(liveBatches.batches)
-  mismatched[2].fixture = 'funnels-git-3/main: other-process'
+  mismatched[0].sharedLiveSession = 'same-session'
+  mismatched[1].sharedLiveSession = 'same-session'
   assert.match(assessLiveBatches(mismatched, ids).errors.join('\n'), /разные аккаунты или процессы/)
   const separated = structuredClone(liveBatches.batches)
-  delete separated[2].sharedLiveSession
+  separated[0].sharedLiveSession = 'same-session'
+  separated[1].sharedLiveSession = 'same-session'
+  separated[1].fixture = separated[0].fixture
+  delete separated[1].sharedLiveSession
   assert.match(assessLiveBatches(separated, ids).errors.join('\n'), /только одному пакету/)
 })
