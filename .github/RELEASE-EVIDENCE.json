@@ -28,14 +28,28 @@
       "verification": ".github/evidence/mailings-process-delivery-2026-10-09.json"
     }
   },
-  "testedCommit": "acd0d57c80b54ef3d589ca800e9cc2e7efd07a2c",
+  "testedCommit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
   "runs": {
     "dsh": {
       "status": "pass",
       "mode": "end-to-end",
       "account": "funnels-git-3.chatium.ru",
-      "commit": "acd0d57c80b54ef3d589ca800e9cc2e7efd07a2c",
+      "commit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
       "record": ".github/evidence/dsh-end-to-end-2026-10-15.md"
+    },
+    "claude-code": {
+      "status": "pass",
+      "mode": "code-review",
+      "account": "funnels-git-3.chatium.ru",
+      "commit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
+      "record": ".github/evidence/claude-code-review-2026-10-15.md"
+    },
+    "codex": {
+      "status": "pass",
+      "mode": "code-review",
+      "account": "funnels-git-3.chatium.ru",
+      "commit": "ca997aa33c97ccc3c2e6ca43265eaf5fe3f683da",
+      "record": ".github/evidence/codex-code-review-2026-10-15.md"
     }
   }
 }
