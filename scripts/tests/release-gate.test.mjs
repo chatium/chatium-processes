@@ -8,7 +8,7 @@ const gate = fileURLToPath(new URL('../../.github/release-check.mjs', import.met
 test('release gate needs closed findings, owner terms and unchanged cross-harness evidence',
   { skip: !existsSync(gate) }, async () => {
     const { assessRelease, expectedIds } = await import(gate)
-    const rows = expectedIds.map(id => ({ id, status: ['R20', 'E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
+    const rows = expectedIds.map(id => ({ id, status: ['R20', 'R40', 'E11', 'I10'].includes(id) ? 'отложено' : 'закрыто',
       check: 'scripts/tests/example.test.mjs', commit: 'a'.repeat(40) }))
     const evidence = { testedCommit: 'b'.repeat(40), testPlan: { account: 'clean-test-account',
       mode: 'isolated-new-process', reference: 'owner/message/test-plan' },

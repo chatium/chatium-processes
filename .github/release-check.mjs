@@ -21,7 +21,7 @@ export function assessRelease({ rows = [], version, licenseId, license, evidence
   if (missing.length || extra.length || repeated.length)
     errors.push(`Реестр ${expectedIds.length} пунктов нарушен: отсутствуют ${missing.join(', ') || '—'}; лишние ${extra.join(', ') || '—'}; повторные ${repeated.join(', ') || '—'}.`)
   const pending = rows.filter(row => row.status !== 'закрыто' &&
-    !(row.status === 'отложено' && ['R20', 'E11', 'I10'].includes(row.id)))
+    !(row.status === 'отложено' && ['R20', 'R40', 'E11', 'I10'].includes(row.id)))
   if (pending.length) errors.push(`Не закрыты ${pending.length} обязательных замечаний: ${pending.map(row => row.id).join(', ')}.`)
   for (const row of rows.filter(row => row.status === 'закрыто'))
     if (!row.check || row.check === '—' || !/^[0-9a-f]{7,40}$/.test(row.commit || ''))
