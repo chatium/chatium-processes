@@ -63,7 +63,7 @@ export function redact(value, secrets = []) {
   let text = String(value)
   for (const secret of secrets.filter(s => typeof s === 'string' && s.length)) text = text.split(secret).join('[redacted]')
   return text.replace(/\b(Bearer\s+)[\w.+\/-]+/gi, '$1[redacted]')
-    .replace(/("(?:token|password|secret|authorization|apiKey)"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
+    .replace(/("(?:[\w-]*(?:token|password|secret|authorization|api[_-]?key|cookie|credential))"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
 }
 
@@ -80,4 +80,13 @@ export function platformTestLogs(root, commit, run) {
       AND ts64 >= parseDateTime64BestEffort(${quote(start)}) AND ts64 <= parseDateTime64BestEffort(${quote(end)})
       AND (${matches.join(' OR ')}) ORDER BY dt DESC, ts64 DESC LIMIT 100`
   return testExec(root, commit, `import { queryAccountLogs } from '@app/ugc'\nreturn await queryAccountLogs(ctx, ${JSON.stringify(sql)})`)
+}
+
+export function redactData(value, secrets = []) {
+  if (typeof value === 'string') return redact(value, secrets)
+  if (typeof value === 'number' && secrets.includes(String(value))) return '[redacted]'
+  if (Array.isArray(value)) return value.map(v => redactData(v, secrets))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,
+    /(?:token|password|secret|authorization|apikey|cookie|credential)$/i.test(k.replace(/[_-]/g, '')) ? '[redacted]' : redactData(v, secrets)]))
+  return value
 }

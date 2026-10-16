@@ -4,14 +4,15 @@ import { pathToFileURL } from 'node:url'
 import { setTimeout } from 'node:timers/promises'
 import { hash, readTestRun, saveRun, testInputs, testPath } from './process-testing.mjs'
 import { publishRun } from './test-remote.mjs'
-import { readSession, redact, testSdk } from './test-exec.mjs'
+import { readSession, redact, redactData, testSdk } from './test-exec.mjs'
 
 // The parent enforces a wall-clock timeout for the complete scenario, including hung code.
 const { root, slug, scenario, runId } = JSON.parse(readFileSync(0, 'utf8'))
 const run = readTestRun(root, slug, runId), session = readSession(root, runId)
 const secrets = [session.context.token, ...session.contacts.map(c => c.value)]
-const clean = value => JSON.parse(redact(JSON.stringify(value), secrets))
+const clean = value => redactData(value, secrets)
 const persist = () => { saveRun(root, clean(run)); publishRun(root, clean(run)) }
+let polling = false
 class Blocked extends Error {}
 class Incomplete extends Error {}
 const api = {
@@ -19,16 +20,16 @@ const api = {
   async attempt(operation, input = {}, requestId) {
     if (!scenario.capabilities?.includes(operation)) throw new Blocked(`Возможность ${operation} не объявлена в сценарии.`)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(requestId || '')) throw Error('Каждая операция требует устойчивый requestId третьим аргументом.')
-    const result = testSdk(root, run.testedCommit, 'executeProcessTestOperation', { context: session.context, requestId, operation, input })
-    run.operations.push(clean({ requestId, operation, input, status: result.status, duplicate: Boolean(result.duplicate), ...(result.error ? { error: result.error } : {}) }))
+    const result = testSdk(root, run.testedCommit, 'executeProcessTestOperation', { context: session.context, requestId, operation, input, capture: !polling })
+    if (!polling) run.operations.push(clean({ requestId, operation, input, status: result.status, duplicate: Boolean(result.duplicate), ...(result.error ? { error: result.error } : {}) }))
     if (operation.endsWith('.skipWait')) run.skippedWaits.push(clean({ requestId, result: result.result }))
-    const scope = testSdk(root, run.testedCommit, 'getProcessTestScope', session.context, true)
+    const scope = polling ? { resources: run.resources } : testSdk(root, run.testedCommit, 'getProcessTestScope', session.context, true)
     run.resources = scope.resources
     if (result.observationId) run.runtime.push({ module: operation.split('.')[0], kind: 'observation', id: result.observationId })
     for (const ref of scope.resources) if (!run.runtime.some(r => r.module === ref.module && r.kind === ref.kind && r.id === ref.id)) run.runtime.push(ref)
     for (const value of result.result?.limitations || []) if (!run.limitations.includes(value)) run.limitations.push(value)
     if (result.result?.limitation && !run.limitations.includes(result.result.limitation)) run.limitations.push(result.result.limitation)
-    persist()
+    if (!polling) persist()
     return result
   },
   async operation(operation, input = {}, requestId) {
@@ -46,14 +47,20 @@ const api = {
   limitation(value) { run.limitations.push(redact(value, secrets)); persist() },
   artifact(name, content, title = name) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}\.(txt|json|md)$/.test(name)) throw Error('Артефакт: имя файла .txt, .json или .md без каталогов.')
-    const safe = redact(typeof content === 'string' ? content : JSON.stringify(content, null, 2), secrets)
+    const safe = typeof content === 'string' ? redact(content, secrets) : JSON.stringify(clean(content), null, 2)
     if (Buffer.byteLength(safe) > 256 * 1024) throw Error('Выдержка превышает 256 КиБ. Сократите её или используйте штатное хранилище.')
     run.artifacts.push({ title, name, content: safe, sha256: hash(safe) }); persist()
   },
   async waitFor(read, done, { timeoutMs = 60000, intervalMs = 1000 } = {}) {
     if (timeoutMs < 1 || timeoutMs > 300000 || intervalMs < 250 || intervalMs > 10000) throw Error('Нужен ограниченный интервал ожидания: до 5 минут, шаг 250–10000 мс.')
     const end = Date.now() + timeoutMs
-    while (Date.now() < end) { const state = await read(); if (done(state)) return state; await setTimeout(intervalMs) }
+    while (Date.now() < end) {
+      let state
+      polling = true
+      try { state = await read() } finally { polling = false }
+      if (done(state)) { const captured = await read(); if (done(captured)) return captured }
+      await setTimeout(intervalMs)
+    }
     throw new Incomplete('Истёк срок ожидания. Исполнение может продолжаться; запросите его состояние.')
   },
 }

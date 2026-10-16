@@ -10,24 +10,33 @@ import { assertTestSourcesCommitted, hash, createRun, readTestPlan, readTestRun,
 import { readSession, saveSession, saveTestPluginBranches, testSdk, redact, platformTestLogs } from './lib/test-exec.mjs'
 import { fetchRun, publishRun, recoverSequence, closeRun } from './lib/test-remote.mjs'
 
-const help = `node scripts/test.mjs <process> <status|run|show|record|logs|cleanup|finding> [--root DIR]
+const help = `node scripts/test.mjs <process> <status|run|show|record|logs|cleanup|reconcile|preview|finding> [--root DIR]
   run --case ID --scope FILE [--previous RUN]   выполнить опубликованный сценарий
   show --run RUN                              прочитать попытку и квитанции из Start
   record --case ID --evidence FILE             записать браузерную проверку
   logs --run RUN                              прочитать текущее состояние модулей и логи
   cleanup --run RUN                           закрыть и убрать ресурсы попытки
+  reconcile --run RUN --request ID --operation MOD.OP  выяснить исход без повтора действия
+  preview [--probe ID]                         проверить наследование preview в job
   finding --evidence FILE                     записать {revision,finding} в Start
   status                                     актуальное покрытие из Start
 Scope JSON: {contacts:[{type,value}],channels:[id],variants?:{messageKey:path},plugins?:{slug:branch}}.
 Получатели остаются вне Git. История и артефакты сохраняются в Start без push.`
 try {
-  const { positional, options } = parseArgs(process.argv.slice(2), ['help'], ['root', 'case', 'scope', 'previous', 'run', 'evidence', 'help'])
+  const { positional, options } = parseArgs(process.argv.slice(2), ['help'], ['root', 'case', 'scope', 'previous', 'run', 'evidence', 'request', 'operation', 'probe', 'help'])
   if (options.help) { console.log(help); process.exit(0) }
   const [slug, command] = positional
   if (!slug || !command || positional.length !== 2) throw Error(help)
   const root = findRoot(options.root), state = gitState(root)
   const map = parseYaml(readFileSync(testPath(root, `${slug}/process.yaml`), 'utf8'))
-  if (command === 'status') console.log(JSON.stringify(testStatus({ root, slug, map, remote: true }), null, 2))
+  if (command === 'preview') console.log(JSON.stringify(testSdk(root, state.commit, 'probeProcessTestPreview', options.probe ? { id: options.probe } : {}), null, 2))
+  else if (command === 'reconcile') {
+    if (!options.request || !options.operation) throw Error('Укажите --request и --operation исходной операции.')
+    fetchRun(root, slug, options.run)
+    const session = readSession(root, options.run)
+    const result = testSdk(root, state.commit, 'executeProcessTestOperation', { context: session.context, requestId: options.request, operation: options.operation, reconcile: true })
+    console.log(JSON.stringify(result, null, 2)); if (result.status !== 'completed') process.exitCode = 1
+  } else if (command === 'status') console.log(JSON.stringify(testStatus({ root, slug, map, remote: true }), null, 2))
   else if (command === 'show') console.log(JSON.stringify(fetchRun(root, slug, options.run), null, 2))
   else if (command === 'finding') {
     const value = JSON.parse(readFileSync(options.evidence, 'utf8'))
@@ -47,7 +56,8 @@ try {
       if (!Array.isArray(scope.contacts) || !Array.isArray(scope.channels)) throw Error('Scope должен содержать contacts и channels.')
     }
     if (scope.plugins) saveTestPluginBranches(root, scope.plugins)
-    const session = testSdk(root, run.testedCommit, 'createProcessTestContext', { runId: run.runId, processPath: slug, branch: run.branch, testedCommit: run.testedCommit, sources: run.inputs.files, contacts: scope.contacts, channels: scope.channels, variants: scope.variants })
+    if (testSdk(root, run.testedCommit, 'getProcessTestCapabilities').version !== 2) throw Error('Нужен совместимый протокол тестирования Start версии 2.')
+    const session = testSdk(root, run.testedCommit, 'createProcessTestContext', { runId: run.runId, caseId: run.caseId, processPath: slug, branch: run.branch, testedCommit: run.testedCommit, sources: run.inputs.files, contacts: scope.contacts, channels: scope.channels, variants: scope.variants })
     run.executedVersions = [{ module: 'account', commit: run.testedCommit, evidence: 'chatium-exec' }, ...Object.entries(session.scope.codeFingerprints || {}).map(([module, fingerprint]) => ({ module, fingerprint, evidence: 'sdk-source-fingerprint' }))]
     saveSession(root, run.runId, { context: session.context, contacts: scope.contacts, channels: scope.channels, sequence: 0 })
     saveRun(root, run, { create: true }); publishRun(root, run)
@@ -86,8 +96,9 @@ try {
         }
       }
     } finally { cleanup = closeRun(root, run.runId) }
-    console.log(JSON.stringify({ ...fetchRun(root, slug, run.runId), cleanup }, null, 2))
-    if (run.status !== 'passed' || cleanup.some(c => c.status !== 'completed')) process.exitCode = 1
+    const saved = fetchRun(root, slug, run.runId)
+    console.log(JSON.stringify({ ...saved, cleanup }, null, 2))
+    if (saved.effectiveStatus !== 'passed' || cleanup.some(c => c.status !== 'completed')) process.exitCode = 1
   } else if (command === 'logs' || command === 'cleanup') {
     const run = fetchRun(root, slug, options.run).report, session = readSession(root, run.runId)
     if (command === 'cleanup') {

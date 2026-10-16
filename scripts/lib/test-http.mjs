@@ -19,6 +19,7 @@ try {
   if (data.protocol !== 'process-testing-v1') throw Error('Ответ не подтверждает тестовый SDK Start.')
   const selected = key => { const v = data.preview?.[key]; return v && typeof v === 'object' ? v.sourceGitVersionSpec : 'main' }
   if (selected('account') !== request.branch || Object.entries(request.plugins).some(([slug, branch]) => selected(`app_${slug}`) !== branch)) throw Error('Платформа не подтвердила выбранные ветки. Исход операции требует проверки.')
+  if (typeof data.error === 'string') throw Error(`Start: ${data.error}`)
   process.stdout.write(JSON.stringify(data.result) + '\n')
 } catch (error) {
   // Never print cookies, request bodies, tokens or a raw error response.

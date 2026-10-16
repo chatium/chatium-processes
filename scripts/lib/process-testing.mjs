@@ -188,7 +188,8 @@ export function testStatus({ root, slug, map, branch, remote = false }) {
     for (const scenario of plan.cases) assertTestSourcesCommitted(root, testInputs(root, slug, scenario))
     const summary = testSdk(root, gitState(root).commit, 'readProcessTesting', { process: slug, branch })
     const errors = summary.cases.filter(c => c.required && c.status !== 'passed').map(c => `${c.id}: ${c.status}${c.reason ? ` — ${c.reason}` : ''}`)
-    if (!summary.cases.length) errors.push('План тестирования пуст.')
+    if (summary.error) errors.push(summary.error)
+    else if (!summary.cases.length) errors.push('План тестирования пуст.')
     return { ...summary, status: errors.length ? 'incomplete' : 'passed', errors }
   }
   const findings = readFindings(root, slug)
@@ -215,7 +216,7 @@ export function testStatus({ root, slug, map, branch, remote = false }) {
 
     }
     const issues = findings.filter(f => f.caseId === scenario.id && f.status === 'open')
-    if (issues.some(f => f.severity === 'blocking')) { status = 'failed'; reason = 'Есть открытое блокирующее замечание.' }
+    if (issues.some(f => f.severity === 'blocking')) { if (!['blocked', 'stale', 'incomplete', 'running'].includes(status)) status = 'failed'; reason = 'Есть открытое блокирующее замечание.' }
     if (scenario.required && status !== 'passed') errors.push(`${scenario.id}: ${status}${reason ? ` — ${reason}` : ''}`)
     return { ...scenario, status, ...(reason ? { reason } : {}), attempts: attempts.length,
       ...(latest ? { latestRunId: latest.runId, testedAt: latest.finishedAt ?? latest.startedAt, testedCommit: latest.testedCommit, inputs: latest.inputs, artifacts: latest.artifacts, limitations: latest.limitations } : {}) }

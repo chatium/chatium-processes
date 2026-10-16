@@ -107,3 +107,23 @@ test('uncommitted runtime input is rejected before execution', t => {
   f.put('demo/handler.ts', 'export const handler = 2\n')
   assert.throws(() => assertTestSourcesCommitted(f.root, testInputs(f.root, 'demo', f.scenario)), /изменён/)
 })
+
+
+test('cleanup touches owned and declared providers, including unregistered resources, without unrelated modules', async () => {
+  const { cleanupModules } = await import('../lib/test-remote.mjs')
+  const capabilities = [
+    {id:'crm.cleanup',provider:'crm',effect:'cleanup',available:true},
+    {id:'agents.cleanup',provider:'agent-process',effect:'cleanup',available:true},
+    {id:'sender.cleanup',provider:'sender',effect:'cleanup',available:true},
+    {id:'mailings.cleanup',provider:'mailings',effect:'cleanup',available:false},
+  ]
+  assert.deepEqual([...cleanupModules({resources:[],requiredProviders:['crm','agent-process']},capabilities)].sort(),['agents','crm'])
+  assert.deepEqual([...cleanupModules({resources:[{module:'mailings'}],requiredProviders:[]},capabilities)],['mailings'])
+})
+
+test('structured redaction preserves numeric JSON and removes nested credentials before persistence', async () => {
+  const {redactData} = await import('../lib/test-exec.mjs')
+  const cleaned = redactData({chatId:123456789,items:[{api_key:'private',accessToken:'token',cookie:'session'}],description:'user 123456789',count:2},['123456789'])
+  assert.equal(JSON.parse(JSON.stringify(cleaned)).chatId,'[redacted]')
+  assert.equal(cleaned.items[0].api_key,'[redacted]');assert.equal(cleaned.items[0].accessToken,'[redacted]');assert.equal(cleaned.items[0].cookie,'[redacted]');assert.equal(cleaned.count,2)
+})
