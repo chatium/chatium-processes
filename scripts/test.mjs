@@ -68,9 +68,10 @@ try {
         saveRun(root, run); publishRun(root, run)
       } else {
         const available = testSdk(root, run.testedCommit, 'getProcessTestCapabilities')
-        const missing = (scenario.capabilities || []).filter(id => !available.operations?.some(o => o.id === id))
+        const missing = (scenario.capabilities || []).filter(id => !available.operations?.some(o => o.id === id && o.available !== false))
         if (missing.length) {
           run.status = 'blocked'; run.finishedAt = new Date().toISOString(); run.limitations.push(`Нет безопасного SDK: ${missing.join(', ')}`)
+          run.limitations.push(...new Set(available.operations.filter(o => missing.includes(o.id) && o.unavailableReason).map(o => o.unavailableReason)))
           saveRun(root, run); publishRun(root, run)
         } else {
           const child = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'lib/test-worker.mjs')], {

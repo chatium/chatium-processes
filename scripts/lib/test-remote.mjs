@@ -31,7 +31,7 @@ export function closeRun(root, runId) {
   if (scope.pendingOperations?.length || scope.operationsTruncated) return [{ operation: 'run.close', status: 'pending', pendingOperations: scope.pendingOperations, error: 'Выполняющаяся операция ещё не завершена. Повторите cleanup после проверки её состояния.' }]
   const capabilities = testSdk(root, commit, 'getProcessTestCapabilities')
   // Providers recover their own records even if registration failed after creation.
-  const modules = new Set([...scope.resources.map(r => r.module), ...capabilities.operations.filter(o => o.effect === 'cleanup' && o.id.endsWith('.cleanup')).map(o => o.id.split('.')[0])])
+  const modules = new Set([...scope.resources.map(r => r.module), ...capabilities.operations.filter(o => o.effect === 'cleanup' && o.available !== false && o.id.endsWith('.cleanup')).map(o => o.id.split('.')[0])])
   return [...modules].map(module => {
     const operation = `${module}.cleanup`
     if (!capabilities.operations.some(o => o.id === operation)) return { operation, status: 'blocked', error: 'SDK очистки недоступен.' }
