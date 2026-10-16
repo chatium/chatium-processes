@@ -45,6 +45,46 @@ export async function readProcessBoard(root, slug, { reader = readBoardWithAutho
   return boardContext(await reader(root, { processPath: slug, branch }, { usage }), slug, branch)
 }
 
+/** One explicit batch, scoped to a saved read. A conflict or ambiguous result always requires a reread. */
+export async function writeBoardElements(root, context, { slug, operation, changes }, { execute = startExec } = {}) {
+  const { branch } = gitState(root)
+  if (!isProcessSlug(slug) || !context || context.version !== 1 || context.process !== slug || context.branch !== branch)
+    throw Error('Контекст относится к другому процессу или ветке. Прочитайте доску заново.')
+  if (!Number.isSafeInteger(context.boardRevision) || context.boardRevision < 0 ||
+      !Number.isSafeInteger(context.snapshotRevision) || context.snapshotRevision < 1)
+    throw Error('Для записи нужен актуальный снимок и ревизия доски.')
+  if (!['create', 'update', 'delete'].includes(operation) || !changes || typeof changes !== 'object' || Array.isArray(changes))
+    throw Error('Нужна операция create, update или delete и JSON изменений.')
+  const keys = operation === 'delete' ? ['blockIds', 'connectionIds'] : ['blocks', 'connections']
+  if (Object.keys(changes).some(key => !keys.includes(key)) ||
+      keys.some(key => changes[key] !== undefined && !Array.isArray(changes[key])) ||
+      JSON.stringify(changes).length > 512_000)
+    throw Error('Некорректный пакет элементов доски.')
+  const count = keys.reduce((total, key) => total + (changes[key]?.length ?? 0), 0)
+  if (count < 1 || count > 100) throw Error('В одном запросе нужно от 1 до 100 элементов.')
+  if (operation !== 'create') for (const [index, collection] of ['blocks', 'connections'].entries()) {
+    const available = new Set((context.elements?.[collection] ?? []).map(item => item.id))
+    const ids = (changes[keys[index]] ?? []).map(item => operation === 'delete' ? item : item?.id)
+    if (ids.some(id => typeof id !== 'string' || !available.has(id)))
+      throw Error('Изменять можно только элементы из прочитанного общего слоя.')
+  }
+  const method = { create: 'createProcessBoardElements', update: 'updateProcessBoardElements', delete: 'deleteProcessBoardElements' }[operation]
+  const payload = { ...changes, process: slug, branch, expectedRevision: context.boardRevision, snapshotRevision: context.snapshotRevision }
+  let result
+  try {
+    result = await execute(root, `import { ${method} } from '@start/sdk'
+return await ${method}(ctx, ${JSON.stringify(payload)})`)
+  } catch (error) {
+    throw Error(`${error.message} Изменения могли сохраниться; перечитайте доску перед повтором.`)
+  }
+  if (!result?.ok)
+    throw Error(`Доска не изменена: ${result?.reason || 'ошибка SDK'}. Перечитайте её и заново оцените правку; не повторяйте запись вслепую.`)
+  if (typeof result.changed !== 'boolean' || !Number.isSafeInteger(result.revision) ||
+      result.revision !== context.boardRevision + (result.changed ? 1 : 0))
+    throw Error('Некорректное подтверждение SDK. Перечитайте доску перед следующей записью.')
+  return result
+}
+
 /** Resolve a single visible material afresh; never sign an arbitrary hash supplied by the caller. */
 export async function readMaterial(root, context, { slug, elementId }, { execute = startExec } = {}) {
   const { branch } = gitState(root)

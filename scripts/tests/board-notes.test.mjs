@@ -31,6 +31,8 @@ test('board context trusts the current task requester, not the sticky creator', 
   b.authorRoles['person-1'].role = 'Owner'
   assert.deepEqual(noteContext(b, 'demo', 'main').notes[0].taskAuthority,
     { status: 'owner', role: 'Owner' })
+  b.notes[0].task.requestedBy.kind = 'agent'
+  assert.equal(noteContext(b, 'demo', 'main').notes[0].taskAuthority.status, 'needs-owner-confirmation')
 })
 test('board read resolves server-owned task requesters through current account roles and fails closed', async () => {
   const b = board()
@@ -136,6 +138,10 @@ test('done rechecks the server-owned requester role and rejects edited owner not
   await assert.rejects(() => respondToNote(root, c, options, { verify, execute: runAs('Owner') }), /владельцем аккаунта/)
   assert.equal(writes, 0)
   b.notes[0].task.requestedBy = { id: 'person-1', name: 'Owner', createdAt: '2026-10-03T00:00:00.000Z' }
+  b.notes[0].task.requestedBy.kind = 'agent'
+  await assert.rejects(() => respondToNote(root, c, options, { verify, execute: runAs('Owner') }), /владельцем аккаунта/)
+  assert.equal(writes, 0)
+  delete b.notes[0].task.requestedBy.kind
   const result = await respondToNote(root, c, options, { verify, execute: runAs('Owner') })
   assert.equal(result.ok, true)
   assert.equal(writes, 1)

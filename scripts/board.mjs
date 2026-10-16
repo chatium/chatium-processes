@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 import { readFileSync, statSync } from 'node:fs'
 import { findRoot, parseArgs } from './lib/project.mjs'
-import { readProcessBoard, readMaterial } from './lib/board.mjs'
+import { readProcessBoard, readMaterial, writeBoardElements } from './lib/board.mjs'
 import { respondToNote } from './lib/board-notes.mjs'
 
 let parsed
-try { parsed = parseArgs(process.argv.slice(2), ['help'], ['help', 'root', 'from', 'element', 'note', 'status', 'message-file']) }
+try { parsed = parseArgs(process.argv.slice(2), ['help'], ['help', 'root', 'from', 'element', 'note', 'status', 'message-file', 'changes']) }
 catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const [command, slug] = positional
 if (options.help || !command || !slug) {
   console.log(`board.mjs read <process> [--root DIR]
 board.mjs material <process> --from FILE --element ID [--root DIR]
+board.mjs create|update|delete <process> --from FILE --changes FILE [--root DIR]
 board.mjs respond-note <process> --from FILE --note ID --status done|needs-info --message-file FILE [--root DIR]
 read prints the whole shared board as JSON; material returns a fresh image URL, not a visual interpretation.
 Store context/response files outside the account. No command starts the process.`)
@@ -19,9 +20,11 @@ Store context/response files outside the account. No command starts the process.
 }
 try {
   if (positional.length !== 2) throw Error('Нужны команда и слаг процесса.')
+  const editOptions = ['root', 'from', 'changes']
   const allowed = { read: ['root'], material: ['root', 'from', 'element'],
+    create: editOptions, update: editOptions, delete: editOptions,
     'respond-note': ['root', 'from', 'note', 'status', 'message-file'] }[command]
-  if (!allowed) throw Error('Команда должна быть read, material или respond-note.')
+  if (!allowed || !Array.isArray(allowed)) throw Error('Команда должна быть read, material, create, update, delete или respond-note.')
   for (const [key, value] of Object.entries(options)) {
     if (!allowed.includes(key) || !value || value.startsWith('--')) throw Error(`Некорректный параметр --${key}.`)
   }
@@ -36,6 +39,9 @@ try {
   else {
     const context = JSON.parse(read(options.from, 4 * 1024 * 1024))
     if (command === 'material') result = await readMaterial(root, context, { slug, elementId: options.element })
+    else if (['create', 'update', 'delete'].includes(command)) result = await writeBoardElements(root, context, {
+      slug, operation: command, changes: JSON.parse(read(options.changes, 512_000)),
+    })
     else result = await respondToNote(root, context, {
       slug, noteId: options.note, status: options.status, message: read(options['message-file'], 8000),
     })
