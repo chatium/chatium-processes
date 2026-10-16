@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { boardContext, readProcessBoard, readMaterial } from '../lib/board.mjs'
+import { boardContext, readProcessBoard, readMaterial, writeBoardElements } from '../lib/board.mjs'
 
 const snapshot = { processPath: 'demo', branch: 'main', commit: 'a'.repeat(40),
   nodes: [{ id: 'landing', title: 'Landing', source: 'demo/page.vue' }], links: [{ from: 'landing', to: 'form' }] }
@@ -91,4 +91,47 @@ test('scope and object kind are validated before requesting a material', async t
   const execute = () => { throw Error('must not execute') }
   await assert.rejects(() => readMaterial(root, c, { slug: 'other', elementId: 'reference' }, { execute }), /другому/)
   await assert.rejects(() => readMaterial(root, c, { slug: 'demo', elementId: 'note' }, { execute }), /Нужно изображение/)
+})
+
+test('board writes execute the public SDK once with saved revisions and literal JSON', async t => {
+  const root = repo(t), context = boardContext(board(), 'demo', 'main')
+  const text = 'Quote: "value"\n`$(unsafe)`'
+  for (const [operation, changes, method] of [
+    ['create', { blocks: [{ id: 'new', type: 'sticky', text }] }, 'createProcessBoardElements'],
+    ['update', { blocks: [{ id: 'note', type: 'sticky', text }] }, 'updateProcessBoardElements'],
+    ['delete', { blockIds: ['note'] }, 'deleteProcessBoardElements'],
+  ]) {
+    let calls = 0
+    const result = await writeBoardElements(root, context, { slug: 'demo', operation, changes }, {
+      execute: async (_, code) => {
+        assert.ok(code.startsWith(`import { ${method} } from '@start/sdk'`))
+        const run = new Function(method, 'ctx', `return (async () => {${code.replace(/^import .*\n/, '')}})()`)
+        return run(async (_ctx, payload) => {
+          calls++
+          assert.deepEqual(payload, { ...changes, process: 'demo', branch: 'main', expectedRevision: 3, snapshotRevision: 2 })
+          return { ok: true, revision: 4, changed: true }
+        }, {})
+      },
+    })
+    assert.equal(result.revision, 4)
+    assert.equal(calls, 1)
+  }
+})
+
+test('write scope, payload shape and hidden targets fail before execution; conflicts never retry', async t => {
+  const root = repo(t), context = boardContext(board(), 'demo', 'main')
+  const execute = () => { throw Error('must not execute') }
+  for (const options of [
+    { slug: 'other', operation: 'create', changes: { blocks: [{}] } },
+    { slug: 'demo', operation: 'update', changes: { blocks: [{ id: 'hidden' }] } },
+    { slug: 'demo', operation: 'delete', changes: { blockIds: ['hidden'] } },
+    { slug: 'demo', operation: 'create', changes: { blocks: [], process: 'other' } },
+    { slug: 'demo', operation: 'create', changes: { blocks: [] } },
+    { slug: 'demo', operation: '__proto__', changes: { blocks: [{}] } },
+  ]) await assert.rejects(() => writeBoardElements(root, context, options, { execute }), /Контекст|общего слоя|пакет|100|операция/)
+  let calls = 0
+  await assert.rejects(() => writeBoardElements(root, context, { slug: 'demo', operation: 'delete', changes: { blockIds: ['note'] } }, {
+    execute: async () => { calls++; return { ok: false, reason: 'conflict' } },
+  }), /conflict/)
+  assert.equal(calls, 1)
 })

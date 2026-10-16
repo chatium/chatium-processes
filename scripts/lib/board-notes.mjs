@@ -11,7 +11,7 @@ export async function readBoardWithAuthority(root, target, { execute = startExec
 import { findUsersByIds } from '@app/auth'
 const board = await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)}, ${JSON.stringify(usage)})
 const notes = Array.isArray(board.notes) ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky')
-const ids = [...new Set(notes.map(n => n.task?.requestedBy?.id).filter(id => typeof id === 'string' && id))]
+const ids = [...new Set(notes.filter(n => n.task?.requestedBy?.kind !== 'agent').map(n => n.task?.requestedBy?.id).filter(id => typeof id === 'string' && id))]
 let authorRoles = null
 try {
   const users = ids.length ? await findUsersByIds(ctx, ids) : []
@@ -22,6 +22,7 @@ return { ...board, authorRoles }`, target.commit)
 
 function authority(note, authorRoles) {
   if (!note.task) return { status: 'context-only' }
+  if (note.task.requestedBy?.kind === 'agent') return { status: 'needs-owner-confirmation' }
   const requesterId = note.task.requestedBy?.id
   const user = requesterId && authorRoles && Object.hasOwn(authorRoles, requesterId) ? authorRoles[requesterId] : null
   if (user?.type === 'Real' && user.role === 'Owner') return { status: 'owner', role: 'Owner' }
@@ -96,7 +97,7 @@ const note = current.notes?.find(n => n.id === ${JSON.stringify(payload.noteId)}
 if (current.revision !== ${payload.expectedRevision} || current.snapshot?.revision !== ${payload.snapshotRevision} ||
     current.snapshot?.snapshot?.commit !== ${JSON.stringify(payload.commit)} || note?.task?.revision !== ${payload.taskRevision})
   return { ok: false, reason: 'conflict' }
-const requester = note.task?.requestedBy?.id ? await findUserById(ctx, note.task.requestedBy.id) : null
+const requester = note.task?.requestedBy?.kind !== 'agent' && note.task?.requestedBy?.id ? await findUserById(ctx, note.task.requestedBy.id) : null
 if (requester?.type !== 'Real' || requester.accountRole !== 'Owner')
   return { ok: false, reason: 'owner-confirmation-required' }
 ` : ''
