@@ -8,7 +8,6 @@ import { findRoot, parseArgs } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
-import { writeAgentRuntimeEvidence } from './lib/agent-runtime-evidence.mjs'
 
 function closestWorkspacePath(root, sourcePath) {
   for (let dir = dirname(sourcePath); ; dir = dirname(dir)) {
@@ -54,16 +53,16 @@ function routeTestContacts(file, root, routes) {
 }
 
 let parsed
-try { parsed = parseArgs(process.argv.slice(2), ['help', 'json', 'record'], ['help', 'json', 'record', 'root', 'route-tests']) }
+try { parsed = parseArgs(process.argv.slice(2), ['help', 'json'], ['help', 'json', 'root', 'route-tests']) }
 catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const slug = positional[0]
 if (options.help || !slug) {
-  console.log('agents-runtime.mjs <process> [--root DIR] [--route-tests FILE] [--json] [--record]')
+  console.log('agents-runtime.mjs <process> [--root DIR] [--route-tests FILE] [--json]')
   process.exit(options.help ? 0 : 2)
 }
 try {
-  if (positional.length !== 1 || Object.keys(options).some(key => !['help', 'json', 'record', 'root', 'route-tests'].includes(key))) throw Error('Неизвестный параметр или лишний аргумент.')
+  if (positional.length !== 1 || Object.keys(options).some(key => !['help', 'json', 'root', 'route-tests'].includes(key))) throw Error('Неизвестный параметр или лишний аргумент.')
   requireYaml()
   const root = findRoot(options.root)
   assertSkillProcess(root, slug)
@@ -160,16 +159,12 @@ try {
     limitations: routes.length ? ['Сухая проверка покрывает только CRM-цепочки, найденные по контактам; вход без CRM-ключа, реальную передачу и перенос контекста проверь контролируемым сообщением и ревью.'] : [],
     status, errors, warnings, informational,
     agents: published.agents, routes: published.routes }
-  if (options.record && status === 'verified')
-    report.recordedPath = writeAgentRuntimeEvidence({ root, slug, branch, commit,
-      checkedAt: report.checkedAt, accountId: published.accountId, map, spec })
   if (options.json) console.log(JSON.stringify(report, null, 2))
   else {
     console.log(`Помощники ${slug}: ${report.status}.`)
     for (const issue of errors) console.log(`✘ ${issue}`)
     for (const issue of warnings) console.log(`! ${issue}`)
     for (const issue of informational) console.log(`i ${issue}`)
-    if (report.recordedPath) console.log(`Результат записан: ${report.recordedPath}`)
   }
   process.exitCode = status === 'verified' ? 0 : 1
 } catch (error) {

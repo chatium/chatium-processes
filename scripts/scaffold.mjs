@@ -184,7 +184,7 @@ put(`${slug}/PLAN.md`, 'process/PLAN.md.tpl')
 put(`${slug}/tasks/index.json`, 'process/tasks-index.json.tpl')
 put(`${slug}/process.yaml`, 'process/process.yaml.tpl')
 put(`${slug}/specs/events.yaml`, 'process/events.yaml.tpl')
-put(`${slug}/tests/records.ts`, 'process/records.ts.tpl')
+put(`${slug}/tests/plan.yaml`, 'process/test-plan.yaml.tpl')
 
 // База знаний
 ensureOrder('.knowledge-base/.knowledge.yml', 'knowledge/root.knowledge.yml.tpl', [

@@ -1,0 +1,81 @@
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, resolve, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { git, gitState } from './git-state.mjs'
+
+/** Opaque runtime credentials stay in Git's private directory, never in a report. */
+export function sessionPath(root, runId) {
+  if (!/^run-[a-zA-Z0-9-]+$/.test(runId)) throw Error('Некорректный runId.')
+  return join(resolve(root, git(root, ['rev-parse', '--git-common-dir'])), 'process-tests', `${runId}.json`)
+}
+export function saveSession(root, runId, value) {
+  const path = sessionPath(root, runId)
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  writeFileSync(path, JSON.stringify(value), { mode: 0o600, flag: 'wx' })
+}
+export function readSession(root, runId) { return JSON.parse(readFileSync(sessionPath(root, runId), 'utf8')) }
+
+export function saveTestPluginBranches(root, plugins) {
+  const allowed = ['start', 'automations', 'agent-process', 'mailings', 'sender', 'crm']
+  if (!plugins || typeof plugins !== 'object' || Array.isArray(plugins) || Object.entries(plugins).some(([slug, branch]) => !allowed.includes(slug) || typeof branch !== 'string' || !branch || /[,;=\s\u0000-\u001f]/.test(branch))) throw Error('Некорректный выбор веток тестовых плагинов.')
+  const path = join(resolve(root, git(root, ['rev-parse', '--git-common-dir'])), 'process-test-plugins.json')
+  writeFileSync(path, JSON.stringify(plugins), { mode: 0o600 })
+}
+
+export function testExec(root, commit, code) {
+  const result = spawnSync('chatium', ['exec'], { cwd: root, input: code, encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
+  // Do not echo CLI output: runtime errors may contain request bodies and capability tokens.
+  if (result.error || result.status !== 0) throw Error('chatium exec не завершился успешно. Исход операции неизвестен; запросите состояние модуля, не повторяйте отправку с новым requestId.')
+  const executedCommit = result.stderr.match(/^Executed commit: ([a-f0-9]{40})$/m)?.[1]
+  if (executedCommit !== commit) throw Error('Исполненная версия изменилась или не подтверждена CLI. Прогон неполный.')
+  return JSON.parse(result.stdout)
+}
+
+const gatewayPath = '/app/start/plugin/process-map/api/testingGateway/control'
+export function testSdk(root, commit, method, ...args) {
+  if (!/^[A-Za-z]+$/.test(method)) throw Error('Некорректный метод SDK.')
+  const privateDir = resolve(root, git(root, ['rev-parse', '--git-common-dir']))
+  const path = join(privateDir, 'process-test-plugins.json')
+  const plugins = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
+  const branch = gitState(root).branch
+  if (/[,;=\s\u0000-\u001f]/.test(branch)) throw Error('Ветка несовместима с селектором preview.')
+  const remote = new URL(git(root, ['remote', 'get-url', 'origin']))
+  if (remote.protocol !== 'https:' || !/^\/s\/(git|source-git)\//.test(remote.pathname)) throw Error('Нужен origin Source Git аккаунта.')
+  const sessionFile = join(privateDir, 'process-test-http-session.json')
+  let session = existsSync(sessionFile) ? JSON.parse(readFileSync(sessionFile, 'utf8')) : null
+  if (!session || session.origin !== remote.origin || session.expiresAt < Date.now()) {
+    const value = testExec(root, commit, `import { createAuthSessionTokenWithOptions } from '@app/auth/provider'\nif (!ctx.authSession?.id) throw new Error('CLI authentication required')\nreturn {token: await createAuthSessionTokenWithOptions(ctx, ctx.authSession.id, {scope: {path: ${JSON.stringify(gatewayPath)}}, expiresIn: 600})}`)
+    session = { token: value.token, origin: remote.origin, expiresAt: Date.now() + 480000 }
+    writeFileSync(sessionFile, JSON.stringify(session), { mode: 0o600 })
+  }
+  const preview = [`account:${branch}`, ...Object.entries(plugins).map(([slug, branch]) => `app_${slug}:${branch}`)].join(',')
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('./test-http.mjs', import.meta.url))], { cwd: root,
+    input: JSON.stringify({ url: new URL(gatewayPath, remote.origin).href, cookie: `apiToken=${session.token}; __chtmPreviewMode__=${preview}`, method, args, branch, plugins }),
+    encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
+  if (result.error || result.status !== 0) throw Error('Запрос тестового SDK не завершился: ' + redact(result.stderr || 'неизвестный исход', [session.token]))
+  return JSON.parse(result.stdout)
+}
+
+export function redact(value, secrets = []) {
+  let text = String(value)
+  for (const secret of secrets.filter(s => typeof s === 'string' && s.length)) text = text.split(secret).join('[redacted]')
+  return text.replace(/\b(Bearer\s+)[\w.+\/-]+/gi, '$1[redacted]')
+    .replace(/("(?:token|password|secret|authorization|apiKey)"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+}
+
+export function platformTestLogs(root, commit, run) {
+  const quote = value => "'" + String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'") + "'"
+  const start = new Date(Date.parse(run.startedAt) - 60000).toISOString()
+  const end = new Date(Math.min(Date.now(), Date.parse(run.finishedAt || new Date().toISOString()) + 300000)).toISOString()
+  const ids = [...new Set([run.runId, ...run.runtime.map(r => r.id)])].slice(0, 100)
+  const matches = ids.map(id => `(trace_id = ${quote(id)} OR job_id = ${quote(id)} OR position(json_str, ${quote(id)}) > 0)`)
+  const sql = `SELECT ts64, level, msg, trace_id, job_id, app_slug, workspace_path, error_message, json_str
+    FROM chatium_ai.account_logs
+    WHERE dt >= subtractDays(toDate(parseDateTimeBestEffort(${quote(start)})), 1)
+      AND dt <= addDays(toDate(parseDateTimeBestEffort(${quote(end)})), 1)
+      AND ts64 >= parseDateTime64BestEffort(${quote(start)}) AND ts64 <= parseDateTime64BestEffort(${quote(end)})
+      AND (${matches.join(' OR ')}) ORDER BY dt DESC, ts64 DESC LIMIT 100`
+  return testExec(root, commit, `import { queryAccountLogs } from '@app/ugc'\nreturn await queryAccountLogs(ctx, ${JSON.stringify(sql)})`)
+}
