@@ -3,7 +3,7 @@
 export const STAGE_CHECKS = new Set([
   'tasks', 'creative', 'creative.review', 'knowledge.review', 'implementation.review',
   'reviews', 'owner.plan', 'owner.plan.board', 'owner.launch', 'owner.launch.board',
-  'automation.smoke', 'launch.variables', 'table.changes', 'typecheck',
+  'process.testing', 'launch.variables', 'table.changes', 'typecheck',
   'workspace', 'map', 'owner.questions', 'data.contracts', 'map.sources',
-  'agents.runtime', 'events.used', 'automations', 'letters', 'letters.delivery',
+  'events.used', 'automations', 'letters',
 ])

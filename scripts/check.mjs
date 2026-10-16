@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
@@ -27,8 +28,6 @@ import { templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 import { agentReviewStatus } from './lib/agent-review.mjs'
-import { agentRuntimeEvidenceStatus } from './lib/agent-runtime-evidence.mjs'
-import { automationSmokeStatus } from './lib/automation-smoke.mjs'
 import { retirementStatus } from './lib/component-retirements.mjs'
 import { tableChangeStatus } from './lib/table-changes.mjs'
 import { validateComponentContracts } from './lib/component-contracts.mjs'
@@ -36,7 +35,6 @@ import { inputBlockers } from './lib/input-blockers.mjs'
 import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
-import { messageDeliverySmokeStatus } from './lib/message-delivery-smoke.mjs'
 import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCount } from './lib/source-lex.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
@@ -308,12 +306,7 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   if (nodes.some(node => node.kind === 'series') && ['test', 'launch'].includes(options['task-stage'])) {
     const policy = ws.config?.mailings
     if (typeof policy?.testOnly !== 'boolean') error('config.mailings.testOnly должен быть boolean перед тестом или запуском серии.')
-    else if (options['task-stage'] === 'test' && !policy.testOnly)
-      error('Для тестового прогона серии нужен config.mailings.testOnly: true.')
-    if (options['task-stage'] === 'test' && (!Array.isArray(policy?.testContacts) || !policy.testContacts.length ||
-        policy.testContacts.some(contact => !contact || typeof contact.type !== 'string' || !contact.type.trim() ||
-          typeof contact.value !== 'string' || !contact.value.trim())))
-      error('Для тестового прогона серии нужны разрешённые config.mailings.testContacts {type, value}.')
+
   }
   const vars = ws.config?.variables
   if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
@@ -501,10 +494,6 @@ check('agents.review', 'Независимое ревью помощников',
   for (const issue of result.structuralErrors || []) error(issue)
 })
 
-if (['test', 'launch'].includes(options['task-stage'])) check('agents.runtime', 'Проверка опубликованных помощников', ({ error }) => {
-  const maxAgeMs = options['task-stage'] === 'launch' ? 15 * 60_000 : 24 * 60 * 60_000
-  for (const issue of agentRuntimeEvidenceStatus({ root, slug, map, maxAgeMs }).errors) error(issue)
-})
 
 check('map.coverage', 'Всё построенное есть в карте', ({ error, warn }) => {
   const sourcesOf = kind => nodes.filter(n => n?.kind === kind && n.source).map(n => norm(n.source))
@@ -1058,10 +1047,6 @@ check('letters', 'Письма шагов отправки и их переме�
   }
 })
 
-if (options['task-stage'] === 'launch') check('letters.delivery', 'Тестовая доставка каждого сообщения и канала', ({ error }) => {
-  const result = messageDeliverySmokeStatus({ root, slug, expectations: letterDeliveryExpectations })
-  for (const issue of result.errors) error(issue)
-})
 
 check('letters.transport', 'Отправка через SDK Mailings', ({ error, warn }) => {
   if (sendSteps.some(({ step }) => 'letterPath' in step.params))
@@ -1091,21 +1076,7 @@ check('client.modules', 'Клиентские модули Vue доступны 
   for (const issue of validateClientModules({ root, slug }).errors) error(issue)
 })
 
-check('tests', 'Реестр тестов tests/records.ts', ({ error, warn }) => {
-  const f = join(dir, 'tests', 'records.ts')
-  if (!isFile(f)) return error(`нет ${slug}/tests/records.ts`)
-  const src = readFileSync(f, 'utf8')
-  for (const name of ['TEST_RECORDS']) {
-    if (!new RegExp(`export const ${name}\\b`).test(src)) error(`нет export const ${name}`)
-  }
-  if (!/export const TEST_ONLY\b/.test(src)) return
-  const testOnly = /export const TEST_ONLY\s*=\s*true/.test(src)
-  const contactsBlock = /export const TEST_CONTACTS[^=]*=\s*\[([\s\S]*?)\]\s*(?:\n|$)/.exec(src)?.[1] || ''
-  if (testOnly && !/value:\s*['"`][^'"`]+['"`]/.test(contactsBlock)) {
-    warn('TEST_ONLY = true, но TEST_CONTACTS пуст — письма не уйдут никому')
-  }
-  if (!testOnly) warn('TEST_ONLY = false — процесс шлёт реальным людям')
-})
+check('tests', 'Сценарии тестирования tests/plan.yaml', () => { readTestPlan(root, slug, map) })
 
 check('plan', 'План PLAN.md', ({ error, warn }) => {
   const f = join(dir, 'PLAN.md')
@@ -1195,8 +1166,8 @@ if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о
   if (decision.status !== 'ready') error(decision.error || decision.status)
   else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
 })
-if (options['task-stage'] === 'launch') check('automation.smoke', 'Полный безопасный прогон автоматизаций', ({ error }) => {
-  for (const issue of automationSmokeStatus({ root, slug, automationFiles: automations.map(item => item.file) }).errors) error(issue)
+if (['test', 'launch'].includes(options['task-stage'])) check('process.testing', 'Тестирование текущей версии процесса', ({ error }) => {
+  for (const issue of testStatus({ root, slug, map, remote: true }).errors) error(issue)
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {

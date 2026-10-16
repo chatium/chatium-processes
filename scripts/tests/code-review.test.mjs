@@ -166,7 +166,7 @@ test('test reports do not stale code review while test sources and fixtures do',
   const before = f.packet().inputDigest
   f.put('demo/tests/W021-live-2026-10-15.md', 'Одна заявка записана.\n')
   f.put('demo/tests/W021-live-2026-10-15.json', '{"accepted":true}\n')
-  f.put('demo/tests/automation-smoke.json', '{"accepted":true}\n')
+  f.put('demo/tests/runs/run-one.json', '{"accepted":true}\n')
   assert.equal(f.packet().inputDigest, before)
   f.put('demo/tests/decision.test.mjs', 'export const decision = 1\n')
   const withTest = f.packet().inputDigest

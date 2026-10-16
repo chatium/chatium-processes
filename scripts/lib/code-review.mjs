@@ -74,7 +74,7 @@ export function makeCodeReviewPacket({ root, slug }) {
   const importedTestFiles = new Set(corpus.dependencies.filter(dep =>
     dep.source?.startsWith(testRoot) && dep.target?.startsWith(testRoot)).map(dep => dep.target))
   const testSource = path => !path.startsWith(testRoot) ||
-    (path !== `${testRoot}records.ts` && path !== `${testRoot}automation-smoke.json` && (
+    (path !== `${testRoot}records.ts` && !path.startsWith(`${testRoot}artifacts/`) && !path.startsWith(`${testRoot}runs/`) && (
       /\.(?:[cm]?[jt]sx?|vue)$/i.test(path) || path.startsWith(`${testRoot}fixtures/`) ||
       importedTestFiles.has(path)))
   const files = corpus.files.filter(file => !file.path.startsWith(`${slug}/tasks/`) &&

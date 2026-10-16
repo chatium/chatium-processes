@@ -39,19 +39,20 @@ function stepsForSeries(steps, source) {
     return [step]
   })
 }
-function walkSteps(steps, prefix = '', out = []) {
+function walkSteps(steps, prefix = '', out = [], source = '') {
   for (const step of Array.isArray(steps) ? steps : []) {
     if (out.length >= 100) throw Error('Для снимка слишком много шагов автоматизации: максимум 100.')
-    if (step.type === 'delay') out.push({ kind: 'delay', title: prefix + 'Ожидание', detail: step.description || delayText(step.delay) })
+    const ref = step.id && source ? { id: step.id, source } : {}
+    if (step.type === 'delay') out.push({ ...ref, kind: 'delay', title: prefix + 'Ожидание', detail: step.description || delayText(step.delay) })
     else if (step.type === 'condition' || step.type === 'continueCondition') {
-      out.push({ kind: 'condition', title: prefix + (step.conditionName || step.title || 'Условие'), detail: step.description || (step.type === 'continueCondition' ? 'Продолжить, только если условие выполнено' : 'Два пути: условие выполнено или нет') })
-      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out)
-      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out)
-    } else if (step.type === 'action') out.push({ kind: 'action', title: prefix + (step.actionName || step.title || 'Действие'), detail: step.description || '' })
+      out.push({ ...ref, kind: 'condition', title: prefix + (step.conditionName || step.title || 'Условие'), detail: step.description || (step.type === 'continueCondition' ? 'Продолжить, только если условие выполнено' : 'Два пути: условие выполнено или нет') })
+      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out, source)
+      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out, source)
+    } else if (step.type === 'action') out.push({ ...ref, kind: 'action', title: prefix + (step.actionName || step.title || 'Действие'), detail: step.description || '' })
     else if (step.type === 'draft') {
-      out.push({ kind: 'condition', title: prefix + 'Не настроено', detail: step.description || '' })
-      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out)
-      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out)
+      out.push({ ...ref, kind: 'condition', title: prefix + 'Не настроено', detail: step.description || '' })
+      walkSteps(step.thenBranch?.steps, prefix + 'Если да · ', out, source)
+      walkSteps(step.elseBranch?.steps, prefix + 'Если нет · ', out, source)
     }
   }
   return out
@@ -95,7 +96,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
         const path = rel(root, file)
         safePath(root, path)
         automationFiles.push(path)
-        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
+        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps, path) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
       }
     }
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }

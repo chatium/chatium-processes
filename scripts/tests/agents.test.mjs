@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url'
 import { parseYaml, stringifyYaml } from '../lib/yaml.mjs'
 import { validateProcessAgents } from '../lib/agents.mjs'
 import { makeAgentReviewPacket, agentReviewStatus, validateAgentRevisionEvidence } from '../lib/agent-review.mjs'
-import { agentRuntimeEvidenceStatus, writeAgentRuntimeEvidence } from '../lib/agent-runtime-evidence.mjs'
 
 function publishedAgentVersion(root) {
   const source = readFileSync(join(root, 'demo/agents/helper.agent.json'), 'utf8')
@@ -382,66 +381,12 @@ test('test stage requires a published runtime result for every AI process', () =
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../check.mjs', import.meta.url)),
       'demo', '--root', f.root, '--no-snapshot', '--task-stage', 'test', '--json'], { encoding: 'utf8' })
     const report = JSON.parse(result.stdout)
-    assert.equal(report.checks.find(item => item.id === 'agents.runtime').ok, false)
-    assert.match(report.checks.find(item => item.id === 'agents.runtime').errors.join('\n'), /Нет проверки опубликованных помощников/)
+    assert.equal(report.checks.find(item => item.id === 'process.testing').ok, false)
+    assert.match(report.checks.find(item => item.id === 'process.testing').errors.join('\n'), /Нет плана тестирования|git/)
   } finally { f.cleanup() }
 })
 
-test('runtime evidence is bound to the tested commit, branch, agent sources and map IDs', () => {
-  const f = fixture()
-  try {
-    f.map.nodes[0].agentId = 'a-1'
-    f.run()
-    writeFileSync(join(f.root, 'demo/process.yaml'), stringifyYaml(f.map))
-    execFileSync('git', ['init', '-q', '-b', 'process/demo'], { cwd: f.root })
-    execFileSync('git', ['add', '.'], { cwd: f.root })
-    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'published agent'], { cwd: f.root })
-    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: f.root, encoding: 'utf8' }).trim()
-    const args = { root: f.root, slug: 'demo', map: f.map }
-    assert.equal(agentRuntimeEvidenceStatus(args).status, 'missing')
-    writeAgentRuntimeEvidence({ ...args, spec: f.spec, branch: 'process/demo', commit, accountId: 1,
-      checkedAt: '2026-10-07T12:00:00Z' })
-    assert.equal(agentRuntimeEvidenceStatus(args).status, 'ready')
-    assert.match(agentRuntimeEvidenceStatus({ ...args, maxAgeMs: 1 }).errors.join('\n'), /устарела по времени/)
-    const wrongBranch = agentRuntimeEvidenceStatus({ ...args, currentBranch: () => 'main' })
-    assert.match(wrongBranch.errors.join('\n'), /текущая ветка/)
-    const unmerged = agentRuntimeEvidenceStatus({ ...args, ancestor: () => false })
-    assert.match(unmerged.errors.join('\n'), /не предшествует/)
-    const wrongPublished = agentRuntimeEvidenceStatus({ ...args, readAtCommit: (revision, path) =>
-      path.endsWith('helper.agent.json') ? Buffer.from('different') : execFileSync('git', ['show', `${revision}:${path}`], { cwd: f.root }) })
-    assert.match(wrongPublished.errors.join('\n'), /опубликованного файла/)
-    f.map.accountId = 999
-    assert.match(agentRuntimeEvidenceStatus(args).errors.join('\n'), /изменились после проверки/)
-    f.map.accountId = 1
-    writeFileSync(join(f.root, 'demo/agents/helper.agent.json'), JSON.stringify({ title: 'Helper', model: 'model', instructions: ['Changed'], enabledTools: [] }))
-    assert.match(agentRuntimeEvidenceStatus(args).errors.join('\n'), /изменились после проверки/)
-    f.map.nodes[0].agentId = 'a-2'
-    assert.match(agentRuntimeEvidenceStatus(args).errors.join('\n'), /изменились после проверки/)
-  } finally { f.cleanup() }
-})
-
-test('runtime evidence refuses a linked tests directory and a linked result file', () => {
-  const f = fixture()
-  try {
-    f.map.nodes[0].agentId = 'a-1'
-    f.run()
-    mkdirSync(join(f.root, 'outside'))
-    symlinkSync('../outside', join(f.root, 'demo/tests'))
-    const args = { root: f.root, slug: 'demo', map: f.map, spec: f.spec,
-      branch: 'process/demo', commit: 'a'.repeat(40), accountId: 1, checkedAt: new Date().toISOString() }
-    assert.throws(() => writeAgentRuntimeEvidence(args), /ссылку/)
-    assert.equal(agentRuntimeEvidenceStatus(args).status, 'invalid')
-    assert.equal(readFileSync(join(f.root, 'demo/agents/spec.yaml'), 'utf8').length > 0, true)
-    rmSync(join(f.root, 'demo/tests'))
-    mkdirSync(join(f.root, 'demo/tests'))
-    writeFileSync(join(f.root, 'outside/agents-runtime.json'), '{}')
-    symlinkSync(join(f.root, 'outside/agents-runtime.json'), join(f.root, 'demo/tests/agents-runtime.json'))
-    assert.throws(() => writeAgentRuntimeEvidence(args), /ссылку/)
-    assert.equal(agentRuntimeEvidenceStatus(args).status, 'invalid')
-  } finally { f.cleanup() }
-})
-
-test('standalone agent without a shared Sender channel can record published runtime evidence', () => {
+test('standalone agent without a shared Sender channel can inspect its published runtime', () => {
   const f = fixture()
   try {
     f.spec.routes = []
@@ -462,13 +407,12 @@ test('standalone agent without a shared Sender channel can record published runt
     writeFileSync(responseFile, JSON.stringify({ accountId: 1, agents: [{ key: 'helper', value: {
       ...publishedAgentVersion(f.root) }, toolChecks: [] }], routes: [] }))
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
-      'demo', '--root', f.root, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
+      'demo', '--root', f.root, '--json'], { encoding: 'utf8', env: { ...process.env,
         PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
     const report = JSON.parse(result.stdout)
     assert.equal(result.status, 0, JSON.stringify(report))
     assert.equal(report.status, 'verified')
     assert.ok(report.informational.some(message => /Нет routes/.test(message)))
-    assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'ready')
   } finally { f.cleanup() }
 })
 
@@ -491,7 +435,7 @@ test('published-state check stays partial with extra channel rules and rejects a
     const cli = fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url))
     const run = (record = false) => {
       writeFileSync(responseFile, JSON.stringify(response))
-      const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--json', ...(record ? ['--record'] : [])], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
+      const result = spawnSync(process.execPath, [cli, 'demo', '--root', f.root, '--json'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit } })
       return { exit: result.status, report: JSON.parse(result.stdout) }
     }
     const partial = run()
@@ -532,7 +476,7 @@ test('published-state check stays partial with extra channel rules and rejects a
   } finally { f.cleanup() }
 })
 
-test('agents-runtime uses the SDK contact contract and records only a fully verified published result', () => {
+test('agents-runtime uses the SDK contact contract and reports only a fully verified published result', () => {
   const f = fixture()
   const privateDir = mkdtempSync(join(tmpdir(), 'process-route-tests-'))
   try {
@@ -564,7 +508,7 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const run = (contactsFile = routeTests) => {
       writeFileSync(responseFile, JSON.stringify(response))
       const result = spawnSync(process.execPath, [fileURLToPath(new URL('../agents-runtime.mjs', import.meta.url)),
-        'demo', '--root', f.root, '--route-tests', contactsFile, '--json', '--record'], { encoding: 'utf8', env: { ...process.env,
+        'demo', '--root', f.root, '--route-tests', contactsFile, '--json'], { encoding: 'utf8', env: { ...process.env,
           PATH: `${bin}:${process.env.PATH}`, FAKE_RUNTIME_RESPONSE: responseFile, FAKE_RUNTIME_COMMIT: commit, FAKE_RUNTIME_INPUT: inputFile } })
       return { exit: result.status, report: JSON.parse(result.stdout) }
     }
@@ -578,7 +522,6 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     assert.match(code, /"existingContacts":\[\{"type":"email","value":"existing@example.com"\}\]/)
     assert.match(code, /"ignoreText":"Позови сотрудника"/)
     assert.doesNotMatch(code, /chainKey/)
-    assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'missing')
     response.routes[0].dryRun = { mode: 'selected', agentId: 'a-1', reason: 'default-agent' }
     const withoutExisting = run()
     assert.equal(withoutExisting.report.status, 'unverified')
@@ -591,11 +534,8 @@ test('agents-runtime uses the SDK contact contract and records only a fully veri
     const passed = run()
     assert.equal(passed.exit, 0, JSON.stringify(passed.report))
     assert.equal(passed.report.status, 'verified')
-    assert.ok(passed.report.recordedPath)
     assert.doesNotMatch(JSON.stringify(passed.report), /test@example.com|existing@example.com/)
     assert.doesNotMatch(JSON.stringify(passed.report), /Позови сотрудника/)
-    assert.doesNotMatch(readFileSync(passed.report.recordedPath, 'utf8'), /test@example.com|existing@example.com/)
-    assert.equal(agentRuntimeEvidenceStatus({ root: f.root, slug: 'demo', map: parseYaml(readFileSync(processYaml, 'utf8')) }).status, 'ready')
     const trackedContacts = join(f.root, 'route-tests.json')
     writeFileSync(trackedContacts, readFileSync(routeTests))
     const rejected = run(trackedContacts)

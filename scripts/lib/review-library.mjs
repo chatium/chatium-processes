@@ -11,7 +11,7 @@ const posix = value => value.split(sep).join('/')
 const within = (base, path) => path === base || path.startsWith(base + sep)
 // Keep source-only material out of the reviewer library so source checkouts and
 // installed skills expose the same references.
-const ignored = new Set(['.git', '.github', '.local-context', '.cache', '__pycache__', '.bin'])
+const ignored = new Set(['AGENTS.md', '.git', '.github', '.local-context', '.cache', '__pycache__', '.bin'])
 const ruleSections = {
   'skills/processes/SKILL.md': ['Начало работы', 'Этапы и обязательные ворота'],
   'skills/chatium-development/SKILL.md': ['Runtime and module boundaries', 'API source of truth'],

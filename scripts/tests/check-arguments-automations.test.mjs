@@ -71,19 +71,18 @@ test('boolean snapshot option with an equals value is rejected before writing', 
   assert.throws(() => readFileSync(target))
 })
 
-test('a series cannot enter test stage without channels and a real test-only recipient policy', t => {
+test('test stage requires selected channels but never switches a working process to global testOnly', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Follow-up\n    source: .mailings/storage/processes/demo/followup/\nlinks: []\n')
   const workspace = stage => JSON.parse(f.run('--task-stage', stage).stdout).checks.find(check => check.id === 'workspace')
   const missing = workspace('test')
   assert.match(missing.errors.join('\n'), /senderChannels/)
   assert.match(missing.errors.join('\n'), /mailings\.testOnly/)
-  assert.match(missing.errors.join('\n'), /mailings\.testContacts/)
 
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
     senderChannels: ['email-1'], mailings: { testOnly: false, testContacts: [{ type: 'email', value: 'owner@example.com' }] },
   } }))
-  assert.match(workspace('test').errors.join('\n'), /testOnly: true/)
+  assert.equal(workspace('test').errors.length, 0)
   assert.equal(workspace('launch').errors.length, 0)
 
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
@@ -254,13 +253,13 @@ test('launch refuses an empty business variable while build can continue', t => 
   assert.equal(checks('--task-stage', 'launch').find(check => check.id === 'launch.variables').ok, true)
 })
 
-test('launch check lists missing full automation run as a separate gate', t => {
+test('launch uses the unified process testing gate', t => {
   const f = fixture(t)
   f.put('demo/automations/welcome.automationConfig.json', '{"title":"Welcome","eventUrls":[],"steps":[]}')
   const result = f.run('--task-stage', 'launch')
-  const smoke = JSON.parse(result.stdout).checks.find(check => check.id === 'automation.smoke')
+  const smoke = JSON.parse(result.stdout).checks.find(check => check.id === 'process.testing')
   assert.equal(smoke.ok, false)
-  assert.match(smoke.errors.join('\n'), /полного тестового прогона/)
+  assert.match(smoke.errors.join('\n'), /плана тестирования/)
 })
 
 test('local-time delay requires a real timezone instead of an example placeholder', t => {
@@ -343,9 +342,9 @@ test('channel plan constrains every message variant to its selected Sender IDs',
   assert.match(errors(), /01\.v2\.message\.yaml: processDeliveryChannelIds/)
   f.put(variant, JSON.stringify(message))
   assert.doesNotMatch(errors(), /processDeliveryChannelIds|channelIdsByFormat/)
-  const delivery = JSON.parse(f.run('--task-stage', 'launch').stdout).checks.find(check => check.id === 'letters.delivery')
+  const delivery = JSON.parse(f.run('--task-stage', 'launch').stdout).checks.find(check => check.id === 'process.testing')
   assert.equal(delivery.ok, false)
-  assert.match(delivery.errors.join('\n'), /Нет результатов тестовой доставки/)
+  assert.match(delivery.errors.join('\n'), /плана тестирования/)
   spec.channelIdsByFormat.messenger = ['unknown-channel']
   f.put('demo/creative/followup/spec.yaml', JSON.stringify(spec))
   assert.match(errors(), /unknown-channel отсутствует в config.senderChannels/)
