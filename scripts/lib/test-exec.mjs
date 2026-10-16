@@ -32,7 +32,7 @@ export function testExec(root, commit, code) {
   return JSON.parse(result.stdout)
 }
 
-const gatewayPath = '/app/start/plugin/process-map/api/testingGateway/control'
+const gatewayPath = '/app/start/process-map/api/testingGateway~control'
 export function testSdk(root, commit, method, ...args) {
   if (!/^[A-Za-z]+$/.test(method)) throw Error('Некорректный метод SDK.')
   const privateDir = resolve(root, git(root, ['rev-parse', '--git-common-dir']))
@@ -44,16 +44,18 @@ export function testSdk(root, commit, method, ...args) {
   if (remote.protocol !== 'https:' || !/^\/s\/(git|source-git)\//.test(remote.pathname)) throw Error('Нужен origin Source Git аккаунта.')
   const sessionFile = join(privateDir, 'process-test-http-session.json')
   let session = existsSync(sessionFile) ? JSON.parse(readFileSync(sessionFile, 'utf8')) : null
+  const http = input => spawnSync(process.execPath, [fileURLToPath(new URL('./test-http.mjs', import.meta.url))], { cwd: root,
+    input: JSON.stringify(input), encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
   if (!session || session.origin !== remote.origin || session.expiresAt < Date.now()) {
-    const value = testExec(root, commit, `import { createAuthSessionTokenWithOptions } from '@app/auth/provider'\nif (!ctx.authSession?.id) throw new Error('CLI authentication required')\nreturn {token: await createAuthSessionTokenWithOptions(ctx, ctx.authSession.id, {scope: {path: ${JSON.stringify(gatewayPath)}}, expiresIn: 600})}`)
-    session = { token: value.token, origin: remote.origin, expiresAt: Date.now() + 480000 }
+    const value = testExec(root, commit, `import { authenticateCurrentUserInNewDomainOrBrowser } from '@app/auth'\nreturn {url: await authenticateCurrentUserInNewDomainOrBrowser(ctx, ${JSON.stringify(remote.hostname)}, ${JSON.stringify(gatewayPath)})}`)
+    const authenticated = http({ url: new URL(gatewayPath, remote.origin).href, authUrl: value.url })
+    if (authenticated.error || authenticated.status !== 0) throw Error('Не удалось подтвердить HTTP-сессию текущего разработчика.')
+    session = { cookie: JSON.parse(authenticated.stdout).cookie, origin: remote.origin, expiresAt: Date.now() + 480000 }
     writeFileSync(sessionFile, JSON.stringify(session), { mode: 0o600 })
   }
   const preview = [`account:${branch}`, ...Object.entries(plugins).map(([slug, branch]) => `app_${slug}:${branch}`)].join(',')
-  const result = spawnSync(process.execPath, [fileURLToPath(new URL('./test-http.mjs', import.meta.url))], { cwd: root,
-    input: JSON.stringify({ url: new URL(gatewayPath, remote.origin).href, cookie: `apiToken=${session.token}; __chtmPreviewMode__=${preview}`, method, args, branch, plugins }),
-    encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
-  if (result.error || result.status !== 0) throw Error('Запрос тестового SDK не завершился: ' + redact(result.stderr || 'неизвестный исход', [session.token]))
+  const result = http({ url: new URL(gatewayPath, remote.origin).href, cookie: `${session.cookie}; __chtmPreviewMode__=${preview}`, method, args, branch, plugins })
+  if (result.error || result.status !== 0) throw Error('Запрос тестового SDK не завершился: ' + redact(result.stderr || 'неизвестный исход', [session.cookie]))
   return JSON.parse(result.stdout)
 }
 

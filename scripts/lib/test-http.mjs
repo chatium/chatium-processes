@@ -1,6 +1,17 @@
 import { readFileSync } from 'node:fs'
 const request = JSON.parse(readFileSync(0, 'utf8'))
 try {
+  if (request.authUrl) {
+    const target = new URL(request.url), auth = new URL(request.authUrl)
+    if (auth.origin !== target.origin || auth.pathname !== '/s/auth/another/migrate-token') throw Error('Неподдерживаемый адрес авторизации.')
+    const response = await fetch(auth, { redirect: 'manual', signal: AbortSignal.timeout(30000) })
+    const location = response.headers.get('location')
+    if (response.status !== 302 || !location || new URL(location, auth).href !== target.href) throw Error('Авторизация не подтверждена платформой.')
+    const cookies = new Map(response.headers.getSetCookie().map(value => value.split(';')[0]).map(value => [value.slice(0, value.indexOf('=')), value]))
+    if (![...cookies].some(([name, value]) => /^at-\d+$/.test(name) && value.length > name.length + 1)) throw Error('Сессия разработчика отсутствует.')
+    process.stdout.write(JSON.stringify({ cookie: [...cookies.values()].join('; ') }) + '\n')
+    process.exit(0)
+  }
   const response = await fetch(request.url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000),
     headers: { 'content-type': 'application/json', cookie: request.cookie }, body: JSON.stringify({ method: request.method, args: request.args }) })
   if (!response.ok) throw Error(`Тестовый SDK недоступен: HTTP ${response.status}.`)
