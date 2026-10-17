@@ -60,7 +60,7 @@ try {
       if (!Array.isArray(scope.contacts) || !Array.isArray(scope.channels)) throw Error('Scope должен содержать contacts и channels.')
     }
     if (scope.plugins) saveTestPluginBranches(root, scope.plugins)
-    if (testSdk(root, run.testedCommit, 'getProcessTestCapabilities').version !== 2) throw Error('Нужен совместимый протокол тестирования Start версии 2.')
+    if (testSdk(root, run.testedCommit, 'getProcessTestCapabilities').version !== 3) throw Error('Нужен совместимый протокол тестирования Start версии 3.')
     const session = testSdk(root, run.testedCommit, 'createProcessTestContext', { runId: run.runId, caseId: run.caseId, processPath: slug, branch: run.branch, testedCommit: run.testedCommit, sources: run.inputs.files, contacts: scope.contacts, channels: scope.channels, variants: scope.variants })
     run.executedVersions = [{ module: 'account', commit: run.testedCommit, evidence: 'chatium-exec' }, ...Object.entries(session.scope.codeFingerprints || {}).map(([module, fingerprint]) => ({ module, fingerprint, evidence: 'sdk-source-fingerprint' }))]
     saveSession(root, run.runId, { context: session.context, contacts: scope.contacts, channels: scope.channels, sequence: 0 })

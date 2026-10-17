@@ -12,7 +12,7 @@ const run={runId:'run',caseId:'case',testedCommit:commit,branch:'main',status:'r
 const scenario={id:'case',kind:'runtime',capabilities:['sender.send']};
 const sdk=(_root,_commit,method)=>{
  calls.push(method);
- if(method==='getProcessTestCapabilities'){if(++caps===2&&mode==='capabilities')throw Error('capabilities unavailable');return {version:2,operations:[{id:'sender.send',available:true}]}}
+ if(method==='getProcessTestCapabilities'){if(++caps===2&&mode==='capabilities')throw Error('capabilities unavailable');return {version:mode==='protocol'?2:3,operations:[{id:'sender.send',available:true}]}}
  if(method==='createProcessTestContext')return {context:{runId:'run',token:'private'},scope:{codeFingerprints:{}}};
  throw Error(method);
 };
@@ -38,11 +38,15 @@ const main=new vm.SourceTextModule(source,{context,identifier:url.pathToFileURL(
 await main.link(name=>{const values=modules[name];if(!values)throw Error('Unmocked import '+name);return new vm.SyntheticModule(Object.keys(values),function(){for(const [key,value]of Object.entries(values))this.setExport(key,value)},{context})});
 await main.evaluate();process.stdout.write(JSON.stringify({calls,local,remote,errors,code:fakeProcess.exitCode}));
 `
-for (const mode of ['capabilities','recovery','publish','sealed']) test(`CLI finalizes interrupted work and closes its context: ${mode}`,()=>{
+for (const mode of ['protocol','capabilities','recovery','publish','sealed']) test(`CLI handles an incompatible or interrupted run: ${mode}`,()=>{
  const result=spawnSync(process.execPath,['--experimental-vm-modules','--input-type=module'],{input:harness,encoding:'utf8',
   env:{...process.env,MODE:mode,SOURCE_SCRIPT:fileURLToPath(new URL('../test.mjs',import.meta.url))}})
  assert.equal(result.status,0,result.stderr)
  const value=JSON.parse(result.stdout)
+ if(mode==='protocol'){
+  assert.deepEqual(value.calls,['getProcessTestCapabilities']);assert.equal(value.code,2)
+  assert.match(value.errors.join(' '),/версии 3/);return
+ }
  assert.ok(value.calls.includes('close'));assert.equal(value.code,2)
  assert.equal(value.remote.status,mode==='sealed'?'passed':'incomplete')
  assert.equal(value.local.status,mode==='sealed'?'passed':'incomplete')
