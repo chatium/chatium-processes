@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { isProcessSlug } from './project.mjs'
-import { parseYaml } from './yaml.mjs'
+import { parseTestPlanYaml } from './yaml.mjs'
 import { testSdk } from './test-exec.mjs'
 import { git, gitState } from './git-state.mjs'
 
@@ -82,7 +82,7 @@ export function validatePlan(value, { slug, map } = {}) {
 
 export function readTestPlan(root, slug, map) {
   if (!isProcessSlug(slug)) fail('Некорректный процесс.')
-  const plan = validatePlan(parseYaml(read(root, `${slug}/tests/plan.yaml`), { version: '1.2', schema: 'core' }), { slug, map })
+  const plan = validatePlan(parseTestPlanYaml(read(root, `${slug}/tests/plan.yaml`)), { slug, map })
   const hasStep = (steps, id) => (steps || []).some(s => s.id === id || hasStep(s.thenBranch?.steps, id) || hasStep(s.elseBranch?.steps, id))
   for (const scenario of plan.cases) for (const target of scenario.targets.filter(t => t.kind === 'step')) {
     if (!scenario.sources.includes(target.source) || !target.source.endsWith('.automationConfig.json') || !hasStep(JSON.parse(read(root, target.source)).steps, target.id)) fail(`${scenario.id}: шаг ${target.id} отсутствует в проверяемом исходнике.`)

@@ -142,3 +142,14 @@ test('privacy cleaning preserves report references and dates while removing cont
  assert.equal(value.version,1);assert.equal(value.branch,'codex/process-testing');assert.equal(value.runtime[0].id,'test');assert.equal(value.artifacts[0].name,'test.json')
  assert.equal(value.recipient,'[redacted]');assert.equal(value.message,'[redacted] value');assert.equal(value.nested.id,'[redacted]');assert.equal(value.at,'2026-10-17T00:00:00.000Z')
 })
+
+
+test('test plan numbers and dates use the same js-yaml JSON schema as Start',t=>{
+ const f=fixture(t)
+ const scenario={...f.scenario,conditions:['2026-10-17'],timeoutMs:1000,probeCount:3,probeUnderscore:'1_000'}
+ const source=stringifyYaml({version:1,cases:[scenario]}).replace(/['"]?2026-10-17['"]?/,'2026-10-17').replace('probeCount: 3','probeCount: 0b11').replace(/['"]1_000['"]/,'1_000')
+ f.put('demo/tests/plan.yaml',source)
+ const actual=readTestPlan(f.root,'demo',f.map).cases[0]
+ assert.equal(actual.conditions[0],'2026-10-17');assert.equal(actual.timeoutMs,1000);assert.equal(actual.probeCount,3);assert.equal(actual.probeUnderscore,'1_000')
+ assert.equal(canonicalTestJson(actual),canonicalTestJson(scenario))
+})
