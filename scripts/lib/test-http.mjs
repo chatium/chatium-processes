@@ -13,7 +13,7 @@ try {
     process.exit(0)
   }
   const response = await fetch(request.url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000),
-    headers: { 'content-type': 'application/json', cookie: request.cookie }, body: JSON.stringify({ method: request.method, args: request.args }) })
+    headers: { 'content-type': 'application/json', 'x-chatium-process-test': '1', cookie: request.cookie }, body: JSON.stringify({ method: request.method, args: request.args }) })
   if (!response.ok) throw Error(`Тестовый SDK недоступен: HTTP ${response.status}.`)
   const data = await response.json()
   if (data.protocol !== 'process-testing-v1') throw Error('Ответ не подтверждает тестовый SDK Start.')

@@ -59,8 +59,8 @@ export function requireYaml() {
   return yaml
 }
 
-export function parseYaml(source) {
-  return requireYaml().parse(source)
+export function parseYaml(source, options) {
+  return requireYaml().parse(source, options)
 }
 
 export function stringifyYaml(value) {

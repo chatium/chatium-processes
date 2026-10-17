@@ -9,7 +9,8 @@ import { readSession, redact, redactData, testSdk } from './test-exec.mjs'
 // The parent enforces a wall-clock timeout for the complete scenario, including hung code.
 const { root, slug, scenario, runId } = JSON.parse(readFileSync(0, 'utf8'))
 const run = readTestRun(root, slug, runId), session = readSession(root, runId)
-const secrets = [session.context.token, ...session.contacts.map(c => c.value)]
+// Contact redaction belongs to Start; local evidence stays in the private Git cache.
+const secrets = [session.context.token]
 const clean = value => redactData(value, secrets)
 const persist = () => { saveRun(root, clean(run)); publishRun(root, clean(run)) }
 let polling = false
