@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { stringifyYaml } from '../lib/yaml.mjs'
-import { createRun, saveRun, testInputs, readTestRun, testStatus, testPath, validatePlan, validateRun, coverageForTargets, testCachePath, assertTestSourcesCommitted, hash } from '../lib/process-testing.mjs'
+import { createRun, saveRun, testInputs, readTestRun, testStatus, testPath, validatePlan, validateRun, coverageForTargets, testCachePath, assertTestSourcesCommitted, hash, canonicalTestJson, readTestPlan } from '../lib/process-testing.mjs'
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-testing-'))
@@ -126,4 +126,30 @@ test('structured redaction preserves numeric JSON and removes nested credentials
   const cleaned = redactData({chatId:123456789,items:[{api_key:'private',accessToken:'token',cookie:'session'}],description:'user 123456789',count:2},['123456789'])
   assert.equal(JSON.parse(JSON.stringify(cleaned)).chatId,'[redacted]')
   assert.equal(cleaned.items[0].api_key,'[redacted]');assert.equal(cleaned.items[0].accessToken,'[redacted]');assert.equal(cleaned.items[0].cookie,'[redacted]');assert.equal(cleaned.count,2)
+})
+
+test('case hash survives object key reordering and YAML date-like scalars stay strings',t=>{
+ const f=fixture(t), reversed=JSON.parse(JSON.stringify(f.scenario,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).reverse()):v))
+ assert.equal(hash(canonicalTestJson(f.scenario)),hash(canonicalTestJson(reversed)))
+ const source=readFileSync(join(f.root,'demo/tests/plan.yaml'),'utf8').replace('Новый тестовый клиент','2026-10-17')
+ f.put('demo/tests/plan.yaml',source)
+ assert.equal(readTestPlan(f.root,'demo',f.map).cases[0].conditions[0],'2026-10-17')
+})
+
+test('privacy cleaning preserves report references and dates while removing contacts and opaque secrets',async()=>{
+ const {redactData}=await import('../lib/test-exec.mjs')
+ const value=redactData({version:1,branch:'codex/process-testing',runtime:[{id:'test',kind:'observation'}],artifacts:[{name:'test.json'}],recipient:1,message:'test value',at:new Date('2026-10-17T00:00:00Z'),nested:{id:'opaque-secret'}},['opaque-secret'],['test','1'])
+ assert.equal(value.version,1);assert.equal(value.branch,'codex/process-testing');assert.equal(value.runtime[0].id,'test');assert.equal(value.artifacts[0].name,'test.json')
+ assert.equal(value.recipient,'[redacted]');assert.equal(value.message,'[redacted] value');assert.equal(value.nested.id,'[redacted]');assert.equal(value.at,'2026-10-17T00:00:00.000Z')
+})
+
+
+test('test plan numbers and dates use the same js-yaml JSON schema as Start',t=>{
+ const f=fixture(t)
+ const scenario={...f.scenario,conditions:['2026-10-17'],timeoutMs:1000,probeCount:3,probeUnderscore:'1_000'}
+ const source=stringifyYaml({version:1,cases:[scenario]}).replace(/['"]?2026-10-17['"]?/,'2026-10-17').replace('probeCount: 3','probeCount: 0b11').replace(/['"]1_000['"]/,'1_000')
+ f.put('demo/tests/plan.yaml',source)
+ const actual=readTestPlan(f.root,'demo',f.map).cases[0]
+ assert.equal(actual.conditions[0],'2026-10-17');assert.equal(actual.timeoutMs,1000);assert.equal(actual.probeCount,3);assert.equal(actual.probeUnderscore,'1_000')
+ assert.equal(canonicalTestJson(actual),canonicalTestJson(scenario))
 })

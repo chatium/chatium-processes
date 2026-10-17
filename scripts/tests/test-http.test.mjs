@@ -11,6 +11,7 @@ test('HTTP test boundary requires platform-confirmed branches and keeps credenti
   try {
     const mock = join(dir, 'fetch.mjs')
     writeFileSync(mock, `globalThis.fetch = async (_url, options) => {
+      if (options.headers['x-chatium-process-test'] !== '1') throw Error('Missing explicit testing header');
       if (options.redirect !== 'error' || options.method !== 'POST') throw Error('Unsafe request');
       return {ok: process.env.HTTP_STATUS !== '403', status: 403,
         json: async () => JSON.parse(process.env.HTTP_BODY)};

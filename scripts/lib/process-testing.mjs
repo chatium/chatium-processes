@@ -3,13 +3,15 @@ import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { isProcessSlug } from './project.mjs'
-import { parseYaml } from './yaml.mjs'
+import { parseTestPlanYaml } from './yaml.mjs'
 import { testSdk } from './test-exec.mjs'
 import { git, gitState } from './git-state.mjs'
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/
 const SHA = /^[a-f0-9]{64}$/
 const RESULTS = ['running', 'passed', 'failed', 'blocked', 'incomplete']
+export const canonicalTestJson = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item)
 export const hash = value => createHash('sha256').update(value).digest('hex')
 const fail = message => { throw Error(message) }
 const text = (value, label, max = 4000) => typeof value === 'string' && value.trim() && value.length <= max && !/[\u0000-\u0008]/.test(value) ? value : fail(`${label}: нужна непустая строка до ${max} символов.`)
@@ -80,7 +82,7 @@ export function validatePlan(value, { slug, map } = {}) {
 
 export function readTestPlan(root, slug, map) {
   if (!isProcessSlug(slug)) fail('Некорректный процесс.')
-  const plan = validatePlan(parseYaml(read(root, `${slug}/tests/plan.yaml`)), { slug, map })
+  const plan = validatePlan(parseTestPlanYaml(read(root, `${slug}/tests/plan.yaml`)), { slug, map })
   const hasStep = (steps, id) => (steps || []).some(s => s.id === id || hasStep(s.thenBranch?.steps, id) || hasStep(s.elseBranch?.steps, id))
   for (const scenario of plan.cases) for (const target of scenario.targets.filter(t => t.kind === 'step')) {
     if (!scenario.sources.includes(target.source) || !target.source.endsWith('.automationConfig.json') || !hasStep(JSON.parse(read(root, target.source)).steps, target.id)) fail(`${scenario.id}: шаг ${target.id} отсутствует в проверяемом исходнике.`)
@@ -92,7 +94,7 @@ export function readTestPlan(root, slug, map) {
 export function testInputs(root, slug, scenario) {
   const paths = [...new Set([`${slug}/.workspace.json`, ...scenario.sources, ...(scenario.script ? [scenario.script] : [])])].sort()
   const files = paths.map(path => ({ path, sha256: hash(read(root, path)) }))
-  return { caseSha256: hash(JSON.stringify(scenario)), files }
+  return { caseSha256: hash(canonicalTestJson(scenario)), files }
 }
 
 export function validateRun(run, { slug, caseId } = {}) {

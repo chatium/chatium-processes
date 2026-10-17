@@ -34,17 +34,18 @@ function startDirs() {
   return dirs
 }
 
-function loadYaml() {
+function loadYaml(packageName) {
   for (const dir of startDirs()) {
     try {
-      const resolved = require.resolve('yaml', { paths: [dir] })
+      const resolved = require.resolve(packageName, { paths: [dir] })
       return require(resolved)
     } catch {}
   }
   return null
 }
 
-const yaml = loadYaml()
+const yaml = loadYaml('yaml')
+const testYaml = loadYaml('js-yaml')
 
 export function requireYaml() {
   if (!yaml) {
@@ -59,10 +60,22 @@ export function requireYaml() {
   return yaml
 }
 
-export function parseYaml(source) {
-  return requireYaml().parse(source)
+export function parseYaml(source, options) {
+  return requireYaml().parse(source, options)
 }
 
 export function stringifyYaml(value) {
   return requireYaml().stringify(value)
+}
+
+// Same schema as the Start runtime: date-like scalars remain strings; numeric syntax matches js-yaml.
+export function parseTestPlanYaml(source) {
+  if (!testYaml) throw Error('Не найден js-yaml для плана тестирования. Из каталога скилла выполните npm ci --ignore-scripts.')
+  const schema = testYaml.JSON_SCHEMA.extend({ implicit: ['int', 'float'].map(name => {
+    const type = testYaml.types[name]
+    return new testYaml.Type(`tag:yaml.org,2002:${name}`, { kind: 'scalar',
+      resolve: value => typeof value === 'string' && !value.includes('_') && type.resolve(value),
+      construct: value => type.construct(value) })
+  }) })
+  return testYaml.load(source, { schema })
 }
