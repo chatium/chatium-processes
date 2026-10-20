@@ -16,7 +16,7 @@ const sdk=(_root,_commit,method,input)=>{
   if(input.sequence!==server.sequence+1)throw Error('wrong recovered sequence');
   server={report:structuredClone(input.report),sequence:input.sequence};return {sequence:input.sequence};
  }
- if(method==='closeProcessTestContext')return {processPath:'demo',resources:[],requiredProviders:[],pendingOperations:process.env.MODE==='reconcile'&&!reconciled?[{operation:'sender.transport.receive',requestId:'message-one'}]:[]};
+ if(method==='closeProcessTestContext')return {processPath:'demo',resources:[],requiredProviders:[],pendingOperations:(process.env.MODE==='reconcile'&&!reconciled)||process.env.MODE==='missing-input'?[{operation:'sender.transport.receive',requestId:process.env.MODE==='missing-input'?'callback-nested':'message-one'}]:[]};
  if(method==='executeProcessTestOperation'){
   if(input.reconcile!==true||JSON.stringify(input.input)!==JSON.stringify(pending.operations[0].input))throw Error('Reconciliation lost original input or requested an effect');
   reconciled=true;return {status:'completed'};
@@ -37,13 +37,14 @@ await main.evaluate();const first=main.namespace.closeRun('/account','run-one');
 const firstPending=Boolean(session.pendingReport);const second=main.namespace.closeRun('/account','run-one');
 process.stdout.write(JSON.stringify({first,second,firstPending,session,server,calls}));
 `
-for(const mode of ['recover','retry','sealed','reconcile'])test(`cleanup recovers report metadata without replaying business effects: ${mode}`,()=>{
+for(const mode of ['recover','retry','sealed','reconcile','missing-input'])test(`cleanup recovers report metadata without replaying business effects: ${mode}`,()=>{
  const result=spawnSync(process.execPath,['--experimental-vm-modules','--input-type=module'],{input:harness,encoding:'utf8',env:{...process.env,MODE:mode,SOURCE_SCRIPT:fileURLToPath(new URL('../lib/test-remote.mjs',import.meta.url))}})
  assert.equal(result.status,0,result.stderr)
  const value=JSON.parse(result.stdout)
  assert.equal(value.session.pendingReport,undefined)
  assert.equal(value.server.report.status,mode==='sealed'?'failed':'incomplete')
  assert.equal(value.calls.includes('executeProcessTestOperation'),mode==='reconcile','only explicit reconciliation reads the original operation')
+ if(mode==='missing-input')assert.equal(value.second[0].status,'pending','missing nested callback input must preserve the unknown effect')
  if(mode==='retry'){assert.equal(value.first[0].operation,'run.finalize');assert.equal(value.firstPending,true)}
  if(mode==='sealed')assert.equal(value.calls.filter(m=>m==='writeProcessTestRun').length,0)
 })

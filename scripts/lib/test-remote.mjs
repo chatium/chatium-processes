@@ -56,7 +56,10 @@ export function closeRun(root, runId, interruptedRun) {
   for (const pending of (scope.pendingOperations || []).filter(p => !p.acknowledged)) {
     originalRun ||= readTestRun(root, scope.processPath, runId)
     const original = originalRun.operations?.find(o => o.requestId === pending.requestId && o.operation === pending.operation)
-    testSdk(root, commit, 'executeProcessTestOperation', { context, operation: pending.operation, requestId: pending.requestId, ...(original ? { input: original.input } : {}), reconcile: true })
+    // Nested callbacks may own receipts absent from the script report. Do not
+    // replace their unknown input with {}; leave explicit SDK diagnosis to the caller.
+    if (!original) continue
+    testSdk(root, commit, 'executeProcessTestOperation', { context, operation: pending.operation, requestId: pending.requestId, input: original.input, reconcile: true })
   }
   if (scope.pendingOperations?.some(p => !p.acknowledged)) scope = testSdk(root, commit, 'closeProcessTestContext', context)
   if (scope.pendingOperations?.some(p => !p.acknowledged) || scope.operationsTruncated) return [...results, { operation: 'run.close', status: 'pending', pendingOperations: scope.pendingOperations, error: 'Выполняющаяся операция ещё не завершена. Повторите cleanup после проверки её состояния.' }]
