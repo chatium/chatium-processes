@@ -19,6 +19,7 @@ import { readProcessBoard } from './lib/board.mjs'
 import { inspectProcessFormat } from './lib/process-format.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { commissionStatus } from './lib/commission.mjs'
+import { git } from './lib/git-state.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'],
@@ -128,8 +129,14 @@ const designReview = (() => {
 })()
 const planApproved = planDecision.status === 'ready'
 const launchApproved = launchDecision.status === 'ready'
-const taskStage = options['task-stage'] || (!planApproved ? 'design' :
-  launchApproved ? 'launch' : realTasks.some(task => !task.done) ? 'build' : 'test')
+const buildReview = (() => {
+  if (!planApproved || designReview.status !== 'ready') return null
+  try { return commissionStatus({ root, slug, stage: 'build' }) }
+  catch (error) { return { status: 'needs-work', error: error.message } }
+})()
+const taskStage = options['task-stage'] || (!planApproved || designReview.status !== 'ready' ? 'design' :
+  realTasks.some(task => !task.done) || buildReview?.status !== 'ready' ? 'build' :
+    launchApproved ? 'launch' : 'test')
 const knowledgeStage = options['knowledge-stage'] ||
   (taskStage === 'design' ? 'design' : taskStage === 'launch' ? 'launch' : 'build')
 
@@ -144,6 +151,7 @@ else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length ===
 else if (designReview.status !== 'ready') stage = '2. План — ждёт независимых заключений'
 else if (!planApproved) stage = '2. План — ждёт согласования 1 «строим так?»'
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
+else if (buildReview?.status !== 'ready') stage = '4. Проверка сборки — ждёт независимых заключений'
 else if (!launchApproved)
   stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
 else stage = launchDecision.authority === 'delegated-test'
@@ -161,14 +169,12 @@ else if (!planApproved)
   nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
 else if (realTasks.some(task => !task.done))
   nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
+else if (buildReview?.status !== 'ready')
+  nextAction = 'Закончи пакет сборки и получи недостающие заключения build; полный тест ещё не разрешён.'
 else if (!launchApproved)
   nextAction = `Проверь путь клиента в тестовом режиме и получи решение владельца «запускаем?»: ${launchDecision.error || launchDecision.status}`
 else nextAction = 'Проверь полный check и опубликованный снимок перед сдачей или запуском.'
 
-say(`Процесс: ${map?.title || slug} (${slug}/)`)
-say(`Этап: ${stage}`)
-say(`Следующий шаг: ${nextAction}`)
-say('')
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
 say(`  PLAN.md      ${plan ? 'есть' : 'нет'}`)
@@ -228,23 +234,80 @@ try {
   if (review.status !== 'ready') say('До полного тестового прогона и сдачи нужно ревью по build/review.md.')
 } catch (e) { say(`Ревью реализации недоступно: ${e.message}. Готовность к прогону не подтверждена.`) }
 
-// Read-only by construction: never refresh a stale board while restoring context.
+// Read-only by construction. Reuse check's verdict, never a second validation policy.
 say('')
-if (options.offline) say('Доска: актуальность и материалы не проверены (--offline). Перед завершением нужен обычный check.')
-else {
-  const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug, '--verify-snapshot', '--json', '--task-stage', taskStage, '--knowledge-stage', knowledgeStage, '--root', root],
-    { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 2 * 1024 * 1024 })
-  try {
-    if (result.error) throw result.error
-    const report = JSON.parse(result.stdout)
-    const snapshot = report.snapshot
-    if (sharedBoard && snapshot.verified && (snapshot.boardRevision !== sharedBoard.boardRevision || snapshot.revision !== sharedBoard.snapshotRevision))
+let report = null
+let checkError = null
+let boardChanged = false
+const result = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts/check.mjs'), slug,
+  options.offline ? '--no-snapshot' : '--verify-snapshot', '--json', '--task-stage', taskStage,
+  '--knowledge-stage', knowledgeStage, '--root', root],
+{ cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 2 * 1024 * 1024 })
+try {
+  if (result.error) throw result.error
+  if (result.signal) throw Error(`check прерван (${result.signal})`)
+  report = JSON.parse(result.stdout)
+  if (!Array.isArray(report.checks) || typeof report.passed !== 'number' || typeof report.total !== 'number')
+    throw Error('check вернул неполный результат')
+  if (![0, 1].includes(result.status)) checkError = `check завершился с кодом ${result.status}; полная проверка не завершена`
+  if (!options.offline) {
+    const snapshot = report.snapshot || {}
+    if (sharedBoard && snapshot.verified && (snapshot.boardRevision !== sharedBoard.boardRevision || snapshot.revision !== sharedBoard.snapshotRevision)) {
+      boardChanged = true
       say('Доска изменилась во время чтения контекста. Перечитай board read перед использованием материалов.')
+    }
     say(`Проверки: ${report.passed}/${report.total}. Доска: ${snapshot.verified ? `актуальна (${snapshot.branch} @ ${snapshot.commit}, снимок ${snapshot.revision}, доска ${snapshot.boardRevision})` : snapshot.error || 'актуальность не подтверждена'}`)
-  } catch (e) {
-    say(`Доска: чтение не удалось (${e.message}). Актуальность снимка не подтверждена.`)
   }
+} catch (error) {
+  report = null
+  checkError = error.message
 }
+if (options.offline) say('Доска: актуальность и материалы не проверены (--offline). Перед завершением нужен обычный check.')
+
+// Keep the actionable summary ahead of potentially large board materials.
+const allowedWork = taskStage === 'design'
+  ? 'Знания, план, карта и проверка проекта. Реализацию до принятого проекта и согласования не начинать.'
+  : taskStage === 'build'
+    ? 'Сборка и исправления по согласованному плану, независимые проверки. Боевой запуск не разрешён.'
+    : taskStage === 'test'
+      ? 'Подготовка теста; полный прогон только после ревью реализации и при выполненных условиях теста. Боевой запуск не разрешён.'
+      : 'Запуск только в согласованном объёме после полной проверки; затем наблюдение.'
+const deliverable = taskStage === 'design'
+  ? 'Подтверждённые вводные и открытые вопросы; по готовности — план, карта и результат ревью перед «строим так?».'
+  : taskStage === 'build'
+    ? 'Собранные части, ссылки на результат и карту, итоги ревью и оставшиеся проверки.'
+    : taskStage === 'test'
+      ? 'Результаты теста, ограничения, карта и точный объём предлагаемого запуска перед «запускаем?».'
+      : 'Что действительно включено, карта опубликованной версии, наблюдение и остановка.'
+const summary = [`Процесс: ${map?.title || slug} (${slug}/)`, `Этап: ${stage}`,
+  `Работа на этапе ${taskStage}: ${allowedWork}`]
+if (options['task-stage']) summary.push('Этап проверки задан вручную; это не разрешает пропускать предыдущие этапы.')
+if (report) {
+  const failures = report.checks.filter(check => !check.ok)
+  summary.push(`Проверка этапа ${taskStage}: ${report.passed}/${report.total}.`)
+  if (failures.length) {
+    summary.push('Переход дальше заблокирован. Непройденные пункты:')
+    for (const check of failures) summary.push(`  ✘ ${check.id}: ${check.title}${check.errors?.length ? ` — ${check.errors.join('; ')}` : ''}`)
+  } else summary.push('Локальные проверки пройдены; проверь также согласования, материалы доски и опубликованную версию.')
+}
+if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
+if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)
+  summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
+const pendingReviewStage = designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
+const nextCommand = pendingReviewStage
+  ? `node .agents/skills/processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
+  : `node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`
+summary.push(`Следующий шаг: ${nextAction}`,
+  `Следующая команда: ${nextCommand}`,
+  'Повторять check без изменения причины незачем: сначала выполни следующий шаг, затем проверяй пакет изменений.',
+  `Результат этапа для владельца: ${deliverable}`)
+try {
+  const branch = git(root, ['branch', '--show-current'])
+  if (!branch) throw Error('HEAD отсоединён')
+  summary.push(`Карта (путь в аккаунте, доступность проверяется отдельно): /app/start/process-map?${new URLSearchParams({ process: slug, branch })}`)
+} catch { summary.push('Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.') }
+summary.push('Если этап не завершён: сообщи, что сделано и что мешает продолжению. Не заменяй это заявлением «готово».', '')
+out.splice(1, 0, ...summary)
 
 // Карточки компонентов по видам узлов карты
 const kinds = new Set((map?.nodes || []).map(n => n.kind))

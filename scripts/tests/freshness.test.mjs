@@ -351,6 +351,8 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(context.status, 0)
   assert.match(context.stdout, /Please review/)
   assert.match(context.stdout, /актуальна/)
+  assert.match(context.stdout, /Переход дальше заблокирован/)
+  assert.ok(context.stdout.indexOf('Переход дальше заблокирован') < context.stdout.indexOf('Please review'))
   result = check(['--typecheck'])
   assert.equal(result.report.checks.find(c => c.id === 'typecheck').ok, true)
   assert.equal(result.report.snapshot.verified, true)
