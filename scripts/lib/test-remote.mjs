@@ -1,7 +1,7 @@
 import { writeFileSync, renameSync } from 'node:fs'
 import { gitState } from './git-state.mjs'
 import { readSession, sessionPath, testSdk, redact, redactData } from './test-exec.mjs'
-import { saveRun, testCachePath, validateRun, hash } from './process-testing.mjs'
+import { readTestRun, saveRun, testCachePath, validateRun, hash } from './process-testing.mjs'
 import { mkdirSync } from 'node:fs'
 
 export function fetchRun(root, slug, runId) {
@@ -52,8 +52,11 @@ export function closeRun(root, runId, interruptedRun) {
   catch { results.push({ operation: 'run.finalize', status: 'uncertain', error: 'Итог сохранён в приватном кэше. Повторите cleanup, когда Start снова доступен.' }) }
   const { context } = readSession(root, runId), commit = gitState(root).commit
   let scope = testSdk(root, commit, 'closeProcessTestContext', context)
+  let originalRun = interruptedRun
   for (const pending of (scope.pendingOperations || []).filter(p => !p.acknowledged)) {
-    testSdk(root, commit, 'executeProcessTestOperation', { context, operation: pending.operation, requestId: pending.requestId, reconcile: true })
+    originalRun ||= readTestRun(root, scope.processPath, runId)
+    const original = originalRun.operations?.find(o => o.requestId === pending.requestId && o.operation === pending.operation)
+    testSdk(root, commit, 'executeProcessTestOperation', { context, operation: pending.operation, requestId: pending.requestId, ...(original ? { input: original.input } : {}), reconcile: true })
   }
   if (scope.pendingOperations?.some(p => !p.acknowledged)) scope = testSdk(root, commit, 'closeProcessTestContext', context)
   if (scope.pendingOperations?.some(p => !p.acknowledged) || scope.operationsTruncated) return [...results, { operation: 'run.close', status: 'pending', pendingOperations: scope.pendingOperations, error: 'Выполняющаяся операция ещё не завершена. Повторите cleanup после проверки её состояния.' }]

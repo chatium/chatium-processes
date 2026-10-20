@@ -31,9 +31,11 @@ try {
   const map = parseYaml(readFileSync(testPath(root, `${slug}/process.yaml`), 'utf8'))
   if (command === 'reconcile') {
     if (!options.request || !options.operation) throw Error('Укажите --request и --operation исходной операции.')
-    fetchRun(root, slug, options.run)
+    const run = fetchRun(root, slug, options.run).report
     const session = readSession(root, options.run)
-    const result = testSdk(root, state.commit, 'executeProcessTestOperation', { context: session.context, requestId: options.request, operation: options.operation, reconcile: true })
+    const original = run.operations.find(o => o.requestId === options.request && o.operation === options.operation)
+    if (!original) throw Error('Исходные параметры отсутствуют в отчёте. Получите их из журнала вызывавшего кода и используйте SDK reconcile с исходным input; не подставляйте пустой объект.')
+    const result = testSdk(root, state.commit, 'executeProcessTestOperation', { context: session.context, requestId: options.request, operation: options.operation, input: original.input, reconcile: true })
     console.log(JSON.stringify(result, null, 2)); if (result.status !== 'completed') process.exitCode = 1
   } else if (command === 'acknowledge') {
     fetchRun(root, slug, options.run)

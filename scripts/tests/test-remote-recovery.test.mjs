@@ -4,9 +4,9 @@ import {spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 const harness=`
 import vm from 'node:vm';import fs from 'node:fs';
-const pending={process:'demo',branch:'main',runId:'run-one',status:'incomplete',limitations:[]};
+const pending={process:'demo',branch:'main',runId:'run-one',status:'incomplete',limitations:[],operations:[{operation:'sender.transport.receive',requestId:'message-one',input:{sessionId:'owned-session',peerId:'owned-peer',message:{text:'original'}}}]};
 let session={context:{runId:'run-one',token:'private'},contacts:[],sequence:1,pendingReport:pending},temp,failed=false;
-let server={report:{...pending,status:process.env.MODE==='sealed'?'failed':'running'},sequence:2};const calls=[];
+let server={report:{...pending,status:process.env.MODE==='sealed'?'failed':'running'},sequence:2};const calls=[];let reconciled=false;
 const sdk=(_root,_commit,method,input)=>{
  calls.push(method);
  if(method==='readProcessTestRun')return structuredClone(server);
@@ -16,7 +16,11 @@ const sdk=(_root,_commit,method,input)=>{
   if(input.sequence!==server.sequence+1)throw Error('wrong recovered sequence');
   server={report:structuredClone(input.report),sequence:input.sequence};return {sequence:input.sequence};
  }
- if(method==='closeProcessTestContext')return {resources:[],requiredProviders:[],pendingOperations:[]};
+ if(method==='closeProcessTestContext')return {processPath:'demo',resources:[],requiredProviders:[],pendingOperations:process.env.MODE==='reconcile'&&!reconciled?[{operation:'sender.transport.receive',requestId:'message-one'}]:[]};
+ if(method==='executeProcessTestOperation'){
+  if(input.reconcile!==true||JSON.stringify(input.input)!==JSON.stringify(pending.operations[0].input))throw Error('Reconciliation lost original input or requested an effect');
+  reconciled=true;return {status:'completed'};
+ }
  if(method==='getProcessTestCapabilities')return {operations:[]};
  throw Error('Unexpected effect: '+method);
 };
@@ -24,7 +28,7 @@ const modules={
  'node:fs':{writeFileSync(_path,body){temp=JSON.parse(body)},renameSync(){session=temp},mkdirSync(){}},
  './git-state.mjs':{gitState:()=>({commit:'a'.repeat(40)})},
  './test-exec.mjs':{readSession:()=>structuredClone(session),sessionPath:()=>'/session',testSdk:sdk,redact: v=>v,redactData:v=>v},
- './process-testing.mjs':{hash:()=>'',saveRun(){},testCachePath(){},validateRun(){}}
+ './process-testing.mjs':{readTestRun:()=>structuredClone(server.report),hash:()=>'',saveRun(){},testCachePath(){},validateRun(){}}
 };
 const context=vm.createContext({Date,Error,Set});const source=fs.readFileSync(process.env.SOURCE_SCRIPT,'utf8');
 const main=new vm.SourceTextModule(source,{context});
@@ -33,13 +37,13 @@ await main.evaluate();const first=main.namespace.closeRun('/account','run-one');
 const firstPending=Boolean(session.pendingReport);const second=main.namespace.closeRun('/account','run-one');
 process.stdout.write(JSON.stringify({first,second,firstPending,session,server,calls}));
 `
-for(const mode of ['recover','retry','sealed'])test(`cleanup recovers report metadata without replaying business effects: ${mode}`,()=>{
+for(const mode of ['recover','retry','sealed','reconcile'])test(`cleanup recovers report metadata without replaying business effects: ${mode}`,()=>{
  const result=spawnSync(process.execPath,['--experimental-vm-modules','--input-type=module'],{input:harness,encoding:'utf8',env:{...process.env,MODE:mode,SOURCE_SCRIPT:fileURLToPath(new URL('../lib/test-remote.mjs',import.meta.url))}})
  assert.equal(result.status,0,result.stderr)
  const value=JSON.parse(result.stdout)
  assert.equal(value.session.pendingReport,undefined)
  assert.equal(value.server.report.status,mode==='sealed'?'failed':'incomplete')
- assert.ok(!value.calls.includes('executeProcessTestOperation'),'report recovery cannot repeat a business operation')
+ assert.equal(value.calls.includes('executeProcessTestOperation'),mode==='reconcile','only explicit reconciliation reads the original operation')
  if(mode==='retry'){assert.equal(value.first[0].operation,'run.finalize');assert.equal(value.firstPending,true)}
  if(mode==='sealed')assert.equal(value.calls.filter(m=>m==='writeProcessTestRun').length,0)
 })
