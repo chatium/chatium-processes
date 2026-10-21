@@ -111,7 +111,7 @@ test('build-hook map verifies visible content without claiming independent check
   const f = fixture(t), board = structuredClone(f.board)
   const automatic = board.snapshot.snapshot
   automatic.producer = 'build-hook'
-  automatic.nodes[0].status = 'planned'
+  automatic.nodes[0].status = 'built'
   automatic.nodes[0].reason = 'Исходники опубликованы; готовность проверяется отдельно'
   automatic.checks = [{ id: 'build-map', title: 'Проверка готовности процесса', ok: false,
     errors: ['Проверки готовности выполняются отдельно'], warnings: [] }]

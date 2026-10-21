@@ -11,6 +11,7 @@ writeFileSync(join(root,'.mailings/storage/processes/demo/series/01.message.yaml
 writeFileSync(join(root,'demo/automations/test.automationConfig.json'),JSON.stringify({steps:[{type:'delay',delay:{type:'delay',amount:1,units:'days'}},{type:'condition',conditionName:'Paid?',thenBranch:{steps:[{type:'action',actionName:'Thank you',params:{letterPath:'.mailings/storage/processes/demo/series/01.message.yaml'}}]},elseBranch:{steps:[{type:'action',actionName:'Reminder',params:{letterPath:'.mailings/storage/processes/demo/series/01.message.yaml'}}]}}]}))
 const build=(extra={})=>buildSnapshot({root,slug:'demo',map,checks:[],branch:'process/demo',commit:'a'.repeat(40),...extra})
 test('letters, action branches and needs-input survive in snapshot',()=>{const s=build();assert.equal(s.nodes[1].status,'needs-input');assert.equal(s.nodes[1].letters[0].subject,'Your booking');assert.equal(s.links[0].steps.length,4);assert.match(s.links[0].steps[2].title,/Thank you/);assert.match(s.links[0].steps[3].title,/Reminder/);assert.doesNotMatch(s.links[0].steps[0].detail,/[{}]/)})
+test('existing sources are built without claiming independent acceptance',()=>{const snapshot=build();assert.equal(snapshot.nodes[0].status,'built');assert.match(snapshot.nodes[0].reason,/Исходники собраны/);assert.notEqual(snapshot.nodes[0].status,'ready')})
 test('automation file paths survive in snapshot',()=>{assert.deepEqual(build().links[0].automationFiles,['demo/automations/test.automationConfig.json'])})
 
 test('manual handler path survives without invented automation steps',()=>{
