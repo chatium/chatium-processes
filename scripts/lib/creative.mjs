@@ -100,6 +100,29 @@ function originalPage(root, redesign, errors) {
   return null
 }
 
+function validateDesignSelection(spec, errors) {
+  const choice = spec.design?.selection
+  if (!choice || !['compare', 'provided', 'inherit'].includes(choice.mode)) {
+    errors.push('design.selection: нужен способ выбора compare, provided или inherit.')
+    return
+  }
+  if (!text(choice.brief) || !text(choice.reason) ||
+      !Array.isArray(spec.sources) || !spec.sources.some(source => source.id === choice.sourceRef))
+    errors.push('design.selection: нужны brief, reason и sourceRef на источник предпочтений, решения или существующего стиля.')
+  if (choice.mode !== 'compare') return
+  const directions = choice.directions
+  if (!Array.isArray(directions) || directions.length < 2 || directions.length > 10 ||
+      directions.some(direction => ['id', 'title', 'composition', 'typography', 'palette', 'imagery']
+        .some(field => !text(direction?.[field]))) ||
+      !unique(directions.map(direction => direction?.id))) {
+    errors.push('design.selection.directions: нужны 2–10 направлений с уникальными id, title, composition, typography, palette и imagery.')
+  } else if (!directions.some(direction => direction.id === choice.selected))
+    errors.push('design.selection.selected должен указывать на рассмотренное направление.')
+  if (!text(choice.previewRef) || !/\.(?:html|svg)$/.test(choice.previewRef) ||
+      !Array.isArray(spec.references) || !spec.references.includes(choice.previewRef))
+    errors.push('design.selection.previewRef: нужен HTML/SVG-эскиз направлений, включённый в references.')
+}
+
 function validateLanding(spec, errors, references) {
   const types = catalog('landing-types.json'), mechanics = catalog('mechanics.json'), styles = catalog('styles.json')
   const copywriting = catalog('copywriting.json')
@@ -180,6 +203,7 @@ function validateLanding(spec, errors, references) {
       if (!design[key] || Array.isArray(design[key]) && !design[key].length) errors.push(`Свой стиль: не заполнено ${key}.`)
   }
   if (design && !text(design.adaptation)) errors.push('Нужно объяснить адаптацию дизайн-системы под задачу.')
+  validateDesignSelection(spec, errors)
   const writing = spec.copywriting
   if (writing !== undefined) {
     if (!text(writing?.styleId) || !copywriting.styles[writing.styleId])
@@ -414,6 +438,8 @@ export function compileCreative(packet) {
     if (spec.redesign) lines.push('', '## Исходник и границы редизайна', json(spec.redesign))
     if (spec.revision) lines.push('', '## Границы точечной правки', json(spec.revision))
     lines.push('', '## Дизайн-система', json(guidance.style), `Адаптация: ${spec.design.adaptation}`)
+    lines.push('', '## Выбор визуального направления', json(spec.design.selection),
+      'Сохрани характер выбранной композиции, типографики и изображений. Название стиль-пака не заменяет это решение.')
     if (spec.copywriting) lines.push('', '## Подача текста', json(guidance.writing),
       `Адаптация под аудиторию и бренд: ${spec.copywriting.adaptation}`,
       'Все факты, цифры, случаи, сроки и обещания сверяй с источниками; неподтверждённые не добавляй.')

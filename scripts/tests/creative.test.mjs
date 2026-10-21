@@ -41,12 +41,68 @@ function fixture(t) {
     mechanics: [{ id: 'signup', type: 'form', purpose: 'Получить контакт', expectedOutcome: 'Клиент получает материал после заявки', placement: 'form_section',
       fields: ['email'], target: 'demo/form-submit', success: 'Показать подтверждение',
       error: 'Показать ошибку', mobile: 'Поля в одну колонку' }],
-    design: { styleId: 'clean_service', adaptation: 'Использовать контрастную кнопку для выдачи материала' },
+    design: { styleId: 'clean_service', adaptation: 'Использовать контрастную кнопку для выдачи материала',
+      selection: { mode: 'provided', sourceRef: 'offer', brief: 'Сохранить заданный владельцем простой сервисный вид',
+        reason: 'Форма и выдача материала должны оставаться узнаваемыми' } },
     images: [], abTesting: { mode: 'none' }, openQuestions: [], acceptance: ['Материал выдаётся после корректной заявки'],
   }
   put('demo/creative/lead-page/spec.yaml', spec)
   return { root, put, spec, args: { root, slug: 'demo', nodeId: 'lead-page' } }
 }
+
+test('page design requires a sourced choice; provided and inherited styles need no new comparison', t => {
+  const f = fixture(t)
+  const choice = f.spec.design.selection
+  delete f.spec.design.selection
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /design.selection/)
+  for (const mode of ['provided', 'inherit']) {
+    f.spec.design.selection = { ...choice, mode }
+    f.put('demo/creative/lead-page/spec.yaml', f.spec)
+    assert.deepEqual(creativePacket(f.args).errors, [])
+  }
+  f.spec.design.selection.sourceRef = 'invented-choice'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /sourceRef/)
+})
+
+test('new visual concepts carry alternatives and a versioned preview through compilation and review', t => {
+  const f = fixture(t), preview = 'demo/creative/lead-page/directions.html'
+  const direction = (id, title, composition) => ({ id, title, composition,
+    typography: 'Геометрический гротеск', palette: 'Белый, графит, синий', imagery: 'Схема процесса' })
+  f.spec.design.selection = { mode: 'compare', sourceRef: 'offer', brief: 'Ясная подача материала',
+    directions: [direction('split', 'Схема и форма', 'Схема слева, форма справа'),
+      { ...direction('poster', 'Большой вопрос', 'Крупный вопрос над короткой формой'), typography: 'Контрастная антиква' }],
+    selected: 'split', reason: 'Схема объясняет получение материала', previewRef: preview }
+  f.spec.references = [preview]
+  f.put(preview, '<!doctype html><title>Два направления</title><section>Схема и форма</section><section>Большой вопрос</section>')
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.deepEqual(creativePacket(f.args).errors, [])
+  const build = writeCreativeBuild(f.args)
+  assert.match(readFileSync(join(f.root, build.path), 'utf8'), /Схема слева, форма справа/)
+  const packet = creativeReviewPacket({ ...f.args, stage: 'spec' })
+  assert.ok(packet.questions.some(question => question.id === 'design-choice'))
+  assert.ok(packet.files.some(file => file.path === preview))
+  f.put(preview, '<!doctype html><title>Другие направления</title>Новая композиция')
+  assert.equal(creativeStatus(f.args).status, 'stale')
+  assert.throws(() => creativeReviewPacket({ ...f.args, stage: 'spec' }), /Задание не готово/)
+  writeCreativeBuild(f.args)
+  assert.notEqual(creativeReviewPacket({ ...f.args, stage: 'spec' }).inputDigest, packet.inputDigest)
+
+  f.spec.design.selection.selected = 'not-present'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /selected/)
+  f.spec.design.selection.selected = 'split'
+  f.spec.design.selection.directions[1].id = 'split'
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /уникальными id/)
+  f.spec.design.selection.directions.pop()
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /2–10 направлений/)
+  f.spec.references = []
+  f.put('demo/creative/lead-page/spec.yaml', f.spec)
+  assert.match(creativePacket(f.args).errors.join('\n'), /previewRef/)
+})
 
 test('central commission prepares a creative spec review', t => {
   const f = fixture(t)
@@ -72,6 +128,10 @@ test('documented page and manual-series specifications compile from their exampl
   }
   f.put('.knowledge-base/processes/demo/offer.md',
     '# Условия консультации\nПосле заявки менеджер предложит время консультации.\n')
+  f.put('.knowledge-base/processes/demo/pages.md',
+    '# Оформление\nВладелец хочет ясную энергичную подачу без фотографий и делегировал выбор агенту.\n')
+  f.put('demo/creative/signup/directions.html',
+    '<!doctype html><html lang="ru"><title>Направления</title><body><section>Разговор с экспертом</section><section>Ясный следующий шаг</section></body></html>')
   f.put('demo/process.yaml', { title: 'Демонстрация', nodes: [
     { id: 'signup', kind: 'page', title: 'Заявка', source: 'demo/page/',
       creativeRef: 'demo/creative/signup/spec.yaml' },

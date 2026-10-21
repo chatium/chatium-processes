@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, SKILL_DIR } from './lib/project.mjs'
+import { searchCatalog } from './lib/catalog-search.mjs'
 
 const catalogs = {
   styles: ['styles.json', 'styles'],
@@ -27,11 +28,7 @@ try {
     if (!Object.hasOwn(entries, id)) throw Error(`Нет элемента ${id} в каталоге ${name}.`)
     console.log(JSON.stringify({ id, ...entries[id] }, null, 2))
   } else {
-    const needle = options.search?.toLocaleLowerCase('ru')
-    const result = Object.entries(entries).filter(([entryId, item]) =>
-      !needle || [entryId, item.title, item.summary, item.purpose, item.suitedFor]
-        .some(value => String(value || '').toLocaleLowerCase('ru').includes(needle)))
-      .map(([entryId, item]) => ({ id: entryId, title: item.title || item.summary || item.purpose || entryId }))
+    const result = searchCatalog(entries, options.search)
     console.log(JSON.stringify({ catalog: name, count: result.length, items: result }, null, 2))
   }
 } catch (error) {

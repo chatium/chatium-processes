@@ -3,7 +3,7 @@
   "profiles": {
     "marketing": { "version": 1, "path": "specialists/profiles/marketing.md" },
     "copywriting": { "version": 1, "path": "specialists/profiles/copywriting.md" },
-    "design": { "version": 1, "path": "specialists/profiles/design.md" },
+    "design": { "version": 2, "path": "specialists/profiles/design.md" },
     "communications": { "version": 1, "path": "specialists/profiles/communications.md" },
     "product": { "version": 1, "path": "specialists/profiles/product.md" },
     "dialogue": { "version": 1, "path": "specialists/profiles/dialogue.md" }
