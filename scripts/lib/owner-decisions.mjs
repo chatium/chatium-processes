@@ -12,12 +12,13 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const text = value => typeof value === 'string' && value.trim().length > 0
 const KINDS = ['plan', 'launch']
 
-function delegatedTestIsSafe(root, slug) {
+function delegatedTestIsSafe(root, slug, kind) {
   try {
     const workspace = JSON.parse(readFileSync(join(root, slug, '.workspace.json'), 'utf8'))
     const mailings = workspace?.config?.mailings
     return mailings?.testOnly === true && Array.isArray(mailings.testContacts) &&
-      mailings.testContacts.some(contact => text(contact?.type) && text(contact?.value))
+      mailings.testContacts.every(contact => text(contact?.type) && text(contact?.value)) &&
+      (kind === 'plan' || mailings.testContacts.length > 0)
   } catch { return false }
 }
 
@@ -149,8 +150,10 @@ export function recordOwnerDecision({ root, slug, kind, packet, response }) {
     throw Error('Нужны решение, текст ответа, ссылка, время и владелец либо исполнитель с основанием тестового делегирования.')
   if (Date.parse(response.answeredAt) < Date.parse(packet.preparedAt))
     throw Error('Решение датировано раньше подготовки согласуемого объёма.')
-  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug))
-    throw Error('Делегированное тестовое решение требует mailings.testOnly=true и разрешённый тестовый контакт.')
+  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug, kind))
+    throw Error(kind === 'plan'
+      ? 'Учебное согласование плана требует mailings.testOnly=true и корректный testContacts; пустой список допустим для внутреннего теста.'
+      : 'Делегированное тестовое решение требует mailings.testOnly=true и разрешённый тестовый контакт.')
   const path = ownerDecisionPath(root, slug, kind)
   const saved = { version: 1, kind, process: slug, decision: response.decision, authority,
     message: response.message, messageReference: response.messageReference,
@@ -178,9 +181,11 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision, cu
       !Number.isFinite(Date.parse(saved.answeredAt)) || !/^[0-9a-f]{40}$/.test(saved.shownCommit))
     return { status: 'invalid', path, error: 'Решение неполно или принадлежит другому процессу.' }
   if (saved.decision !== 'approve') return { status: 'declined', path, error: 'Этот шаг не согласован.' }
-  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug))
+  if (authority === 'delegated-test' && !delegatedTestIsSafe(root, slug, kind))
     return { status: 'stale', path,
-      error: 'Учебное решение исполнителя не действует без mailings.testOnly=true и разрешённого тестового контакта; для обычного запуска нужен ответ владельца.' }
+      error: kind === 'plan'
+        ? 'Учебное согласование плана требует mailings.testOnly=true и корректный testContacts; реальный контакт для внутреннего теста не нужен.'
+        : 'Учебное решение исполнителя не действует без mailings.testOnly=true и разрешённого тестового контакта; для обычного запуска нужен ответ владельца.' }
   const current = approvalScope({ root, slug, kind })
   const historical = saved.scopeDigest === current.digest ? null : approvalScope({ root, slug, kind, historical: true })
   if (saved.scopeDigest !== current.digest && saved.scopeDigest !== historical?.digest) {

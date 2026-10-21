@@ -241,6 +241,18 @@ test('delegated tester may decide only for an allowlisted test process, never fo
   assert.equal(ownerDecisionStatus({ root: f.root, slug: 'demo', kind: 'plan' }).status, 'stale')
 })
 
+test('delegated plan approval works without a transport or real contact, but does not authorize launch', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', JSON.stringify({type:'process',config:{senderChannels:[],mailings:{testOnly:true,testContacts:[]}}}))
+  const response = answer({authority:'delegated-test',owner:undefined,actor:'test-executor',
+    delegationReference:'conversation/owner-delegation',message:'Собрать и проверить внутренним транспортом; внешний канал подключить перед запуском.'})
+  const packet = prepareOwnerDecision({root:f.root,slug:'demo',kind:'plan',boardRevision:null})
+  recordOwnerDecision({root:f.root,slug:'demo',kind:'plan',packet,response:{...response,answeredAt:new Date().toISOString()}})
+  assert.equal(ownerDecisionStatus({root:f.root,slug:'demo',kind:'plan'}).status,'ready')
+  const launch = prepareOwnerDecision({root:f.root,slug:'demo',kind:'launch',boardRevision:null})
+  assert.throws(()=>recordOwnerDecision({root:f.root,slug:'demo',kind:'launch',packet:launch,response:{...response,answeredAt:new Date().toISOString()}}),/тестовый контакт/)
+})
+
 test('context does not present stale owner approval from an old PLAN.md line', t => {
   const f = fixture(t)
   f.put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}\n')

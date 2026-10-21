@@ -14,9 +14,9 @@ test('deferred business question blocks only its stage and later stages', () => 
   assert.equal(inputBlockers(map, 'launch').pending.length, 1)
   map.needsInput[0].blocks = []
   assert.match(inputBlockers(map, 'build').errors.join(' '), /нужен blocks/)
-  map.needsInput = [{ title: 'Подключить тестовый канал', kind: 'dependency', blocks: ['test'] }]
-  assert.equal(inputBlockers(map, 'build').pending.length, 0)
-  assert.equal(inputBlockers(map, 'test').pending.length, 1)
+  map.needsInput = [{ title: 'Подключить реальный канал Sender', kind: 'dependency', blocks: ['launch'] }]
+  for (const stage of ['design','build','test']) assert.equal(inputBlockers(map, stage).pending.length, 0)
+  assert.equal(inputBlockers(map, 'launch').pending.length, 1)
 })
 
 test('central check names the open question and stage', t => {

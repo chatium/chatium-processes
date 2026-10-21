@@ -299,9 +299,9 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
   if (ws.type !== 'process') error(`type = ${JSON.stringify(ws.type)}, нужен "process"`)
   const channels = ws.config?.senderChannels
   if (!Array.isArray(channels) || !channels.length || channels.some(id => typeof id !== 'string' || !id.trim())) {
-    const message = 'config.senderChannels не заполнен корректно: укажите список ID выбранных каналов Sender; если они ещё не подключены, добавьте это в «Нужно от вас». Доступность каналов проверяется отдельно.'
-    if (['test', 'launch'].includes(options['task-stage']) && nodes.some(node => node.kind === 'series')) error(message)
-    else warn(`${message} Настройка каналов не блокирует сборку.`)
+    const message = 'config.senderChannels не заполнен корректно: реальные каналы Sender нужны для боевой доставки; добавьте их подключение в «Нужно от вас» перед запуском.'
+    if (options['task-stage'] === 'launch' && nodes.some(node => node.kind === 'series')) error(message)
+    else warn(`${message} Продолжайте сборку и внутреннее тестирование через sender.transport.* с TestContext; реальные канал и тестовый контакт для него не нужны.`)
   }
   if (nodes.some(node => node.kind === 'series') && ['test', 'launch'].includes(options['task-stage'])) {
     const policy = ws.config?.mailings
@@ -1060,7 +1060,7 @@ check('letters.transport', 'Отправка через SDK Mailings', ({ error,
   if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')
   if (!Array.isArray(policy.testContacts) || policy.testContacts.some(c => !c || typeof c.type !== 'string' || !c.type.trim() || typeof c.value !== 'string' || !c.value.trim()))
     error('config.mailings.testContacts должен содержать контакты {type, value}')
-  else if (policy.testOnly && !policy.testContacts.length) warn('Тестовые контакты не заданы — SDK заблокирует отправки')
+  else if (policy.testOnly && !policy.testContacts.length) warn('Тестовые контакты не заданы: обычная отправка Mailings во внешний канал будет заблокирована. Сборка и внутренний транспорт sender.transport.* с TestContext доступны без реальных контактов.')
   if (!policy.testOnly) warn('config.mailings.testOnly = false — SDK разрешает боевые отправки')
 })
 

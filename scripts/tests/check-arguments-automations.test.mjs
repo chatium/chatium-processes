@@ -71,12 +71,13 @@ test('boolean snapshot option with an equals value is rejected before writing', 
   assert.throws(() => readFileSync(target))
 })
 
-test('test stage requires selected channels but never switches a working process to global testOnly', t => {
+test('internal testing does not require real channels and never switches a working process to global testOnly', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Follow-up\n    source: .mailings/storage/processes/demo/followup/\nlinks: []\n')
   const workspace = stage => JSON.parse(f.run('--task-stage', stage).stdout).checks.find(check => check.id === 'workspace')
   const missing = workspace('test')
-  assert.match(missing.errors.join('\n'), /senderChannels/)
+  assert.doesNotMatch(missing.errors.join('\n'), /senderChannels/)
+  assert.match(missing.warnings.join('\n'), /sender\.transport/)
   assert.match(missing.errors.join('\n'), /mailings\.testOnly/)
 
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
@@ -89,6 +90,11 @@ test('test stage requires selected channels but never switches a working process
     senderChannels: ['email-1'], mailings: { testOnly: true, testContacts: [{ type: 'email', value: 'owner@example.com' }] },
   } }))
   assert.equal(workspace('test').errors.length, 0)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
+    senderChannels: [], mailings: { testOnly: true, testContacts: [] },
+  } }))
+  for (const stage of ['design','build','test']) assert.equal(workspace(stage).errors.length, 0, stage)
+  assert.match(workspace('launch').errors.join('\n'), /senderChannels/)
 })
 
 test('design gate asks for design review without requiring implementation sources', t => {
