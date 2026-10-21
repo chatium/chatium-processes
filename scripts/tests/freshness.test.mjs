@@ -96,12 +96,11 @@ test('missing, old and wrong-branch snapshots fail', async t => {
   }
 })
 
-test('same SHA does not conceal changed map, letters, checks or automation steps', t => {
+test('same SHA does not conceal changed graph, letters or automation steps', t => {
   const f = fixture(t)
-  for (const change of [s => { s.title = 'Wrong title' }, s => { s.nodes[0].status = 'missing' },
+  for (const change of [s => { s.title = 'Wrong title' },
     s => { s.nodes[0].letters = [{ title: 'Wrong', subject: 'Subject', source: 'x' }] },
-    s => { s.links.push({ id: 'unexpected', steps: [{ kind: 'delay', detail: '7 days' }] }) },
-    s => { s.checks[1].ok = false; s.checks[1].errors.push('broken') }]) {
+    s => { s.links.push({ id: 'unexpected', steps: [{ kind: 'delay', detail: '7 days' }] }) }]) {
     const board = structuredClone(f.board); change(board.snapshot.snapshot)
     assert.throws(() => compareSnapshot(f.expected, board), SnapshotDrift)
   }

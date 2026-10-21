@@ -8,6 +8,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { acceptanceErrors, creativeTaskChain, parseTaskPlan, taskReadiness } from '../lib/tasks.mjs'
 import { prepareOwnerDecision, recordOwnerDecision } from '../lib/owner-decisions.mjs'
+import { collectBuildEvidence } from '../lib/build-evidence.mjs'
 import { SKILL_DIR } from '../lib/project.mjs'
 
 const cli = fileURLToPath(new URL('../tasks.mjs', import.meta.url))
@@ -318,6 +319,10 @@ test('main agent can resume after a KB answer and close a task only with evidenc
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(e => e.includes('PLAN.md остаётся открытой')))
   f.put('demo/PLAN.md', readFileSync(join(f.root, 'demo/PLAN.md'), 'utf8').replace('- [ ] T1', '- [x] T1'))
   assert.deepEqual(taskReadiness({ root: f.root, slug: 'demo' }).errors, [])
+  const proof = collectBuildEvidence({root:f.root,slug:'demo',map:{nodes:[{id:'form',kind:'page',source:'demo/form.vue'}],links:[]},checks:[]})
+  assert.equal(proof.nodes.get('form').tasks[0].acceptance, 'accepted')
+  assert.ok(proof.assessment.inputs.some(input => input.path === 'demo/reviews/tasks/W001/tests.json'))
+  assert.ok(proof.assessment.inputs.every(input => !input.path.startsWith('/') && !input.path.startsWith('..')))
   f.put('.knowledge-base/processes/demo/form.md', 'Email и телефон обязательны.\n')
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(e => e.includes('изменились входные материалы')))
 })
@@ -764,6 +769,10 @@ test('one independent batch reassesses unchanged results without rerunning their
   assert.equal(recorded.status, 0, recorded.stderr)
   assert.deepEqual(recorded.json.accepted, ['W001'])
   assert.deepEqual(taskReadiness({ root: f.root, slug: 'demo' }).errors, [])
+  const proof = collectBuildEvidence({root:f.root,slug:'demo',map:{nodes:[{id:'form',kind:'page',source:'demo/form.vue'}],links:[]},checks:[]})
+  assert.equal(proof.nodes.get('form').tasks[0].acceptance, 'accepted')
+  assert.ok(proof.assessment.inputs.some(input => input.path === 'demo/reviews/tasks/W001/tests.json'))
+  assert.ok(proof.assessment.inputs.every(input => !input.path.startsWith('/') && !input.path.startsWith('..')))
   f.put('.knowledge-base/processes/demo/form.md', 'Теперь обязателен и телефон.\n')
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменились входные материалы/.test(error)))
   f.put('.knowledge-base/processes/demo/form.md', 'Email обязателен. Уточнили пример, который не меняет форму.\n')

@@ -531,3 +531,7 @@ node .agents/skills/processes/scripts/context.mjs <process> --no-cards
 | События | [formats/events-yaml.md](formats/events-yaml.md) |
 | Письма | [formats/letters.md](formats/letters.md) |
 | Тестовые записи | [formats/test-records.md](formats/test-records.md) |
+
+## Состояние блоков
+
+В плане → в работе → собрано; зависимости от владельца и ошибки имеют явные основания. Статус вычисляется из приёмки и актуальности доказательств. Выполняй [обязательный flow статусов](build/construction-statuses.md): рабочие команды задач синхронизируют прогресс, `check --typecheck --publish-snapshot` публикует приёмку, тесты учитываются отдельно. Перед правкой принятого результата открой задачу заново.

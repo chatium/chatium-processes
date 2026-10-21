@@ -11,7 +11,7 @@ const script = name => fileURLToPath(new URL(`../${name}.mjs`, import.meta.url))
 test('documented commands reserve 0 for help and 2 for invalid invocation', () => {
   for (const name of ['scaffold', 'kb-check', 'kb-review', 'code-review', 'reviews',
     'owner-decisions', 'agent-review', 'agents-runtime', 'board', 'board-notes',
-    'tasks', 'creative', 'creative-review', 'context', 'check', 'catalog', 'review-packets']) {
+    'construction', 'tasks', 'creative', 'creative-review', 'context', 'check', 'catalog', 'review-packets']) {
     const help = spawnSync(process.execPath, [script(name), '--help'], { encoding: 'utf8' })
     assert.equal(help.status, 0, `${name} --help: ${help.stderr}`)
     const invalid = spawnSync(process.execPath, [script(name), 'definitely-unknown', 'demo'],
@@ -29,6 +29,7 @@ test('process commands reject unknown, valued boolean, missing and duplicate opt
     ['scaffold', ['demo', '--root', root, '--title'], /--title/],
     ['scaffold', ['demo', '--root', root, '--root', root], /--root/],
     ['scaffold', ['demo', 'extra', '--root', root], /аргумент/],
+    ['construction', ['sync', 'demo', '--root', root, '--unknown'], /--unknown/],
     ['tasks', ['create', 'demo', 'W001', '--root', root, '--file', 'task.json', '--unknown'], /--unknown/],
     ['creative', ['compile', 'demo', 'page', '--root', root, '--unknown'], /--unknown/],
     ['creative-review', ['record', 'demo', 'page', '--root', root, '--packte', 'packet.json'], /--packte/],
