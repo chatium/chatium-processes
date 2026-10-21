@@ -1259,6 +1259,8 @@ if (options.json) {
 }
 if (!options.json) {
   if (snapshotResult.saved) console.log(`Снимок сохранён, ревизия ${snapshotResult.revision}.`)
+  if (snapshotResult.verified && snapshotResult.producer === 'build-hook')
+    console.log('На доске только результат сборки; локальные проверки ещё не опубликованы. Перед сдачей: check.mjs <process> --publish-snapshot с параметрами текущего этапа.')
   console.log(snapshotResult.verified
     ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
     : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')

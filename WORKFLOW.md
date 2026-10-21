@@ -402,7 +402,7 @@ node .agents/skills/processes/scripts/context.mjs <process> --no-cards
 | `node .agents/skills/processes/scripts/creative-review.mjs prepare <process> <node-id> --stage spec` | Готовит ограниченный пакет независимому reviewer; стадия `result` проверяет фактическую страницу или серию |
 | `node .agents/skills/processes/scripts/context.mjs <process>` | Определение поколения; для нового процесса — позиция, рабочие задачи, задания и актуальная доска |
 | `node .agents/skills/processes/scripts/check.mjs <process>` | Только читает и сверяет опубликованную карту, код, комиссию и решения владельца; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck` |
-| `node .agents/skills/processes/scripts/check.mjs <process> --publish-snapshot` | Восстанавливает снимок опубликованного коммита при сбое хука и читает его обратно |
+| `node .agents/skills/processes/scripts/check.mjs <process> --publish-snapshot` | Публикует результаты проверок опубликованного коммита на доску и читает их обратно; штатный шаг сдачи этапа |
 
 Для `check` код `0` означает, что проверки пройдены, `1` — есть красные
 проверки или устаревшая карта, `2` — команду либо публикацию снимка выполнить

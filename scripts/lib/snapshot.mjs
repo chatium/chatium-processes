@@ -77,14 +77,14 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
     const localErrors = allErrors.filter(e => e.includes(node.source.replace(/\/$/, '')) || e.includes(`«${node.id}»`))
     const needed = needsInput.filter(i => i.nodeId === node.id)
-    const status = !present ? 'missing' : localErrors.length ? 'error' : needed.length ? 'needs-input' : 'ready'
+    const status = !present ? 'missing' : localErrors.length ? 'error' : needed.length ? 'needs-input' : 'built'
     const letters = node.kind === 'series' && isDir(source) ? walk(source).filter(p => p.endsWith('.message.yaml')).sort().map(file => {
       safePath(root, rel(root, file))
       try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
     return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
-      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники проверены' : 'Есть общие замечания проверки'),
+      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники собраны; проверки кода пройдены' : 'Исходники собраны; есть общие замечания проверки'),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {
