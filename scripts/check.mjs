@@ -3,7 +3,7 @@ import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 // Сверка процесса: карта ↔ код, события, автоматизации, письма, переменные.
 // Итог честный — N/M проверок.
 //
-//   node .agents/skills/processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot | --publish-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]
+//   node .agents/skills/chatium-processes/scripts/check.mjs <process> [--json] [--typecheck] [--no-snapshot | --verify-snapshot | --publish-snapshot] [--snapshot-file FILE] [--registry FILE] [--knowledge-stage design|build|launch] [--root DIR]
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
@@ -1171,7 +1171,7 @@ if (['test', 'launch'].includes(options['task-stage'])) check('process.testing',
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
-  const installedSkill = join(root, '.agents/skills/processes')
+  const installedSkill = join(root, '.agents/skills/chatium-processes')
   const isInstalled = isDir(installedSkill)
   const skillDir = isInstalled ? installedSkill : SKILL_DIR
   const skillRoot = isInstalled ? root : SKILL_DIR

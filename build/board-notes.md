@@ -60,7 +60,7 @@
    аккаунта. Сохрани ответ через команду ниже и проверь чтением доски.
 
 ```sh
-node .agents/skills/processes/scripts/board.mjs respond-note <process> \
+node .agents/skills/chatium-processes/scripts/board.mjs respond-note <process> \
   --from <сохранённый-json-чтения> --note <id-заметки> \
   --status done --message-file <файл-ответа>
 ```

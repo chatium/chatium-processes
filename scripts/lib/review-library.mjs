@@ -13,7 +13,7 @@ const within = (base, path) => path === base || path.startsWith(base + sep)
 // installed skills expose the same references.
 const ignored = new Set(['AGENTS.md', '.git', '.github', '.local-context', '.cache', '__pycache__', '.bin'])
 const ruleSections = {
-  'skills/processes/SKILL.md': ['Начало работы', 'Этапы и обязательные ворота'],
+  'skills/chatium-processes/SKILL.md': ['Начало работы', 'Этапы и обязательные ворота'],
   'skills/chatium-development/SKILL.md': ['Runtime and module boundaries', 'API source of truth'],
 }
 function commonRules(source, headings) {
@@ -27,7 +27,7 @@ function sectionHashes(files) {
     // The shared workflow is frequently read by several roles and changes
     // independently of their review criteria. Indexing every reference would
     // triple packet size and undo the benefit of selective reading.
-    if (file.path !== 'skills/processes/WORKFLOW.md') continue
+    if (file.path !== 'skills/chatium-processes/WORKFLOW.md') continue
     const lines = file.content.match(/[^\n]*\n|[^\n]+$/g) ?? []
     const headings = []
     let fence
@@ -72,7 +72,7 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
       const next = new Set([...ancestors, canonical])
       for (const name of readdirSync(path).sort()) {
         if (ignored.has(name) || kind === 'skill' && ['scripts', 'node_modules'].includes(name) ||
-          prefix === 'skills/processes' && path === base && ['README.md', 'INSTALLATION.json'].includes(name)) continue
+          prefix === 'skills/chatium-processes' && path === base && ['README.md', 'INSTALLATION.json'].includes(name)) continue
         walk(base, join(path, name), prefix, kind, next)
       }
       return
@@ -92,9 +92,9 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
   const developmentDir = skillDir === SKILL_DIR && process.env.PROCESSES_TEST_DEVELOPMENT_SKILL
     ? resolve(process.env.PROCESSES_TEST_DEVELOPMENT_SKILL)
     : join(skillDir, '../chatium-development')
-  for (const [name, path] of [['processes', skillDir], ['chatium-development', developmentDir]]) {
+  for (const [name, path] of [['chatium-processes', skillDir], ['chatium-development', developmentDir]]) {
     if (!existsSync(path))
-      throw Error(`Не найден скилл ${name}: ${path}. Установите processes и chatium-development рядом; см. processes/build/environment.md.`)
+      throw Error(`Не найден скилл ${name}: ${path}. Установите chatium-processes и chatium-development рядом; см. chatium-processes/build/environment.md.`)
     const base = realpathSync(path)
     walk(base, base, `skills/${name}`, 'skill')
   }
@@ -117,16 +117,16 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     walk(account, join(account, path), 'typings', 'typings')
   }
 
-  const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md']
+  const entrypoints = ['skills/chatium-development/SKILL.md', 'skills/chatium-processes/SKILL.md']
   const developmentReference = (flat, nested) => {
     const current = `skills/chatium-development/${flat}`
     const previous = `skills/chatium-development/${nested}`
     return files.has(current) ? current : files.has(previous) ? previous : current
   }
   const required = [...entrypoints, ...(stage === 'agents' ? [
-    'skills/processes/blocks/ai-agent.md',
-    'skills/processes/build/agent-instructions.md',
-    'skills/processes/formats/agents.md',
+    'skills/chatium-processes/blocks/ai-agent.md',
+    'skills/chatium-processes/build/agent-instructions.md',
+    'skills/chatium-processes/formats/agents.md',
     developmentReference('ai-agents.md', 'references/ai/agents.md'),
     developmentReference('ai-agent-config.md', 'references/ai/agent-config.md'),
     developmentReference('ai-routing-and-handoff.md', 'references/ai/routing-and-handoff.md'),
@@ -134,21 +134,21 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     developmentReference('ai-context-and-knowledge.md', 'references/ai/context-and-knowledge.md'),
     developmentReference('ai-tools.md', 'references/ai/tools.md'),
   ] : stage === 'implementation' ? [
-    'skills/processes/build/review-safety.md',
+    'skills/chatium-processes/build/review-safety.md',
     'skills/chatium-development/auth.md',
     'skills/chatium-development/routing.md',
   ] : stage === 'architecture' ? [
-    'skills/processes/formats/plan-md.md',
-    'skills/processes/formats/process-yaml.md',
+    'skills/chatium-processes/formats/plan-md.md',
+    'skills/chatium-processes/formats/process-yaml.md',
     'skills/chatium-development/auth.md',
   ] : stage === 'analytics' ? [
-    'skills/processes/blocks/analytics.md',
-    'skills/processes/blocks/form-table-event.md',
+    'skills/chatium-processes/blocks/analytics.md',
+    'skills/chatium-processes/blocks/form-table-event.md',
     developmentReference('analytics-traffic.md', 'references/analytics/traffic.md'),
     developmentReference('analytics-attribution.md', 'references/analytics/attribution.md'),
     'skills/chatium-development/auth.md',
   ] :
-    ['skills/processes/method/README.md', 'skills/processes/method/readiness.md'])]
+    ['skills/chatium-processes/method/README.md', 'skills/chatium-processes/method/readiness.md'])]
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)
   const sorted = [...files.values()].sort((a, b) => a.path.localeCompare(b.path, 'en'))
   const ruleDigests = Object.fromEntries(entrypoints.map(path => [path,

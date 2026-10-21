@@ -125,7 +125,7 @@ export function recordCodeReview({ root, slug, packet, report, agentReference, p
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
     referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests, rubricVersion: current.rubricVersion,
-    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/chatium-processes/SKILL.md')?.sha256,
     answers: result.answers }
   const path = codeReviewPath(root, slug)
   mkdirSync(dirname(path), { recursive: true })

@@ -421,7 +421,7 @@ test('packet requires all PLAN task answers and refuses duplicate/placeholder ta
   assert.equal(packet.stage, 'implementation')
   assert.ok(packet.questions.some(question => question.id === 'plan.T1'))
   assert.ok(packet.questions.some(question => question.id === 'plan.T2'))
-  assert.ok(packet.referenceLibrary.required.includes('skills/processes/build/review-safety.md'))
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-processes/build/review-safety.md'))
   assert.equal(packet.methodology, undefined)
   const report = syntheticReport(packet)
   report.answers = report.answers.filter(answer => answer.id !== 'plan.T2')

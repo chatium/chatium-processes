@@ -340,7 +340,7 @@ SMS или другого плагина, проверь возможность 
 не повторяй команду после каждой мелкой правки:
 
 ```sh
-node .agents/skills/processes/scripts/context.mjs <process> --no-cards
+node .agents/skills/chatium-processes/scripts/context.mjs <process> --no-cards
 ```
 
 Скрипт сначала определяет поколение процесса. Для нового читает доступную
@@ -381,28 +381,28 @@ node .agents/skills/processes/scripts/context.mjs <process> --no-cards
 
 | Команда | Что делает |
 | --- | --- |
-| `node .agents/skills/processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, настройки тестовых отправок |
-| `node .agents/skills/processes/scripts/kb-check.mjs <process>` | Детерминированная проверка структуры, заглушек и локальных ссылок; без оценки смысла |
-| `node .agents/skills/processes/scripts/kb-review.mjs prepare <process> --stage build` | Пакет документов и вопросов для отдельного субагента; модель запускает агент через инструмент harness |
-| `node .agents/skills/processes/scripts/kb-review.mjs status <process> --stage build` | Актуальность и результат сохранённого экспертного отчёта; запись ответа — `record` по [процедуре](method/review.md) |
-| `node .agents/skills/processes/scripts/code-review.mjs prepare <process>` | Пакет кода, зависимостей, плана и критериев для отдельного reviewer перед тестовым прогоном; [вызов и запись](build/review.md) |
-| `node .agents/skills/processes/scripts/code-review.mjs status <process>` | Актуальность независимого отчёта реализации, блокеры и замечания |
-| `node .agents/skills/processes/scripts/reviews.mjs requirements <process> --stage test` | Состав обязательных заключений по содержимому процесса; `prepare`, `record`, `status` — общая комиссия |
-| `node .agents/skills/processes/scripts/owner-decisions.mjs prepare <process> --kind plan --board-revision N` | Фиксирует показанный владельцу объём; после его ответа вызови `record` с исходным сообщением |
-| `node .agents/skills/processes/scripts/agent-review.mjs prepare <process>` | Пакет независимой проверки инструкций и связей помощников; ответ записывается через `record` по [процедуре](build/agent-review.md) |
-| `node .agents/skills/processes/scripts/agent-review.mjs status <process>` | Актуальность смыслового ревью помощников перед тестовым прогоном |
-| `node .agents/skills/processes/scripts/test.mjs <process> run --case ID --scope FILE` | Прогон сценария через SDK; `status`, `show --run ID`, `logs --run ID`, `cleanup --run ID`, `record --case ID --evidence FILE`, `finding --evidence FILE` — единый цикл тестирования |
-| `node .agents/skills/processes/scripts/agents-runtime.mjs <process> --route-tests FILE --json` | После публикации сверяет исполненный коммит, конфиги, явно выбранную Git-ветку, ID, инструменты и маршрут; тестовые контакты читает из файла вне Git-аккаунта и не записывает в результат. Сохраняй очищенный вывод как артефакт соответствующего сценария; само чтение не доказывает диалог и эффекты. Без общего канала `--route-tests` не нужен |
-| `node .agents/skills/processes/scripts/board.mjs read <process>` | Весь доступный контекст: снимок процесса, ручные элементы, связи, изображения и поручения |
-| `node .agents/skills/processes/scripts/board.mjs material <process> --from FILE --element ID` | Проверяет доступ к изображению и возвращает URL для просмотра |
-| `node .agents/skills/processes/scripts/board.mjs create\|update\|delete <process> --from FILE --changes FILE` | Меняет выбранные элементы общего слоя с проверкой ревизий; [формат](build/board.md#как-добавлять-и-менять-элементы) |
-| `node .agents/skills/processes/scripts/board.mjs respond-note <process> --from FILE --note ID --status done --message-file FILE` | Ответ на поручение с проверкой ревизий; `needs-info` — вопрос владельцу; [процедура](build/board-notes.md) |
-| `node .agents/skills/processes/scripts/tasks.mjs context <process> W001` | Мини-план рабочей задачи, материалы, критерии и следующий шаг; создание, продолжение и приёмка — по [процедуре](build/tasks-and-creative.md) |
-| `node .agents/skills/processes/scripts/creative.mjs compile <process> <node-id>` | Проверяет конфигуратор и собирает подробное `build.md` из выбранных правил, источников и референсов |
-| `node .agents/skills/processes/scripts/creative-review.mjs prepare <process> <node-id> --stage spec` | Готовит ограниченный пакет независимому reviewer; стадия `result` проверяет фактическую страницу или серию |
-| `node .agents/skills/processes/scripts/context.mjs <process>` | Определение поколения; для нового процесса — позиция, рабочие задачи, задания и актуальная доска |
-| `node .agents/skills/processes/scripts/check.mjs <process>` | Только читает и сверяет опубликованную карту, код, комиссию и решения владельца; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck` |
-| `node .agents/skills/processes/scripts/check.mjs <process> --publish-snapshot` | Публикует результаты проверок опубликованного коммита на доску и читает их обратно; штатный шаг сдачи этапа |
+| `node .agents/skills/chatium-processes/scripts/scaffold.mjs <process> --title "…"` | Каркас процесса: воркспейс, `PLAN.md`, `process.yaml`, `specs/events.yaml`, реестр тестов, раздел базы знаний, настройки тестовых отправок |
+| `node .agents/skills/chatium-processes/scripts/kb-check.mjs <process>` | Детерминированная проверка структуры, заглушек и локальных ссылок; без оценки смысла |
+| `node .agents/skills/chatium-processes/scripts/kb-review.mjs prepare <process> --stage build` | Пакет документов и вопросов для отдельного субагента; модель запускает агент через инструмент harness |
+| `node .agents/skills/chatium-processes/scripts/kb-review.mjs status <process> --stage build` | Актуальность и результат сохранённого экспертного отчёта; запись ответа — `record` по [процедуре](method/review.md) |
+| `node .agents/skills/chatium-processes/scripts/code-review.mjs prepare <process>` | Пакет кода, зависимостей, плана и критериев для отдельного reviewer перед тестовым прогоном; [вызов и запись](build/review.md) |
+| `node .agents/skills/chatium-processes/scripts/code-review.mjs status <process>` | Актуальность независимого отчёта реализации, блокеры и замечания |
+| `node .agents/skills/chatium-processes/scripts/reviews.mjs requirements <process> --stage test` | Состав обязательных заключений по содержимому процесса; `prepare`, `record`, `status` — общая комиссия |
+| `node .agents/skills/chatium-processes/scripts/owner-decisions.mjs prepare <process> --kind plan --board-revision N` | Фиксирует показанный владельцу объём; после его ответа вызови `record` с исходным сообщением |
+| `node .agents/skills/chatium-processes/scripts/agent-review.mjs prepare <process>` | Пакет независимой проверки инструкций и связей помощников; ответ записывается через `record` по [процедуре](build/agent-review.md) |
+| `node .agents/skills/chatium-processes/scripts/agent-review.mjs status <process>` | Актуальность смыслового ревью помощников перед тестовым прогоном |
+| `node .agents/skills/chatium-processes/scripts/test.mjs <process> run --case ID --scope FILE` | Прогон сценария через SDK; `status`, `show --run ID`, `logs --run ID`, `cleanup --run ID`, `record --case ID --evidence FILE`, `finding --evidence FILE` — единый цикл тестирования |
+| `node .agents/skills/chatium-processes/scripts/agents-runtime.mjs <process> --route-tests FILE --json` | После публикации сверяет исполненный коммит, конфиги, явно выбранную Git-ветку, ID, инструменты и маршрут; тестовые контакты читает из файла вне Git-аккаунта и не записывает в результат. Сохраняй очищенный вывод как артефакт соответствующего сценария; само чтение не доказывает диалог и эффекты. Без общего канала `--route-tests` не нужен |
+| `node .agents/skills/chatium-processes/scripts/board.mjs read <process>` | Весь доступный контекст: снимок процесса, ручные элементы, связи, изображения и поручения |
+| `node .agents/skills/chatium-processes/scripts/board.mjs material <process> --from FILE --element ID` | Проверяет доступ к изображению и возвращает URL для просмотра |
+| `node .agents/skills/chatium-processes/scripts/board.mjs create\|update\|delete <process> --from FILE --changes FILE` | Меняет выбранные элементы общего слоя с проверкой ревизий; [формат](build/board.md#как-добавлять-и-менять-элементы) |
+| `node .agents/skills/chatium-processes/scripts/board.mjs respond-note <process> --from FILE --note ID --status done --message-file FILE` | Ответ на поручение с проверкой ревизий; `needs-info` — вопрос владельцу; [процедура](build/board-notes.md) |
+| `node .agents/skills/chatium-processes/scripts/tasks.mjs context <process> W001` | Мини-план рабочей задачи, материалы, критерии и следующий шаг; создание, продолжение и приёмка — по [процедуре](build/tasks-and-creative.md) |
+| `node .agents/skills/chatium-processes/scripts/creative.mjs compile <process> <node-id>` | Проверяет конфигуратор и собирает подробное `build.md` из выбранных правил, источников и референсов |
+| `node .agents/skills/chatium-processes/scripts/creative-review.mjs prepare <process> <node-id> --stage spec` | Готовит ограниченный пакет независимому reviewer; стадия `result` проверяет фактическую страницу или серию |
+| `node .agents/skills/chatium-processes/scripts/context.mjs <process>` | Определение поколения; для нового процесса — позиция, рабочие задачи, задания и актуальная доска |
+| `node .agents/skills/chatium-processes/scripts/check.mjs <process>` | Только читает и сверяет опубликованную карту, код, комиссию и решения владельца; `--json` — машинный вывод, `--typecheck` — ещё и `chatium typecheck` |
+| `node .agents/skills/chatium-processes/scripts/check.mjs <process> --publish-snapshot` | Публикует результаты проверок опубликованного коммита на доску и читает их обратно; штатный шаг сдачи этапа |
 
 Для `check` код `0` означает, что проверки пройдены, `1` — есть красные
 проверки или устаревшая карта, `2` — команду либо публикацию снимка выполнить

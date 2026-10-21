@@ -13,8 +13,8 @@
 
 1. Прочитай `stage`, все `files`, результаты `staticChecks` и каждый вопрос
    `questions`. В библиотеке обязательно прочитай оба входных файла
-   `skills/chatium-development/SKILL.md`, `skills/processes/SKILL.md`, затем
-   `skills/processes/method/README.md` и `skills/processes/method/readiness.md`.
+   `skills/chatium-development/SKILL.md`, `skills/chatium-processes/SKILL.md`, затем
+   `skills/chatium-processes/method/README.md` и `skills/chatium-processes/method/readiness.md`.
    Эти пути перечислены в `referenceLibrary.required`; остальные темы
    методологии, справки платформы и typings выбирай по вопросам и материалам.
    Всю библиотеку заранее читать не требуется. Пути в её манифесте

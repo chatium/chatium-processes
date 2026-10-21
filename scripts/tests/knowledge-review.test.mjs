@@ -66,7 +66,7 @@ test('one mechanically repeated citation cannot make every different answer gree
 test('review accepts a precise optional Markdown section and still requires complete mandatory references', t => {
   const packet = fixture(t).packet('design')
   const report = syntheticReport(packet)
-  const section = 'skills/processes/WORKFLOW.md#H2:Этапы'
+  const section = 'skills/chatium-processes/WORKFLOW.md#H2:Этапы'
   assert.ok(packet.referenceLibrary.sectionHashes[section])
   report.inspectedReferences.push(section)
   assert.equal(validateReview(report, packet).status, 'ready')
@@ -110,7 +110,7 @@ test('stage question sets grow from design to build to launch, with unique IDs',
     assert.equal(new Set(ids(packet)).size, packet.questions.length)
     assert.equal(packet.staticChecks.flatMap(c => c.errors).length, 0)
     assert.ok(packet.reviewerInstructions.length > 0)
-    assert.ok(packet.referenceLibrary.required.includes('skills/processes/method/readiness.md'))
+    assert.ok(packet.referenceLibrary.required.includes('skills/chatium-processes/method/readiness.md'))
     assert.equal(packet.methodology, undefined)
   }
   assert.throws(() => f.packet('unknown'), /этап/)

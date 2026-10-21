@@ -83,7 +83,7 @@ export function recordAnalyticsReview({ root, slug, packet, report, agentReferen
     reviewer: { kind: 'subagent', reference: agentReference }, reviewedAt: new Date().toISOString(),
     inspectedFiles: report.inspectedFiles, inspectedReferences: report.inspectedReferences,
     referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests,
-    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/chatium-processes/SKILL.md')?.sha256,
     answers: result.answers }, null, 2) + '\n')
   return { ...result, path }
 }

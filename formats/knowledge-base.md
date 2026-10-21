@@ -120,7 +120,7 @@ icon: 🗺️
 Для заранее выбранных тем есть необязательные пресеты:
 
 ```sh
-node .agents/skills/processes/scripts/scaffold.mjs trial-class --title "Пробное занятие" --topics audience,offer,journey,operations
+node .agents/skills/chatium-processes/scripts/scaffold.mjs trial-class --title "Пробное занятие" --topics audience,offer,journey,operations
 ```
 
 У `--topics` есть пресеты `audience,offer,journey,pages,series,operations`.

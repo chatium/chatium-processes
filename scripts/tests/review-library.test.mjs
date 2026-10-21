@@ -10,17 +10,17 @@ import { makeReviewPacket, recordReview, reviewStatus } from '../lib/knowledge-r
 
 function fixture(t) {
   const base = mkdtempSync(join(tmpdir(), 'process-review-library-'))
-  const root = join(base, 'account'), skillDir = join(base, 'skills/processes')
+  const root = join(base, 'account'), skillDir = join(base, 'skills/chatium-processes')
   mkdirSync(root)
   const put = (path, content) => {
     mkdirSync(dirname(join(base, path)), { recursive: true })
     writeFileSync(join(base, path), content)
   }
-  put('skills/processes/SKILL.md', '# Processes\n[Readiness](method/readiness.md)\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
-  put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by scope.\n## Ревью\nCheck the plan.\n')
-  put('skills/processes/method/README.md', '# Method\nInterview before design.\n')
-  put('skills/processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
-  put('skills/processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
+  put('skills/chatium-processes/SKILL.md', '# Processes\n[Readiness](method/readiness.md)\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
+  put('skills/chatium-processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by scope.\n## Ревью\nCheck the plan.\n')
+  put('skills/chatium-processes/method/README.md', '# Method\nInterview before design.\n')
+  put('skills/chatium-processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
+  put('skills/chatium-processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
   put('skills/chatium-development/SKILL.md', '# Development\n[Heap](references/heap.md)\n## Runtime and module boundaries\nReview API boundaries.\n## API source of truth\nUse published contracts.\n')
   put('skills/chatium-development/auth.md', '# Auth\nProtect each handler on the server.\n')
   put('skills/chatium-development/routing.md', '# Routes\nInventory pages and APIs.\n')
@@ -38,7 +38,7 @@ function fixture(t) {
 test('missing platform skill explains the installation dependency', t => {
   const f = fixture(t)
   rmSync(join(f.base, 'skills/chatium-development'), { recursive: true })
-  assert.throws(() => f.collect(), /Не найден скилл chatium-development:.*Установите processes и chatium-development рядом/)
+  assert.throws(() => f.collect(), /Не найден скилл chatium-development:.*Установите chatium-processes и chatium-development рядом/)
 })
 
 test('packet contains a navigable manifest without embedding reference texts', t => {
@@ -46,16 +46,16 @@ test('packet contains a navigable manifest without embedding reference texts', t
   const serialized = JSON.stringify(packet)
   assert.equal(packet.referenceLibrary.version, 1)
   assert.deepEqual(packet.referenceLibrary.entrypoints, [
-    'skills/chatium-development/SKILL.md', 'skills/processes/SKILL.md',
+    'skills/chatium-development/SKILL.md', 'skills/chatium-processes/SKILL.md',
   ])
-  assert.ok(packet.referenceLibrary.required.includes('skills/processes/build/review-safety.md'))
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-processes/build/review-safety.md'))
   assert.ok(packet.referenceLibrary.required.includes('skills/chatium-development/auth.md'))
   assert.ok(packet.referenceLibrary.required.includes('skills/chatium-development/routing.md'))
   assert.ok(library.files.some(file => file.content.includes('Bound every Heap read')))
   assert.ok(!serialized.includes('Bound every Heap read'))
   assert.ok(!serialized.includes('Find with an explicit limit'))
   assert.ok(Object.keys(packet.referenceLibrary.sectionHashes).every(path =>
-    path.startsWith('skills/processes/WORKFLOW.md#H2:')))
+    path.startsWith('skills/chatium-processes/WORKFLOW.md#H2:')))
   for (const file of packet.referenceLibrary.files) {
     assert.deepEqual(Object.keys(file).sort(), ['bytes', 'path', 'sha256'])
     assert.match(file.sha256, /^[a-f0-9]{64}$/)
@@ -67,10 +67,10 @@ test('source-only project notes and installation metadata stay out of reviewer r
   const f = fixture(t)
   const before = f.packet()
   for (const [path, text] of [
-    ['skills/processes/.github/internal.md', '# Roadmap\nPrivate release notes.\n'],
-    ['skills/processes/.local-context/notes.md', '# Internal\nTest notes.\n'],
-    ['skills/processes/README.md', '# Repository\nDevelopment plan.\n'],
-    ['skills/processes/INSTALLATION.json', '{"sourceCommit":"old"}\n'],
+    ['skills/chatium-processes/.github/internal.md', '# Roadmap\nPrivate release notes.\n'],
+    ['skills/chatium-processes/.local-context/notes.md', '# Internal\nTest notes.\n'],
+    ['skills/chatium-processes/README.md', '# Repository\nDevelopment plan.\n'],
+    ['skills/chatium-processes/INSTALLATION.json', '{"sourceCommit":"old"}\n'],
   ]) f.put(path, text)
   const after = f.packet()
   assert.deepEqual(after.referenceLibrary.files, before.referenceLibrary.files)
@@ -81,7 +81,7 @@ test('source-only project notes and installation metadata stay out of reviewer r
 test('AI and analytics packets resolve both platform reference layouts', t => {
   const f = fixture(t)
   for (const path of ['blocks/ai-agent.md', 'build/agent-instructions.md', 'formats/agents.md',
-    'blocks/analytics.md', 'blocks/form-table-event.md']) f.put(`skills/processes/${path}`, `# ${path}\n`)
+    'blocks/analytics.md', 'blocks/form-table-event.md']) f.put(`skills/chatium-processes/${path}`, `# ${path}\n`)
   const pairs = [
     ['ai-agents.md', 'references/ai/agents.md'],
     ['ai-agent-config.md', 'references/ai/agent-config.md'],
@@ -114,7 +114,7 @@ test('only mandatory rules affect the packet digest; all references remain navig
   let previous = f.packet()
   for (const [path, content, affectsInput] of [
     ['skills/chatium-development/references/heap.md', '# Heap\nRequire limit <= 100.\n', false],
-    ['skills/processes/SKILL.md', '# Processes\nUpdated navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n', false],
+    ['skills/chatium-processes/SKILL.md', '# Processes\nUpdated navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n', false],
     ['account/.typings/sdk.d.ts', 'declare const sdk: { find(limit: number): Promise<void> }\n', false],
   ]) {
     f.put(path, content)
@@ -128,45 +128,45 @@ test('only mandatory rules affect the packet digest; all references remain navig
 test('navigation changes are informational, but common rules and inspected references invalidate a review', t => {
   const f = fixture(t), original = f.packet()
   const references = Object.fromEntries(original.referenceLibrary.files
-    .filter(file => ['skills/processes/SKILL.md', 'skills/chatium-development/SKILL.md',
+    .filter(file => ['skills/chatium-processes/SKILL.md', 'skills/chatium-development/SKILL.md',
       'skills/chatium-development/references/heap.md'].includes(file.path))
     .map(file => [file.path, file.sha256]))
   const saved = { referenceHashes: references, ruleDigests: original.referenceLibrary.ruleDigests }
-  f.put('skills/processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
+  f.put('skills/chatium-processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n')
   let current = f.packet()
   assert.equal(current.inputDigest, original.inputDigest)
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
-  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/processes/SKILL.md'])
+  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/chatium-processes/SKILL.md'])
   f.put('skills/chatium-development/references/heap.md', '# Heap\nUse a smaller limit.\n')
   current = f.packet()
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), ['skills/chatium-development/references/heap.md'])
-  f.put('skills/processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire a new approval.\n')
+  f.put('skills/chatium-processes/SKILL.md', '# Processes\nNew navigation.\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire a new approval.\n')
   current = f.packet()
   assert.notEqual(current.inputDigest, original.inputDigest)
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [
-    'skills/processes/SKILL.md#обязательные-правила', 'skills/chatium-development/references/heap.md',
+    'skills/chatium-processes/SKILL.md#обязательные-правила', 'skills/chatium-development/references/heap.md',
   ])
 })
 
 test('commission orchestration changes do not invalidate reviewer conclusions', t => {
   const f = fixture(t)
   const originalSkill = '# Processes\n## Начало работы\nReview the plan.\n## Этапы и обязательные ворота\nRequire approval.\n## Порядок работы с комиссией\nReview one completed batch.\n'
-  f.put('skills/processes/SKILL.md', originalSkill)
+  f.put('skills/chatium-processes/SKILL.md', originalSkill)
   const original = f.packet()
   const saved = {
     referenceHashes: inspectedReferenceHashes(original.referenceLibrary, original.referenceLibrary.required),
     ruleDigests: original.referenceLibrary.ruleDigests,
   }
-  f.put('skills/processes/SKILL.md', originalSkill.replace('Review one completed batch.', 'Repeat only affected roles.'))
+  f.put('skills/chatium-processes/SKILL.md', originalSkill.replace('Review one completed batch.', 'Repeat only affected roles.'))
   const current = f.packet()
   assert.equal(current.inputDigest, original.inputDigest)
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
-  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/processes/SKILL.md'])
+  assert.deepEqual(informationalReferenceChanges(saved, current.referenceLibrary), ['skills/chatium-processes/SKILL.md'])
 })
 
 test('changing an uninspected workflow section does not invalidate a review', t => {
   const f = fixture(t), original = f.packet()
-  const section = 'skills/processes/WORKFLOW.md#H2:Ревью'
+  const section = 'skills/chatium-processes/WORKFLOW.md#H2:Ревью'
   const selected = [...original.referenceLibrary.required, section]
   const saved = { referenceHashes: inspectedReferenceHashes(original.referenceLibrary, selected),
     ruleDigests: original.referenceLibrary.ruleDigests }
@@ -175,46 +175,46 @@ test('changing an uninspected workflow section does not invalidate a review', t 
     sha256: original.referenceLibrary.sectionHashes[section].sha256,
     startLine: 4, endLine: 5,
   })
-  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan.\n')
+  f.put('skills/chatium-processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan.\n')
   let current = f.packet()
   assert.equal(current.inputDigest, original.inputDigest)
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [])
-  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan and source.\n')
+  f.put('skills/chatium-processes/WORKFLOW.md', '# Workflow\n## Когда нужен процесс\nChoose by confirmed source.\n## Ревью\nCheck the plan and source.\n')
   current = f.packet()
   assert.deepEqual(changedInspectedReferences(saved, current.referenceLibrary), [section])
   const wholeFile = { referenceHashes: inspectedReferenceHashes(original.referenceLibrary,
-    [...original.referenceLibrary.required, 'skills/processes/WORKFLOW.md']),
+    [...original.referenceLibrary.required, 'skills/chatium-processes/WORKFLOW.md']),
   ruleDigests: original.referenceLibrary.ruleDigests }
-  assert.deepEqual(changedInspectedReferences(wholeFile, current.referenceLibrary), ['skills/processes/WORKFLOW.md'])
+  assert.deepEqual(changedInspectedReferences(wholeFile, current.referenceLibrary), ['skills/chatium-processes/WORKFLOW.md'])
 })
 
 test('section selection cannot hide a changed mandatory reference or duplicate a whole file', t => {
   const f = fixture(t), manifest = f.packet().referenceLibrary
   assert.throws(() => inspectedReferenceHashes(manifest, [
-    ...manifest.required.filter(path => path !== 'skills/processes/build/review-safety.md'),
-    'skills/processes/build/review-safety.md#H2:Safety',
+    ...manifest.required.filter(path => path !== 'skills/chatium-processes/build/review-safety.md'),
+    'skills/chatium-processes/build/review-safety.md#H2:Safety',
   ]), /неизвестную|обязательные/)
   assert.throws(() => inspectedReferenceHashes(manifest, [...manifest.required,
-    'skills/processes/WORKFLOW.md', 'skills/processes/WORKFLOW.md#H2:Ревью']), /одновременно/)
+    'skills/chatium-processes/WORKFLOW.md', 'skills/chatium-processes/WORKFLOW.md#H2:Ревью']), /одновременно/)
   assert.throws(() => inspectedReferenceHashes(manifest, [...manifest.required,
-    'skills/processes/WORKFLOW.md#H2:Несуществующий']), /неизвестную/)
+    'skills/chatium-processes/WORKFLOW.md#H2:Несуществующий']), /неизвестную/)
 })
 
 test('section keys exclude fenced examples and ambiguous repeated headings', t => {
   const f = fixture(t)
-  f.put('skills/processes/WORKFLOW.md', '# Workflow\n## Ревью\nFirst.\n```md\n## Example only\n```\n## Ревью\nSecond.\n## Этапы\nThird.\n')
+  f.put('skills/chatium-processes/WORKFLOW.md', '# Workflow\n## Ревью\nFirst.\n```md\n## Example only\n```\n## Ревью\nSecond.\n## Этапы\nThird.\n')
   const sections = f.packet().referenceLibrary.sectionHashes
-  assert.equal(sections['skills/processes/WORKFLOW.md#H2:Ревью'], undefined)
-  assert.equal(sections['skills/processes/WORKFLOW.md#H2:Example only'], undefined)
-  assert.deepEqual(sections['skills/processes/WORKFLOW.md#H2:Этапы'].startLine, 9)
+  assert.equal(sections['skills/chatium-processes/WORKFLOW.md#H2:Ревью'], undefined)
+  assert.equal(sections['skills/chatium-processes/WORKFLOW.md#H2:Example only'], undefined)
+  assert.deepEqual(sections['skills/chatium-processes/WORKFLOW.md#H2:Этапы'].startLine, 9)
 })
 
 test('snapshot retains collected bytes even when original references change before writing', t => {
   const f = fixture(t), packet = f.packet()
   const original = readFileSync(join(f.skillDir, 'build/review-safety.md'), 'utf8')
-  f.put('skills/processes/build/review-safety.md', '# Entirely changed later\n')
+  f.put('skills/chatium-processes/build/review-safety.md', '# Entirely changed later\n')
   const { directory, library } = f.snapshot(packet)
-  const path = join(library, 'skills/processes/build/review-safety.md')
+  const path = join(library, 'skills/chatium-processes/build/review-safety.md')
   assert.equal(readFileSync(path, 'utf8'), original)
   assert.equal(statSync(path).mode & 0o777, 0o444)
   assert.doesNotThrow(() => verifyReferenceSnapshot(directory, packet.referenceLibrary))
@@ -235,7 +235,7 @@ test('snapshot verification detects changed, missing and additional files', t =>
   const f = fixture(t), packet = f.packet()
   for (const mutation of ['changed', 'missing', 'additional']) {
     const { directory, library } = f.snapshot(packet)
-    const path = join(library, 'skills/processes/build/review-safety.md')
+    const path = join(library, 'skills/chatium-processes/build/review-safety.md')
     if (mutation === 'changed') {
       chmodSync(path, 0o644)
       const original = readFileSync(path, 'utf8')
@@ -248,7 +248,7 @@ test('snapshot verification detects changed, missing and additional files', t =>
 
 test('snapshot verification rejects both file and root directory symlinks', t => {
   const f = fixture(t), packet = f.packet(), first = f.snapshot(packet)
-  const path = join(first.library, 'skills/processes/build/review-safety.md')
+  const path = join(first.library, 'skills/chatium-processes/build/review-safety.md')
   rmSync(path)
   symlinkSync(join(f.skillDir, 'build/review-safety.md'), path)
   assert.throws(() => verifyReferenceSnapshot(first.directory, packet.referenceLibrary), /символические ссылки/)
@@ -264,7 +264,7 @@ test('default typings collection reads declarations but executes no source or pa
   f.put('account/node_modules/sdk/index.js', malicious)
   f.put('account/node_modules/sdk/package.json', JSON.stringify({ scripts: { prepare: malicious } }))
   f.put('account/.typings/platform.d.ts', 'declare interface Platform { readonly ready: boolean }\n')
-  f.put('skills/processes/scripts/should-not-run.mjs', malicious)
+  f.put('skills/chatium-processes/scripts/should-not-run.mjs', malicious)
   const { files } = f.collect()
   assert.deepEqual(files.filter(file => file.path.startsWith('typings/')).map(file => file.path), [
     'typings/.typings/platform.d.ts', 'typings/node_modules/sdk/index.d.ts',
@@ -319,7 +319,7 @@ test('all corpus bounds fail clearly without returning silently truncated refere
 test('references must be valid UTF-8 text', t => {
   const f = fixture(t)
   for (const content of [Buffer.from([0x61, 0, 0x62]), Buffer.from([0xc3, 0x28])]) {
-    f.put('skills/processes/build/binary.md', content)
+    f.put('skills/chatium-processes/build/binary.md', content)
     assert.throws(() => f.collect(), /UTF-8/)
   }
 })
@@ -356,17 +356,17 @@ test('scope file cannot be read through a symlink outside the account', t => {
 test('each role requires both skills and its own mandatory reading', t => {
   const f = fixture(t)
   const design = f.collect({ stage: 'design' }).manifest
-  assert.ok(design.required.includes('skills/processes/method/README.md'))
-  assert.ok(design.required.includes('skills/processes/method/readiness.md'))
-  assert.ok(!design.required.includes('skills/processes/build/review-safety.md'))
+  assert.ok(design.required.includes('skills/chatium-processes/method/README.md'))
+  assert.ok(design.required.includes('skills/chatium-processes/method/readiness.md'))
+  assert.ok(!design.required.includes('skills/chatium-processes/build/review-safety.md'))
   for (const [stage, path] of [
-    ['implementation', 'skills/processes/build/review-safety.md'],
+    ['implementation', 'skills/chatium-processes/build/review-safety.md'],
     ['implementation', 'skills/chatium-development/auth.md'],
     ['implementation', 'skills/chatium-development/routing.md'],
-    ['design', 'skills/processes/method/readiness.md'],
-    ['build', 'skills/processes/method/README.md'],
+    ['design', 'skills/chatium-processes/method/readiness.md'],
+    ['build', 'skills/chatium-processes/method/README.md'],
     ['launch', 'skills/chatium-development/SKILL.md'],
-    ['implementation', 'skills/processes/SKILL.md'],
+    ['implementation', 'skills/chatium-processes/SKILL.md'],
   ]) {
     const fullPath = join(f.base, path), original = readFileSync(fullPath)
     rmSync(fullPath)
@@ -419,7 +419,7 @@ test('both saved review roles become stale when a referenced platform declaratio
   assert.equal(codeReviewStatus({ root, slug }).status, 'ready')
   assert.equal(reviewStatus({ root, slug, stage: 'design' }).status, 'ready')
   for (const { args, record } of records) {
-    const path = join(args.packetDirectory, 'library/skills/processes/SKILL.md')
+    const path = join(args.packetDirectory, 'library/skills/chatium-processes/SKILL.md')
     chmodSync(path, 0o644)
     writeFileSync(path, '# Tampered snapshot\n')
     assert.throws(() => record(args), /Снимок библиотеки изменён/)

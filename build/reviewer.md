@@ -9,8 +9,8 @@
 Прочитай весь `packet.files` и библиотеку справок рядом с пакетом:
 
 1. В `library/` открой оба входных файла: `skills/chatium-development/SKILL.md`
-   и `skills/processes/SKILL.md`.
-2. Обязательно прочитай `skills/processes/build/review-safety.md`. Все
+   и `skills/chatium-processes/SKILL.md`.
+2. Обязательно прочитай `skills/chatium-processes/build/review-safety.md`. Все
    обязательные пути перечислены в `packet.referenceLibrary.required`.
 3. Для перечня страниц и входных обработчиков прочитай `auth.md` и
    `routing.md` из `chatium-development`. По оглавлениям выбери остальные

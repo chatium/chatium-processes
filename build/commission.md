@@ -18,9 +18,9 @@
 Для роли возьми её имя из `requirements`, затем выполни:
 
 ```sh
-node .agents/skills/processes/scripts/reviews.mjs prepare <process> --stage design --role architecture
-node .agents/skills/processes/scripts/reviews.mjs record <process> --stage design --role architecture --packet <packet.json> --report <answer.json> --agent <ID-вызова>
-node .agents/skills/processes/scripts/reviews.mjs status <process> --stage design
+node .agents/skills/chatium-processes/scripts/reviews.mjs prepare <process> --stage design --role architecture
+node .agents/skills/chatium-processes/scripts/reviews.mjs record <process> --stage design --role architecture --packet <packet.json> --report <answer.json> --agent <ID-вызова>
+node .agents/skills/chatium-processes/scripts/reviews.mjs status <process> --stage design
 ```
 
 `methodology`, `implementation` и `creative` продолжают использовать старые
@@ -108,7 +108,7 @@ node .agents/skills/processes/scripts/reviews.mjs status <process> --stage desig
 нет):
 
 ```sh
-node .agents/skills/processes/scripts/owner-decisions.mjs prepare <process> --kind plan --board-revision <N|none> --out <packet.json>
+node .agents/skills/chatium-processes/scripts/owner-decisions.mjs prepare <process> --kind plan --board-revision <N|none> --out <packet.json>
 ```
 
 После **получения** ответа запиши отдельный JSON с `decision` (`approve`
@@ -138,8 +138,8 @@ node .agents/skills/processes/scripts/owner-decisions.mjs prepare <process> --ki
 без отпечатка по-прежнему привязаны к точной ревизии.
 
 ```sh
-node .agents/skills/processes/scripts/owner-decisions.mjs record <process> --kind plan --packet <packet.json> --response <owner-response.json>
-node .agents/skills/processes/scripts/owner-decisions.mjs status <process> --kind plan
+node .agents/skills/chatium-processes/scripts/owner-decisions.mjs record <process> --kind plan --packet <packet.json> --response <owner-response.json>
+node .agents/skills/chatium-processes/scripts/owner-decisions.mjs status <process> --kind plan
 ```
 
 Для запуска повтори с `--kind launch`. `tasks start` для реализации проверяет
@@ -171,7 +171,7 @@ node .agents/skills/processes/scripts/owner-decisions.mjs status <process> --kin
 
 Пакеты ревью во внешней папке не входят в аккаунт и со временем занимают
 место. Управляемые пакеты помечены при `prepare`. После завершения ревью
-проверь старые пакеты командой `node .agents/skills/processes/scripts/review-packets.mjs cleanup`;
+проверь старые пакеты командой `node .agents/skills/chatium-processes/scripts/review-packets.mjs cleanup`;
 она только перечисляет кандидатов этого аккаунта, не моложе 30 дней.
 Если они больше не нужны, повтори с `--apply`. Папки, указанные вручную
 через `--out`, и пакеты других аккаунтов команда не удаляет.

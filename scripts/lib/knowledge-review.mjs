@@ -191,7 +191,7 @@ export function recordReview({ root, slug, stage, packet, report, agentReference
     inspectedFiles: report.inspectedFiles, sourceDisposition: report.sourceDisposition || [],
     inspectedReferences: report.inspectedReferences,
     referenceHashes, ruleDigests: packet.referenceLibrary.ruleDigests, rubricVersion: current.rubricVersion,
-    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/processes/SKILL.md')?.sha256,
+    skillVersion: packet.referenceLibrary.files.find(file => file.path === 'skills/chatium-processes/SKILL.md')?.sha256,
     answers: result.answers }
   const path = reviewPath(root, slug, stage)
   mkdirSync(dirname(path), { recursive: true })

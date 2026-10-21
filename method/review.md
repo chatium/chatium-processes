@@ -8,7 +8,7 @@
 ## 1. Статическая проверка
 
 ```sh
-node .agents/skills/processes/scripts/kb-check.mjs <process>
+node .agents/skills/chatium-processes/scripts/kb-check.mjs <process>
 ```
 
 Проверяет YAML/frontmatter, статьи, `order`, явные заглушки и локальные
@@ -24,7 +24,7 @@ node .agents/skills/processes/scripts/kb-check.mjs <process>
 ## 2. Подготовка пакета
 
 ```sh
-node .agents/skills/processes/scripts/kb-review.mjs prepare <process> --stage build
+node .agents/skills/chatium-processes/scripts/kb-review.mjs prepare <process> --stage build
 ```
 
 Выбери `design`, `build` или `launch` по цели ревью. Скрипт выдаст пути
@@ -62,8 +62,8 @@ node .agents/skills/processes/scripts/kb-review.mjs prepare <process> --stage bu
 
 Стартовый prompt даёт роль, обязательные вопросы и абсолютные пути двух
 входных файлов: `library/skills/chatium-development/SKILL.md` и
-`library/skills/processes/SKILL.md`. Методолог читает оба, затем обязательные
-`skills/processes/method/README.md` и `skills/processes/method/readiness.md`.
+`library/skills/chatium-processes/SKILL.md`. Методолог читает оба, затем обязательные
+`skills/chatium-processes/method/README.md` и `skills/chatium-processes/method/readiness.md`.
 Темы методологии, справки платформы и typings выбирает по проверяемым
 вопросам и материалам. Все вопросы пакета обязательны; всю библиотеку читать
 заранее не нужно. Инструкции скиллов о сборке, публикации, тестах и вызове
@@ -121,10 +121,10 @@ node .agents/skills/processes/scripts/kb-review.mjs prepare <process> --stage bu
 в файл вне репозитория, не подменяя ответы и выводы. Затем:
 
 ```sh
-node .agents/skills/processes/scripts/kb-review.mjs record <process> --stage build \
+node .agents/skills/chatium-processes/scripts/kb-review.mjs record <process> --stage build \
   --packet <путь-к-packet.json> --report <путь-к-ответу.json> \
   --agent <идентификатор-или-ссылка-на-вызов-субагента>
-node .agents/skills/processes/scripts/kb-review.mjs status <process> --stage build
+node .agents/skills/chatium-processes/scripts/kb-review.mjs status <process> --stage build
 ```
 
 Скрипт проверяет все ID вопросов, статусы, наличие и точность цитат,

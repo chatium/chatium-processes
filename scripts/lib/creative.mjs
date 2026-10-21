@@ -379,7 +379,7 @@ export function creativePacket({ root, slug, nodeId }) {
       throw Error('Некорректный путь встроенного референса.')
     const path = ref.startsWith('creative/') ? join(SKILL_DIR, ref) : safeTaskPath(root, ref)
     if (statSync(path).size > 80 * 1024) throw Error('Слишком большой референс.')
-    referenceFiles.push({ path: ref.startsWith('creative/') ? `.agents/skills/processes/${ref}` : ref,
+    referenceFiles.push({ path: ref.startsWith('creative/') ? `.agents/skills/chatium-processes/${ref}` : ref,
       content: readFileSync(path, 'utf8') })
   } catch (error) { errors.push(`Референс ${ref}: ${error.message}`) }
   const automationFiles = []

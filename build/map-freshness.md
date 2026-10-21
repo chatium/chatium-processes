@@ -9,7 +9,7 @@
 При возобновлении работы прочитай карту и все доступные материалы по [board.md](board.md):
 
 ```sh
-node .agents/skills/processes/scripts/context.mjs <process>
+node .agents/skills/chatium-processes/scripts/context.mjs <process>
 ```
 
 `context` вызывает проверку без записи и выводит только разрешённый агенту
@@ -24,7 +24,7 @@ node .agents/skills/processes/scripts/context.mjs <process>
 
 ```sh
 # Сначала commit и push своей ветки; дождись успешной сборки.
-node .agents/skills/processes/scripts/check.mjs <process> --typecheck --publish-snapshot
+node .agents/skills/chatium-processes/scripts/check.mjs <process> --typecheck --publish-snapshot
 ```
 
 На этапе проектирования добавь `--task-stage design --knowledge-stage design`.
@@ -64,7 +64,7 @@ Start получает хук успешной сборки, находит за
 Для повторного контроля перед отчётом, без перезаписи снимка:
 
 ```sh
-node .agents/skills/processes/scripts/check.mjs <process> --verify-snapshot --json
+node .agents/skills/chatium-processes/scripts/check.mjs <process> --verify-snapshot --json
 ```
 
 Сравнение игнорирует порядок ключей JSON и новое время локальной проверки.

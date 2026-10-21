@@ -183,7 +183,7 @@ abTesting:
 
 Допустимые `landingType`, `styleId` и типы механик смотри в
 `creative/catalog/`. Начни с краткого обзора
-`node .agents/skills/processes/scripts/catalog.mjs styles`, затем уточняй
+`node .agents/skills/chatium-processes/scripts/catalog.mjs styles`, затем уточняй
 поиск через `--search "школа английского"` или характер подачи.
 Поиск учитывает близкие русские/английские термины и показывает прямые
 совпадения раньше тематических; он помогает навигации, но не выбирает

@@ -18,10 +18,13 @@ jobs:
       - run: npm test
       - name: Test installed copy without development files
         run: |
-          mkdir -p "$RUNNER_TEMP/processes-installed"
-          git archive HEAD | tar -x -C "$RUNNER_TEMP/processes-installed"
-          rm -r "$RUNNER_TEMP/processes-installed/.github"
-          rm "$RUNNER_TEMP/processes-installed/README.md"
-          cd "$RUNNER_TEMP/processes-installed"
+          mkdir -p "$RUNNER_TEMP/skills-release/skills/chatium-development"
+          git init -q -b main "$RUNNER_TEMP/skills-release"
+          touch "$RUNNER_TEMP/skills-release/skills/chatium-development/SKILL.md"
+          node .github/sync-skill.mjs release "$RUNNER_TEMP/skills-release"
+          node .github/sync-skill.mjs release-status "$RUNNER_TEMP/skills-release"
+          mkdir -p "$RUNNER_TEMP/skills-release/skills/chatium-processes/scripts/tests"
+          cp -R scripts/tests/. "$RUNNER_TEMP/skills-release/skills/chatium-processes/scripts/tests/"
+          cd "$RUNNER_TEMP/skills-release/skills/chatium-processes"
           npm ci --ignore-scripts
-          npm test
+          node scripts/tests/run.mjs

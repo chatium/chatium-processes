@@ -17,7 +17,7 @@
 сначала определи процесс; после создания проверь его доску.
 
 ```sh
-node .agents/skills/processes/scripts/board.mjs read <process>
+node .agents/skills/chatium-processes/scripts/board.mjs read <process>
 ```
 
 Вывод — JSON текущей ветки. Сохрани его вне репозитория в папке,
@@ -68,7 +68,7 @@ node .agents/skills/processes/scripts/board.mjs read <process>
 ## Как посмотреть изображение
 
 ```sh
-node .agents/skills/processes/scripts/board.mjs material <process> \
+node .agents/skills/chatium-processes/scripts/board.mjs material <process> \
   --from <сохранённый-json-чтения> --element <id-изображения>
 ```
 
@@ -134,9 +134,9 @@ URL может давать временный доступ к защищённ�
 JSON изменений и выполни одну из команд:
 
 ```sh
-node .agents/skills/processes/scripts/board.mjs create <process> --from /tmp/board.json --changes /tmp/elements.json
-node .agents/skills/processes/scripts/board.mjs update <process> --from /tmp/board.json --changes /tmp/elements.json
-node .agents/skills/processes/scripts/board.mjs delete <process> --from /tmp/board.json --changes /tmp/elements.json
+node .agents/skills/chatium-processes/scripts/board.mjs create <process> --from /tmp/board.json --changes /tmp/elements.json
+node .agents/skills/chatium-processes/scripts/board.mjs update <process> --from /tmp/board.json --changes /tmp/elements.json
+node .agents/skills/chatium-processes/scripts/board.mjs delete <process> --from /tmp/board.json --changes /tmp/elements.json
 ```
 
 `create` и `update` принимают `blocks` и/или `connections`. Например:

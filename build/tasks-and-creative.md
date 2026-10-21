@@ -95,7 +95,7 @@ JSON-заключение независимого ревьюера; само п
 подготовь общий пакет:
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs reassess-prepare <process> --base <accepted-commit>
+node .agents/skills/chatium-processes/scripts/tasks.mjs reassess-prepare <process> --base <accepted-commit>
 ```
 
 Команда показывает две группы. `eligible` — изменилась только версия входов:
@@ -112,7 +112,7 @@ node .agents/skills/processes/scripts/tasks.mjs reassess-prepare <process> --bas
 JSON-ответ вне аккаунта и записывает его командой:
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs reassess-record <process> --file /path/reviewer-response.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs reassess-record <process> --file /path/reviewer-response.json
 ```
 
 Команда сама проверяет точный коммит, отпечаток пакета, независимого
@@ -153,10 +153,10 @@ node .agents/skills/processes/scripts/tasks.mjs reassess-record <process> --file
 штатной командой; принятую карточку сначала открой через `reopen`.
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs create <process> W001 --file /path/task.json
-node .agents/skills/processes/scripts/tasks.mjs create-batch <process> --file /path/tasks.json
-node .agents/skills/processes/scripts/tasks.mjs status <process> --stage build
-node .agents/skills/processes/scripts/tasks.mjs context <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs create <process> W001 --file /path/task.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs create-batch <process> --file /path/tasks.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs status <process> --stage build
+node .agents/skills/chatium-processes/scripts/tasks.mjs context <process> W001
 ```
 
 `status` возвращает код 0 при отсутствии ошибок готовности, 1 при незавершённых
@@ -188,11 +188,11 @@ node .agents/skills/processes/scripts/tasks.mjs context <process> W001
 ## Выполни и прими
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs start <process> W001
-node .agents/skills/processes/scripts/tasks.mjs verify-base <process> W001
-node .agents/skills/processes/scripts/tasks.mjs step <process> W001 --step P1 --status done
-node .agents/skills/processes/scripts/tasks.mjs record <process> W001 --file /path/result.json
-node .agents/skills/processes/scripts/tasks.mjs accept <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs start <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs verify-base <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs step <process> W001 --step P1 --status done
+node .agents/skills/chatium-processes/scripts/tasks.mjs record <process> W001 --file /path/result.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs accept <process> W001
 ```
 
 `record` связывает результат с текущей попыткой; `accept` требует все
@@ -220,9 +220,9 @@ node .agents/skills/processes/scripts/tasks.mjs accept <process> W001
 вопрос. Ответ сначала вносится в базу знаний, затем привязывается к вопросу:
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs ask <process> W001 --file /path/questions.json
-node .agents/skills/processes/scripts/tasks.mjs resolve <process> W001 --question Q1 --file /path/answer.json
-node .agents/skills/processes/scripts/tasks.mjs start <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs ask <process> W001 --file /path/questions.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs resolve <process> W001 --question Q1 --file /path/answer.json
+node .agents/skills/chatium-processes/scripts/tasks.mjs start <process> W001
 ```
 
 Файл ответа: `{ "summary": "…", "sourceRefs": [".knowledge-base/…/article.md"] }`.
@@ -244,7 +244,7 @@ node .agents/skills/processes/scripts/tasks.mjs start <process> W001
 Для карточки `executor.kind: specialist` после `start` подготовь пакет:
 
 ```sh
-node .agents/skills/processes/scripts/tasks.mjs prepare <process> W001
+node .agents/skills/chatium-processes/scripts/tasks.mjs prepare <process> W001
 ```
 
 Прочитай `prompt.md`, передай весь текст (не только путь или пересказ)
@@ -306,9 +306,9 @@ node .agents/skills/processes/scripts/tasks.mjs prepare <process> W001
 `plain`; SMS — `short`. Не требуй SMS-текст для серии только по email.
 
 ```sh
-node .agents/skills/processes/scripts/creative.mjs validate <process> <node-id>
-node .agents/skills/processes/scripts/creative.mjs compile <process> <node-id>
-node .agents/skills/processes/scripts/creative.mjs status <process> <node-id>
+node .agents/skills/chatium-processes/scripts/creative.mjs validate <process> <node-id>
+node .agents/skills/chatium-processes/scripts/creative.mjs compile <process> <node-id>
+node .agents/skills/chatium-processes/scripts/creative.mjs status <process> <node-id>
 ```
 
 `compile` детерминированно создаёт `build.md` с полной выбранной методикой.
@@ -323,9 +323,9 @@ node .agents/skills/processes/scripts/creative.mjs status <process> <node-id>
 ## Проведи независимое ревью
 
 ```sh
-node .agents/skills/processes/scripts/creative-review.mjs prepare <process> <node-id> --stage spec
-node .agents/skills/processes/scripts/creative-review.mjs record <process> <node-id> --stage spec --packet /path/packet.json --report /path/report.json --agent <id>
-node .agents/skills/processes/scripts/creative-review.mjs status <process> <node-id> --stage spec
+node .agents/skills/chatium-processes/scripts/creative-review.mjs prepare <process> <node-id> --stage spec
+node .agents/skills/chatium-processes/scripts/creative-review.mjs record <process> <node-id> --stage spec --packet /path/packet.json --report /path/report.json --agent <id>
+node .agents/skills/chatium-processes/scripts/creative-review.mjs status <process> <node-id> --stage spec
 ```
 
 На этапе `result` команда такая же с `--stage result`. Ревьюер — отдельный

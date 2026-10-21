@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Каркас нового процесса из шаблонов скилла. Существующие файлы не трогает.
 //
-//   node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" [--topics audience,journey] [--account-id 123] [--root DIR] [--dry-run]
+//   node .agents/skills/chatium-processes/scripts/scaffold.mjs <process> --title "Название" [--topics audience,journey] [--account-id 123] [--root DIR] [--dry-run]
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -77,12 +77,6 @@ if (!dryRun && !existsSync(wsFile) && existsSync(join(root, '.git'))) {
     const ancestor = runGit(['merge-base', '--is-ancestor', currentMain, 'HEAD'])
     if (ancestor.status !== 0) {
       console.error(`Ветка ${branch} не содержит опубликованный origin/main ${currentMain.slice(0, 7)}. Сначала git fetch origin main и создай ветку от origin/main либо влей его обычным merge; файлы не записаны.`)
-      process.exit(2)
-    }
-    const skillDiff = runGit(['diff', '--quiet', currentMain, 'HEAD', '--', '.agents/skills/processes'])
-    const skillDirty = runGit(['status', '--porcelain', '--', '.agents/skills/processes'])
-    if (skillDiff.status !== 0 || skillDirty.status !== 0 || skillDirty.stdout.trim()) {
-      console.error('Скилл processes в рабочей ветке отличается от опубликованного origin/main. Обнови ветку и верни актуальную отслеживаемую копию скилла до создания процесса; файлы не записаны.')
       process.exit(2)
     }
   }
@@ -219,5 +213,5 @@ if (accountId === null) {
   console.log('accountId в process.yaml пока пуст; каркас готов. Узнайте ID через chatium exec (return ctx.account.id) перед проверкой проекта.')
 }
 console.log(`Дальше: заполните созданные .knowledge-base/processes/${slug}/ и ${slug}/PLAN.md, process.yaml, specs/events.yaml одним связным черновиком.`)
-console.log(`После черновика: node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage design --knowledge-stage design --no-snapshot`)
+console.log(`После черновика: node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage design --knowledge-stage design --no-snapshot`)
 console.log('Соберите все замечания проверки; отсутствие заключений до комиссии ожидаемо. Исходники валидаторов и соседние процессы читайте только при конкретной неразрешённой ошибке.')

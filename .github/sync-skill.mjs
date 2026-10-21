@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const [action, accountArg] = process.argv.slice(2)
-if (!['status', 'install', 'install-local'].includes(action) || !accountArg || process.argv.length !== 4) {
-  console.error('Использование: node .github/sync-skill.mjs status|install|install-local <корень Git-аккаунта>')
+if (!['release', 'release-status', 'install-local'].includes(action) || !accountArg || process.argv.length !== 4) {
+  console.error('Использование: node .github/sync-skill.mjs release|release-status <репозиторий chatium-agent-skills> либо install-local <корень Git-аккаунта>')
   process.exit(2)
 }
 
@@ -26,9 +26,9 @@ function fingerprint(root, ignored = new Set()) {
       const path = join(directory, entry.name)
       const mode = lstatSync(path)
       if (mode.isDirectory()) visit(path, relative + '/')
-      else if (mode.isFile() || mode.isSymbolicLink()) {
-        hash.update(relative).update('\0').update(mode.isSymbolicLink() ? 'link' : 'file').update('\0')
-        hash.update(mode.isSymbolicLink() ? readlinkSync(path) : readFileSync(path)).update('\0')
+      else if (mode.isFile()) {
+        hash.update(relative).update('\0').update('file').update('\0')
+        hash.update(readFileSync(path)).update('\0')
       } else throw Error(`Неподдерживаемый файл скилла: ${relative}`)
     }
   }
@@ -37,60 +37,73 @@ function fingerprint(root, ignored = new Set()) {
 }
 
 const account = realpathSync(accountArg)
-if (git(account, 'rev-parse', '--show-toplevel') !== account) throw Error('Укажите корень Git-аккаунта')
-const target = join(account, '.agents', 'skills', 'processes')
-for (const path of [join(account, '.agents'), join(account, '.agents', 'skills'), target]) {
+if (git(account, 'rev-parse', '--show-toplevel') !== account) throw Error('Укажите корень Git-репозитория')
+const releasing = action !== 'install-local'
+if (releasing && !existsSync(join(account, 'skills/chatium-development/SKILL.md')))
+  throw Error('В целевом репозитории нет skills/chatium-development/SKILL.md')
+const targetRelative = releasing ? 'skills/chatium-processes' : '.agents/skills/chatium-processes'
+const target = join(account, targetRelative)
+for (const path of [join(account, releasing ? 'skills' : '.agents'), dirname(target), target]) {
   if (existsSync(path) && lstatSync(path).isSymbolicLink()) throw Error(`Путь скилла не должен быть ссылкой: ${path}`)
 }
 const temp = mkdtempSync(join(tmpdir(), 'processes-sync-'))
 
 try {
-  if (action === 'install-local' && git(source, 'status', '--porcelain', '--untracked-files=no')) {
-    throw Error('Для установки локального кандидата сначала зафиксируйте изменения исходника')
+  if (action !== 'release-status' && git(source, 'status', '--porcelain')) {
+    throw Error('Сначала зафиксируйте изменения исходника: копируется только выбранный HEAD')
   }
-  if (action !== 'install-local') git(source, 'fetch', '--quiet', 'origin', 'main')
-  const commit = git(source, 'rev-parse', action === 'install-local' ? 'HEAD' : 'FETCH_HEAD')
+  const commit = git(source, 'rev-parse', 'HEAD')
   const unpacked = join(temp, 'archive')
   const distribution = join(temp, 'distribution')
   mkdirSync(unpacked)
   mkdirSync(distribution)
   const archive = execFileSync('git', ['archive', '--format=tar', commit], { cwd: source, maxBuffer: 64 * 1024 * 1024 })
   execFileSync('tar', ['-xf', '-', '-C', unpacked], { input: archive })
-  for (const entry of readdirSync(unpacked)) {
-    if (entry === '.github' || entry === 'README.md' || entry === 'node_modules') continue
-    cpSync(join(unpacked, entry), join(distribution, entry), { recursive: true })
+  const runtime = ['SKILL.md', 'WORKFLOW.md', 'LICENSE', 'package.json', 'package-lock.json',
+    'blocks', 'build', 'creative', 'formats', 'method', 'scripts', 'specialists', 'tasks', 'templates']
+  for (const entry of runtime) {
+    cpSync(join(unpacked, entry), join(distribution, entry), { recursive: true, filter: path => {
+      if (lstatSync(path).isSymbolicLink()) throw Error(`Ссылки не входят в поставку: ${path}`)
+      return path !== join(unpacked, 'scripts', 'tests')
+    } })
   }
+  const packagePath = join(distribution, 'package.json')
+  const packageInfo = JSON.parse(readFileSync(packagePath, 'utf8'))
+  if (packageInfo.scripts) {
+    delete packageInfo.scripts.test
+    if (!Object.keys(packageInfo.scripts).length) delete packageInfo.scripts
+  }
+  writeFileSync(packagePath, JSON.stringify(packageInfo, null, 2) + '\n')
   const contentHash = fingerprint(distribution)
-  const installedHash = existsSync(target)
-    ? fingerprint(target, new Set(['node_modules', 'README.md', 'INSTALLATION.json'])) : null
-  const markerPath = join(target, 'INSTALLATION.json')
-  const marker = existsSync(markerPath) ? JSON.parse(readFileSync(markerPath, 'utf8')) : null
-
-  if (action === 'status') {
-    console.log(`Установлен: ${marker?.sourceCommit || 'коммит неизвестен'}`)
-    console.log(`Файлы: ${installedHash || 'скилл отсутствует'}`)
-    console.log(`Опубликован: ${commit}`)
-    console.log(`Состояние: ${marker?.contentSha256 && marker.contentSha256 !== installedHash ? 'копия изменена' : installedHash === contentHash ? 'актуален' : 'требует обновления'}`)
+  const ignored = releasing ? new Set() : new Set(['node_modules', 'INSTALLATION.json'])
+  if (action === 'release-status') {
+    const installedHash = existsSync(target) ? fingerprint(target) : null
+    console.log(JSON.stringify({ sourceCommit: commit, contentSha256: contentHash, target,
+      installedSha256: installedHash, matches: installedHash === contentHash }, null, 2))
   } else {
-    if (git(account, 'status', '--porcelain')) throw Error('В аккаунте есть несохранённые изменения')
-    if (git(account, 'branch', '--show-current') !== 'main' ||
-        git(account, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}') !== 'origin/main' ||
-        git(account, 'rev-parse', 'HEAD') !== git(account, 'rev-parse', 'origin/main')) {
-      throw Error('Сначала синхронизируйте чистую ветку main аккаунта с origin/main')
+    if (releasing) {
+      if (git(account, 'branch', '--show-current') !== 'main') throw Error('Релизную копию обновляйте в main; чужую ветку не переключайте')
+      if (git(account, 'status', '--porcelain', '--', targetRelative)) throw Error('В production-копии есть несохранённые изменения')
+    } else {
+      if (git(account, 'ls-files', '--', targetRelative)) throw Error('Копия chatium-processes не должна отслеживаться Git аккаунта')
+      const exclude = resolve(account, git(account, 'rev-parse', '--git-path', 'info/exclude'))
+      const rule = '/.agents/skills/chatium-processes/'
+      const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
+      if (!current.split(/\r?\n/).includes(rule)) writeFileSync(exclude, current + '\n' + rule + '\n')
+      writeFileSync(join(distribution, 'INSTALLATION.json'), JSON.stringify({
+        source: 'https://github.com/chatium/chatium-processes', sourceCommit: commit,
+        contentSha256: contentHash, localCandidate: true,
+      }, null, 2) + '\n')
     }
-    writeFileSync(join(distribution, 'INSTALLATION.json'), JSON.stringify({
-      source: 'https://github.com/chatium/chatium-processes',
-      sourceCommit: commit,
-      contentSha256: contentHash,
-      ...(action === 'install-local' ? { localCandidate: true } : {}),
-    }, null, 2) + '\n')
     mkdirSync(target, { recursive: true })
-    execFileSync('rsync', ['-ac', '--delete', '--exclude=/node_modules/', distribution + sep, target + sep], { stdio: 'inherit' })
-    execFileSync('npm', ['ci', '--ignore-scripts'], { cwd: target, stdio: 'inherit' })
-    if (fingerprint(target, new Set(['node_modules', 'README.md', 'INSTALLATION.json'])) !== contentHash) {
+    execFileSync('rsync', ['-ac', '--delete', ...(!releasing ? ['--exclude=/node_modules/'] : []),
+      distribution + sep, target + sep], { stdio: 'inherit' })
+    if (!releasing) execFileSync('npm', ['ci', '--ignore-scripts'], { cwd: target, stdio: 'inherit' })
+    if (fingerprint(target, ignored) !== contentHash) {
       throw Error('Установленная копия отличается от исходника')
     }
-    console.log(`Установлен ${commit}. Проверьте diff, затем отдельно закоммитьте и опубликуйте аккаунт.`)
+    console.log(JSON.stringify({ sourceCommit: commit, contentSha256: contentHash, target,
+      delivery: releasing ? 'production' : 'local-candidate' }, null, 2))
   }
 } finally {
   rmSync(temp, { recursive: true, force: true })

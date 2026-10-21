@@ -150,7 +150,7 @@ try {
     writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
     writeFileSync(promptPath, [
       'Ты независимый ревьюер влияния изменений. Не правь файлы процесса.',
-      `Прочитай входные инструкции ${join(root, '.agents/skills/processes/SKILL.md')} и ${join(root, '.agents/skills/chatium-development/SKILL.md')}; справки открывай выборочно.`,
+      `Прочитай входные инструкции ${join(root, '.agents/skills/chatium-processes/SKILL.md')} и ${join(root, '.agents/skills/chatium-development/SKILL.md')}; справки открывай выборочно.`,
       `Прочитай весь пакет ${packetPath}, включая diff каждого изменённого входа.`,
       'Для каждой eligible карточки прочитай текущие выходы и доказательства по путям из пакета.',
       'Сравни изменения входов с результатом, целью и каждым критерием; не запускай живые эффекты.',

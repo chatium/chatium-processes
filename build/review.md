@@ -23,7 +23,7 @@
 ## Подготовка и вызов
 
 ```sh
-node .agents/skills/processes/scripts/code-review.mjs prepare <process>
+node .agents/skills/chatium-processes/scripts/code-review.mjs prepare <process>
 ```
 
 Скрипт создаёт `packet.json`, `prompt.md` и снимок библиотеки `library/`
@@ -56,8 +56,8 @@ node .agents/skills/processes/scripts/code-review.mjs prepare <process>
 Тексты справочников не вкладываются в JSON. Стартовый prompt даёт роль,
 обязательные вопросы и абсолютные пути двух `SKILL.md` в снимке:
 `library/skills/chatium-development/SKILL.md` и
-`library/skills/processes/SKILL.md`. Reviewer читает оба и обязательно
-`library/skills/processes/build/review-safety.md`, затем по оглавлениям
+`library/skills/chatium-processes/SKILL.md`. Reviewer читает оба и обязательно
+`library/skills/chatium-processes/build/review-safety.md`, затем по оглавлениям
 открывает нужные справки и typings. Инструкции скиллов о сборке,
 публикации, тестах и вызове агентов
 не являются поручением ревьюеру: его роль остаётся только проверяющей.
@@ -134,9 +134,9 @@ Reviewer отвечает на все инженерные вопросы из �
 Сохрани неизменённый JSON-ответ субагента вне аккаунта, затем:
 
 ```sh
-node .agents/skills/processes/scripts/code-review.mjs record <process> \
+node .agents/skills/chatium-processes/scripts/code-review.mjs record <process> \
   --packet <packet.json> --report <ответ.json> --agent <ID-вызова-субагента>
-node .agents/skills/processes/scripts/code-review.mjs status <process>
+node .agents/skills/chatium-processes/scripts/code-review.mjs status <process>
 ```
 
 Валидатор проверяет процесс, полный перечень файлов и вопросов, цитаты,

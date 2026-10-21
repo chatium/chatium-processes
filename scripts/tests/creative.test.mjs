@@ -19,7 +19,7 @@ const reviewsCli = fileURLToPath(new URL('../reviews.mjs', import.meta.url))
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'process-creative-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  cpSync(join(SKILL_DIR, 'creative/catalog'), join(root, '.agents/skills/processes/creative/catalog'), { recursive: true })
+  cpSync(join(SKILL_DIR, 'creative/catalog'), join(root, '.agents/skills/chatium-processes/creative/catalog'), { recursive: true })
   const put = (path, content) => {
     const target = join(root, path)
     mkdirSync(dirname(target), { recursive: true })

@@ -7,7 +7,7 @@
 родителей. `context <путь>` делает такую проверку до обращения к новой доске:
 
 ```sh
-node .agents/skills/processes/scripts/context.mjs <путь> --no-cards
+node .agents/skills/chatium-processes/scripts/context.mjs <путь> --no-cards
 ```
 
 | Признак | Что он означает |

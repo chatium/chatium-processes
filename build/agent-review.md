@@ -9,7 +9,7 @@
 При передаче человеку через сохранённое обращение проверь доступ к его карточке и состояние клиента **на момент чтения**, а не только при постановке. Сотрудник должен увидеть остановку контактов, наступившую позже. Отсутствие такого сигнала — замечание перед реальным запуском; показ уведомления в другом плагине проверяй отдельно.
 
 ```sh
-node .agents/skills/processes/scripts/agent-review.mjs prepare <process>
+node .agents/skills/chatium-processes/scripts/agent-review.mjs prepare <process>
 ```
 
 Команда создаёт `packet.json`, `prompt.md` и неизменяемый снимок справок вне аккаунта. Передай содержимое `prompt.md` отдельному субагенту с чистым контекстом через инструмент своего окружения. Он читает два входных `SKILL.md`, обязательные разделы из `referenceLibrary.required`, затем нужные справки и typings выборочно. Пакет включает фактические инструкции, локальный код, знания, план и сценарии; не редактируй исходники до ответа.
@@ -17,9 +17,9 @@ node .agents/skills/processes/scripts/agent-review.mjs prepare <process>
 Сохрани полный JSON-ответ ревьюера в файл вне аккаунта и запиши результат:
 
 ```sh
-node .agents/skills/processes/scripts/agent-review.mjs record <process> \
+node .agents/skills/chatium-processes/scripts/agent-review.mjs record <process> \
   --packet <путь-к-пакету>/packet.json --report <путь-к-ответу>.json --agent <ID-вызова>
-node .agents/skills/processes/scripts/agent-review.mjs status <process>
+node .agents/skills/chatium-processes/scripts/agent-review.mjs status <process>
 ```
 
 Результаты общего прогона храни по [единому формату](../formats/test-records.md). `agents-runtime.mjs <process> --route-tests FILE --json` даёт диагностику опубликованного агента и сухого маршрута; очищенный вывод прикладывай к сценарию. Диалог, инструменты и эффекты имеют отдельные критерии. Общие настройки канала перепроверь непосредственно перед запуском. Повторяй предварительное ревью после изменения роли, зависимостей или обнаружения содержательного дефекта; добавление отчёта само по себе ревью не инвалидирует.

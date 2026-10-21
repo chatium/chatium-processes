@@ -2,7 +2,7 @@
 // Где мы сейчас: этап процесса по артефактам, задачи PLAN.md и карточки
 // компонентов, которые есть в карте.
 //
-//   node .agents/skills/processes/scripts/context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--root DIR]
+//   node .agents/skills/chatium-processes/scripts/context.mjs <process> [--no-cards] [--offline] [--knowledge-stage design|build|launch] [--root DIR]
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findRoot, isDir, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
@@ -83,7 +83,7 @@ if (!existsSync(join(dir, '.workspace.json'))) {
     say(`Локального каркаса ${slug} нет, но сохранённая доска существует. Проверь рабочую копию и ветку; не создавай процесс повторно.`)
   } else {
     say(`Локального каркаса ${slug} нет. Этап 0: для нового процесса создай каркас —`)
-    say(`  node .agents/skills/processes/scripts/scaffold.mjs ${slug} --title "Название"`)
+    say(`  node .agents/skills/chatium-processes/scripts/scaffold.mjs ${slug} --title "Название"`)
     say('Отсутствие местных файлов само по себе не подтверждает отсутствие процесса в аккаунте.')
   }
   console.log(out.join('\n'))
@@ -196,7 +196,7 @@ try {
     for (const task of work.tasks) say(`  ${task.id} [${task.status}] ${task.title}`)
     for (const issue of work.errors) say(`  ✘ ${issue}`)
     for (const issue of work.warnings) say(`  ! ${issue}`)
-    say(`Детали: node .agents/skills/processes/scripts/tasks.mjs context ${slug} W001`)
+    say(`Детали: node .agents/skills/chatium-processes/scripts/tasks.mjs context ${slug} W001`)
     for (const node of (map?.nodes || []).filter(needsCreativeReview)) {
       const creative = creativeStatus({ root, slug, nodeId: node.id })
       say(`Задание ${node.id}: ${creative.status}${creative.errors.length ? ` — ${creative.errors.join('; ')}` : ''}`)
@@ -206,7 +206,7 @@ try {
   }
 } catch (error) { say(`Рабочие карточки не прочитаны: ${error.message}`) }
 say('')
-say(`Проверка: node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}`)
+say(`Проверка: node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}`)
 say('')
 try {
   const knowledge = collectKnowledge({ root, slug })
@@ -295,8 +295,8 @@ if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChang
   summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
 const pendingReviewStage = designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
 const nextCommand = pendingReviewStage
-  ? `node .agents/skills/processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
-  : `node .agents/skills/processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`
+  ? `node .agents/skills/chatium-processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
+  : `node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`
 summary.push(`Следующий шаг: ${nextAction}`,
   `Следующая команда: ${nextCommand}`,
   'Повторять check без изменения причины незачем: сначала выполни следующий шаг, затем проверяй пакет изменений.',

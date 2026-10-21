@@ -8,7 +8,7 @@
 ## 0. Позиция
 
 ```sh
-node .agents/skills/processes/scripts/context.mjs <process>
+node .agents/skills/chatium-processes/scripts/context.mjs <process>
 ```
 
 Продолжай с того этапа, что показал скрипт. Не начинай заново то, что уже
@@ -28,7 +28,7 @@ node .agents/skills/processes/scripts/context.mjs <process>
 ```sh
 git fetch origin main
 git switch -c process/<process> origin/main
-node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Название" --account-id <id>
+node .agents/skills/chatium-processes/scripts/scaffold.mjs <process> --title "Название" --account-id <id>
 ```
 
 `scaffold` не перезаписывает существующие файлы. Числовой id аккаунта для
@@ -173,7 +173,7 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
 
 ## 5. Тестовый прогон
 
-До первого прогона `node .agents/skills/processes/scripts/code-review.mjs status <process>` должен показать `ready`
+До первого прогона `node .agents/skills/chatium-processes/scripts/code-review.mjs status <process>` должен показать `ready`
 для текущих исходников; одного зелёного ревью знаний недостаточно.
 Для страниц и серий нужны ревью результата и `check --task-stage test`.
 Ревью не заменяет тесты и не запускает их само. После исправления поведения
@@ -232,7 +232,7 @@ node .agents/skills/processes/scripts/scaffold.mjs <process> --title "Назва
    остановись и разберись с причиной. Не составляй ID из пути
    ([automation.md](../blocks/automation.md#включение)). После всех включений
    одним читающим вызовом проверь фактические подписки:
-   `node .agents/skills/processes/scripts/automations-runtime.mjs <process> --expect enabled`.
+   `node .agents/skills/chatium-processes/scripts/automations-runtime.mjs <process> --expect enabled`.
    Ошибка или неподтверждённый коммит оставляют запуск незавершённым.
 4. Заверши правки реестра/плана; при изменении плана/карты повтори ревью
    знаний `launch` и реализации. При необходимости commit и разрешённый push в `main`; затем
