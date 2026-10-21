@@ -2,7 +2,7 @@
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { gitState } from './lib/git-state.mjs'
 import { syncBuildProgress } from './lib/build-progress.mjs'
-import { startExec } from './lib/snapshot.mjs'
+import { constructionSdk } from './lib/construction-sdk.mjs'
 
 try {
   const { positional, options } = parseArgs(process.argv.slice(2), ['help'], ['root', 'exec-root', 'help'])
@@ -23,8 +23,8 @@ try {
       console.log(JSON.stringify(result, null, 2))
       if (result.status === 'pending') process.exitCode = 1
     } else {
-      const state = gitState(root), hostState = gitState(executionRoot)
-      const board = await startExec(executionRoot, `import {readProcessBoardForAgent} from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(slug)}, ${JSON.stringify(state.branch)})`, hostState.commit)
+      const state = gitState(root)
+      const board = await constructionSdk(root, 'readProcessBoardForAgent', [slug, state.branch], { executionRoot })
       if (!board?.snapshot) throw Error('Нет опубликованной карты выбранной ветки.')
       console.log(JSON.stringify({ process: slug, branch: state.branch, commit: board.snapshot.snapshot.commit,
         nodes: board.snapshot.snapshot.nodes.map(({ id, title, status, reason, build, progress }) => ({ id, title, status, reason, build, progress })),
