@@ -690,7 +690,7 @@ test('failed attempt retries and accepted card can be reopened with history', t 
   assert.equal(f.run('start', 'W001').status, 0)
   f.put('failure.json', { reason: 'Тестовая отправка не дошла' })
   assert.equal(f.run('fail', 'W001', '--file', join(f.root, 'failure.json')).json.status, 'failed')
-  assert.equal(f.run('start', 'W001').json.attemptId, 'R002')
+  assert.equal(f.run('start', 'W001', '--reason', 'Причина внешнего сбоя устранена').json.attemptId, 'R002')
   const accepted = f.task()
   accepted.status = 'done'
   accepted.acceptance = { decision: 'accepted', at: '2026-10-06T10:00:00Z' }
@@ -816,18 +816,39 @@ test('batch reassessment rejects changed outputs and changed criteria', t => {
   assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.some(error => /изменилось задание\/критерии/.test(error)))
 })
 
-test('three identical failed attempts require a changed input or work plan', t => {
+test('unchanged failed task requires a retry reason but has no attempt budget', t => {
   const f = fixture(t)
   assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
-  f.put('failure.json', { reason: 'Та же ошибка формы без исправления' })
+  f.put('failure.json', { reason: 'Исполнитель недоступен: внешний сбой' })
   for (let i = 0; i < 3; i++) {
-    assert.equal(f.run('start', 'W001').status, 0)
+    const resumed = i === 0 ? f.run('start', 'W001')
+      : f.run('start', 'W001', '--reason', 'Доступ к исполнителю восстановлен; состояние проверено')
+    assert.equal(resumed.status, 0, resumed.stderr)
     assert.equal(f.run('fail', 'W001', '--file', join(f.root, 'failure.json')).status, 0)
+    const repeated = f.run('start', 'W001')
+    assert.equal(repeated.status, 1)
+    assert.match(repeated.stderr, /Исполнитель недоступен/)
+    assert.match(repeated.stderr, /--reason/)
+    assert.equal(f.task().attempts.length, i + 1)
   }
-  const repeated = f.run('start', 'W001')
-  assert.equal(repeated.status, 1)
-  assert.match(repeated.stderr, /три одинаковые неудачные попытки/)
-  f.put('.knowledge-base/processes/demo/form.md', 'Email и телефон обязательны. Новое правило.\n')
+  assert.equal(f.run('start', 'W001', '--reason', '  ').status, 1)
+  const retryReason = 'Исполнитель восстановлен, доступность подтверждена по состоянию сервиса'
+  const resumed = f.run('start', 'W001', '--reason', retryReason)
+  assert.equal(resumed.status, 0, resumed.stderr)
+  assert.equal(resumed.json.attemptId, 'R004')
+  assert.deepEqual(f.task().attempts.map(attempt => attempt.status), ['failed', 'failed', 'failed', 'running'])
+  assert.equal(f.task().attempts.at(-1).retryReason, retryReason)
+  assert.equal(f.run('accept', 'W001').status, 1, 'retrying does not accept an unfinished task')
+  assert.ok(taskReadiness({ root: f.root, slug: 'demo' }).errors.length > 0)
+})
+
+test('changed approved inputs allow retry after failure without a separate reason', t => {
+  const f = fixture(t)
+  assert.equal(f.run('create', 'W001', '--file', join(f.root, 'task.json')).status, 0)
+  assert.equal(f.run('start', 'W001').status, 0)
+  f.put('failure.json', { reason: 'Неверно указан состав полей формы' })
+  assert.equal(f.run('fail', 'W001', '--file', join(f.root, 'failure.json')).status, 0)
+  f.put('.knowledge-base/processes/demo/form.md', 'Email и телефон обязательны. Исправленные поля.\n')
   f.approve()
-  assert.equal(f.run('start', 'W001').json.attemptId, 'R004')
+  assert.equal(f.run('start', 'W001').json.attemptId, 'R002')
 })

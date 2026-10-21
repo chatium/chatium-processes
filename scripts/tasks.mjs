@@ -25,6 +25,7 @@ const { positional, options } = parsed
 const [command, slug, id] = positional
 if (options.help || !command || !slug) {
   console.log('Использование: tasks.mjs <create|create-batch|context|start|verify-base|prepare|step|bind|ask|resolve|record|accept|fail|reopen|cancel|status|reassess-prepare|reassess-record> <process> [W001] [--file JSON] [--base SHA] [--root DIR]')
+  console.log('После сбоя при неизменных входах: start <process> W001 --reason "что исправлено или почему повтор теперь обоснован"')
   process.exit(options.help ? 0 : 2)
 }
 if (positional.length > 3) { console.error('Лишний аргумент после ID задачи.'); process.exit(2) }
@@ -210,19 +211,18 @@ try {
     for (const material of task.inputs) if (!outputs.has(material.path)) safeTaskPath(root, material.path)
     const inputDigest = taskInputDigest(root, task)
     const definitionDigest = taskDefinitionDigest(task, planTask)
-    let repeatedFailures = 0
-    for (let i = task.attempts.length - 1; i >= 0; i--) {
-      const previousAttempt = task.attempts[i]
-      if (previousAttempt.status !== 'failed' || previousAttempt.inputDigest !== inputDigest ||
-          previousAttempt.definitionDigest !== definitionDigest) break
-      repeatedFailures++
-    }
-    if (repeatedFailures >= 3)
-      throw Error('Остановлено: три одинаковые неудачные попытки с теми же входами и планом. Разберите причину, измените входы или карточку и начните снова.')
+    const previousAttempt = task.attempts.at(-1)
+    const retryReason = typeof options.reason === 'string' ? options.reason.trim() : ''
+    if (previousAttempt?.status === 'failed' && previousAttempt.inputDigest === inputDigest &&
+        previousAttempt.definitionDigest === definitionDigest && !retryReason)
+      throw Error(`Предыдущая попытка не удалась: ${previousAttempt.failure?.reason || 'причина не записана'}. ` +
+        'Входы и план не изменились. Разберите причину и укажите --reason: что исправлено или почему повтор теперь обоснован. ' +
+        'Количество попыток не ограничено; повтор без нового основания не разрешён.')
     const attemptId = `R${String(task.attempts.length + 1).padStart(3, '0')}`
     const attempt = { id: attemptId, executor: task.executor, session: task.session,
       startedAt: now(), finishedAt: null, status: 'running',
       definitionDigest, inputDigest, responseRef: null,
+      ...(previousAttempt?.status === 'failed' && retryReason ? { retryReason } : {}),
       baseInputs: expandedTaskInputs(root, task)
         .filter(input => outputs.has(input.path) && existsSync(join(root, input.path)))
         .map(input => ({ path: input.path, sha256: sha(readFileSync(safeTaskPath(root, input.path))) })),
