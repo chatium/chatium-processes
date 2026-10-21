@@ -269,4 +269,3 @@ export function boardTesting(status) {
       ...(latestRunId ? { latestRunId, testedAt, testedCommit, limitations } : {}) })),
     findings: status.findings, runs: status.runs.slice(0, 100), totalRuns: status.runs.length }
 }
-
