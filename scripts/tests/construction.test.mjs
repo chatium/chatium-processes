@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createHash} from 'node:crypto'
-import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs'
+import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,realpathSync} from 'node:fs'
 import {join,dirname} from 'node:path'
 import {tmpdir} from 'node:os'
 import {spawnSync} from 'node:child_process'
@@ -18,7 +18,7 @@ function fixture(t){
   put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'running',revision:1,expectedOutputs:[{path:'demo/page.ts'}]})
   git('init','-q');git('config','user.email','test@example.invalid');git('config','user.name','Test');git('add','.');git('commit','-qm','Initial');git('remote','add','origin','https://example.invalid/s/source-git/repo')
   const state={commit:git('rev-parse','HEAD'),branch:git('branch','--show-current')}
-  const board={snapshot:{revision:1,snapshot:{...state,nodes:[{id:'page',progress:[]}]}}}
+  const board={snapshot:{revision:1,snapshot:{...state,processPath:'demo',nodes:[{id:'page',progress:[]}]}}}
   const calls=[]
   const execute=async(root,code)=>{calls.push(code);if(code.includes('readProcessBoardForAgent'))return board;return {saved:true}}
   return{root,put,git,map,state,board,calls,execute}
@@ -39,6 +39,8 @@ test('checkpoint publishes metadata, stable request ID and no working source; re
   f.calls.length=0;f.board.snapshot.snapshot.nodes[0].progress=[event.event]
   assert.equal((await syncBuildProgress(f.root,'demo',{execute:f.execute})).status,'synced');assert.equal(f.calls.length,1)
   assert.equal(readFileSync(join(f.root,'demo/tasks/W001.json'),'utf8'),before)
+  f.board.snapshot.snapshot.processPath='wrong-process';f.calls.length=0
+  assert.equal((await syncBuildProgress(f.root,'demo',{execute:f.execute})).status,'pending');assert.equal(f.calls.length,1);f.board.snapshot.snapshot.processPath='demo'
   const failed=await syncBuildProgress(f.root,'demo',{execute:async()=>{throw Error('network')}});assert.equal(failed.status,'pending');assert.equal(readFileSync(join(f.root,'demo/tasks/W001.json'),'utf8'),before)
 })
 test('only clean own workspace claims may be discarded after local revert',async t=>{
@@ -59,4 +61,25 @@ test('evidence includes code checks, excludes launch-only conditions and refuses
   assert.ok(changed.assessment.inputs.some(input=>input.path==='demo/page.ts'))
   f.put('demo/reviews/unrelated.md','Unrelated note')
   assert.ok(!collectBuildEvidence({root:f.root,slug:'demo',map:f.map,checks:[]}).assessment.inputs.some(input=>input.path==='demo/reviews/unrelated.md'))
+})
+
+test('a committed but unbuilt task reports failure through a healthy checkout of the same account',async t=>{
+  const f=fixture(t),host=f.root+'-sdk'
+  f.git('worktree','add','-b','sdk-host',host)
+  t.after(()=>{spawnSync('git',['worktree','remove','--force',host],{cwd:f.root});rmSync(host,{recursive:true,force:true})})
+  f.put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'failed',revision:2,attempts:[{failure:{reason:'Source Build failed'}}]})
+  f.git('add','.');f.git('commit','-qm','Unbuilt candidate')
+  const calls=[]
+  const execute=async(root,code,expected)=>{assert.equal(realpathSync(root),realpathSync(host));assert.equal(expected,f.state.commit);calls.push(code);return code.includes('readProcessBoardForAgent')?f.board:{saved:true}}
+  const result=await syncBuildProgress(f.root,'demo',{executionRoot:host,execute})
+  assert.equal(result.status,'synced');assert.notEqual(result.workingCommit,result.baseCommit);assert.deepEqual(result.discarded,[])
+  const input=JSON.parse(calls[1].match(/ctx, (.+)\)/)[1]);assert.equal(input.baseCommit,f.state.commit);assert.equal(input.branch,f.state.branch);assert.equal(input.event.state,'failed');assert.equal(input.event.reason,'Source Build failed')
+})
+test('a different-account or dirty SDK checkout is rejected before SDK execution',async t=>{
+  const f=fixture(t),other=fixture(t);other.git('remote','set-url','origin','https://other.invalid/s/source-git/repo')
+  let calls=0
+  const execute=async()=>{calls++;throw Error('must not run')}
+  assert.equal((await syncBuildProgress(f.root,'demo',{executionRoot:other.root,execute})).status,'pending');assert.equal(calls,0)
+  other.git('remote','set-url','origin','https://example.invalid/s/source-git/repo');other.put('uncommitted.txt','edit')
+  assert.equal((await syncBuildProgress(f.root,'demo',{executionRoot:other.root,execute})).status,'pending');assert.equal(calls,0)
 })
