@@ -71,8 +71,9 @@ test('a committed but unbuilt task reports failure through a healthy checkout of
   f.git('add','.');f.git('commit','-qm','Unbuilt candidate')
   const calls=[]
   const execute=async(root,code,expected)=>{assert.equal(realpathSync(root),realpathSync(host));assert.equal(expected,f.state.commit);calls.push(code);return code.includes('readProcessBoardForAgent')?f.board:{saved:true}}
-  const result=await syncBuildProgress(f.root,'demo',{executionRoot:host,execute})
-  assert.equal(result.status,'synced');assert.notEqual(result.workingCommit,result.baseCommit);assert.deepEqual(result.discarded,[])
+  const http=(root,commit,method,args,options)=>{assert.equal(realpathSync(root),realpathSync(f.root));assert.equal(realpathSync(options.executionRoot),realpathSync(host));assert.deepEqual(options.plugins,{});return execute(host,`import { ${method} } from '@start/sdk'\nreturn await ${method}(ctx, ${args.map(v=>JSON.stringify(v)).join(', ')})`,commit)}
+  const result=await syncBuildProgress(f.root,'demo',{executionRoot:host,execute,http})
+  assert.equal(result.status,'synced',JSON.stringify(result));assert.notEqual(result.workingCommit,result.baseCommit);assert.deepEqual(result.discarded,[])
   const input=JSON.parse(calls[1].match(/ctx, (.+)\)/)[1]);assert.equal(input.baseCommit,f.state.commit);assert.equal(input.branch,f.state.branch);assert.equal(input.event.state,'failed');assert.equal(input.event.reason,'Source Build failed')
 })
 test('a different-account or dirty SDK checkout is rejected before SDK execution',async t=>{

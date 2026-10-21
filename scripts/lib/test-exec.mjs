@@ -34,20 +34,26 @@ export function testExec(root, commit, code) {
 
 const gatewayPath = '/app/start/process-map/api/testingGateway~control'
 export function testSdk(root, commit, method, ...args) {
+  return scopedSdk(root, commit, method, args)
+}
+
+/** The preview branch is established by the platform HTTP request, never by mutating ctx.env. */
+export function scopedSdk(root, commit, method, args, { executionRoot = root, plugins: selectedPlugins } = {}) {
   if (!/^[A-Za-z]+$/.test(method)) throw Error('Некорректный метод SDK.')
   const privateDir = resolve(root, git(root, ['rev-parse', '--git-common-dir']))
   const path = join(privateDir, 'process-test-plugins.json')
-  const plugins = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
+  const plugins = selectedPlugins ?? (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {})
   const branch = gitState(root).branch
   if (/[,;=\s\u0000-\u001f]/.test(branch)) throw Error('Ветка несовместима с селектором preview.')
   const remote = new URL(git(root, ['remote', 'get-url', 'origin']))
   if (remote.protocol !== 'https:' || !/^\/s\/(git|source-git)\//.test(remote.pathname)) throw Error('Нужен origin Source Git аккаунта.')
+  if (git(executionRoot, ['remote', 'get-url', 'origin']) !== remote.href) throw Error('SDK checkout должен принадлежать тому же Source Git аккаунту.')
   const sessionFile = join(privateDir, 'process-test-http-session.json')
   let session = existsSync(sessionFile) ? JSON.parse(readFileSync(sessionFile, 'utf8')) : null
   const http = input => spawnSync(process.execPath, [fileURLToPath(new URL('./test-http.mjs', import.meta.url))], { cwd: root,
     input: JSON.stringify(input), encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
   if (!session || session.origin !== remote.origin || session.expiresAt < Date.now()) {
-    const value = testExec(root, commit, `import { authenticateCurrentUserInNewDomainOrBrowser } from '@app/auth'\nreturn {url: await authenticateCurrentUserInNewDomainOrBrowser(ctx, ${JSON.stringify(remote.hostname)}, ${JSON.stringify(gatewayPath)})}`)
+    const value = testExec(executionRoot, commit, `import { authenticateCurrentUserInNewDomainOrBrowser } from '@app/auth'\nreturn {url: await authenticateCurrentUserInNewDomainOrBrowser(ctx, ${JSON.stringify(remote.hostname)}, ${JSON.stringify(gatewayPath)})}`)
     const authenticated = http({ url: new URL(gatewayPath, remote.origin).href, authUrl: value.url })
     if (authenticated.error || authenticated.status !== 0) throw Error('Не удалось подтвердить HTTP-сессию текущего разработчика.')
     session = { cookie: JSON.parse(authenticated.stdout).cookie, origin: remote.origin, expiresAt: Date.now() + 480000 }

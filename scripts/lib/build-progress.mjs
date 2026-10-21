@@ -5,12 +5,13 @@ import { git, gitState, assertLocalState } from './git-state.mjs'
 import { loadTasks } from './tasks.mjs'
 import { parseYaml } from './yaml.mjs'
 import { startExec } from './snapshot.mjs'
+import { constructionSdk } from './construction-sdk.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const inside = (path, source) => typeof source === 'string' && (path === source.replace(/\/$/, '') || path.startsWith(source.replace(/\/$/, '') + '/'))
 
 /** Metadata only. A checkpoint can invalidate acceptance, never certify a build. */
-export async function syncBuildProgress(root, slug, { execute = startExec, executionRoot = root } = {}) {
+export async function syncBuildProgress(root, slug, { execute = startExec, executionRoot = root, http } = {}) {
   const pending = [], synced = [], discarded = []
   try {
     const origin = git(root, ['remote', 'get-url', 'origin'])
@@ -22,10 +23,10 @@ export async function syncBuildProgress(root, slug, { execute = startExec, execu
       throw Error('SDK checkout должен принадлежать тому же Source Git аккаунту.')
     const state = gitState(root), hostState = gitState(executionRoot), workspaceId = hash(root).slice(0, 32)
     if (executionRoot !== root) assertLocalState(executionRoot, hostState)
-    const call = code => execute(executionRoot, code, hostState.commit)
+    const call = (method, args) => constructionSdk(root, method, args, { executionRoot, execute, http })
     const map = parseYaml(readFileSync(join(root, slug, 'process.yaml'), 'utf8'))
     const tasks = loadTasks(root, slug).tasks.filter(task => ['design', 'build'].includes(task.stage))
-    const board = await call(`import { readProcessBoardForAgent } from '@start/sdk'\nreturn await readProcessBoardForAgent(ctx, ${JSON.stringify(slug)}, ${JSON.stringify(state.branch)})`)
+    const board = await call('readProcessBoardForAgent', [slug, state.branch])
     if (!board?.snapshot || board.snapshot.snapshot.branch !== state.branch || board.snapshot.snapshot.processPath !== slug)
       throw Error('Нет опубликованной карты выбранной ветки процесса.')
     const baseCommit = board.snapshot.snapshot.commit
@@ -42,7 +43,7 @@ export async function syncBuildProgress(root, slug, { execute = startExec, execu
       const current = gitState(root)
       if (current.branch !== state.branch || current.commit !== state.commit) throw Error('Ветка изменилась во время синхронизации.')
       if (executionRoot !== root) assertLocalState(executionRoot, hostState)
-      return call(`import { writeProcessBuildProgress } from '@start/sdk'\nreturn await writeProcessBuildProgress(ctx, ${JSON.stringify(input)})`)
+      return call('writeProcessBuildProgress', [input])
     }
     const events = new Map(board.snapshot.snapshot.nodes.flatMap(node => node.progress || []).map(event => [event.taskId, event]))
     for (const task of local) {
