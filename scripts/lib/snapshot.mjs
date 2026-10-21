@@ -6,7 +6,8 @@ import { join, resolve, sep } from 'node:path'
 import { isDir, isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
-import { STAGE_CHECKS } from './snapshot-stage.mjs'
+import { collectBuildEvidence } from './build-evidence.mjs'
+import { resolveBuildState } from './build-state.mjs'
 
 function safePath(root, value) {
   if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Некорректный относительный путь источника снимка.')
@@ -62,29 +63,29 @@ function boundedMessages(messages) {
   return values.slice(0, 99).map(value => String(value || 'Пустое сообщение').slice(0, 2000))
     .concat(values.length > 99 ? [`И ещё ${values.length - 99} замечаний; полный вывод — в check.`] : [])
 }
-export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString(), allowInvalidMap = false }) {
+export function buildSnapshot({ root, slug, map, checks, branch, commit, checkedAt = new Date().toISOString(), allowInvalidMap = false, buildEvidence }) {
   if (!map || !Array.isArray(map.stages) || !Array.isArray(map.nodes) ||
       (!allowInvalidMap && checks.some(c => c.id === 'map' && !c.ok))) throw Error('Нельзя публиковать снимок с некорректной картой процесса.')
   if (checks.length > 100) throw Error('Снимок поддерживает не более 100 проверок. Сгруппируйте проверки до публикации.')
   const rawNeeds = map.needsInput ?? []
   if (!Array.isArray(rawNeeds) || rawNeeds.length > 100) throw Error('needsInput: нужен список не более 100 вопросов.')
-  const needsInput = rawNeeds.map(item => typeof item === 'string' ? { title: item } : { title: item.title, ...(item.nodeId ? { nodeId: item.nodeId } : {}) })
-  const stableChecks = checks.filter(check => !STAGE_CHECKS.has(check.id))
-  const allErrors = stableChecks.flatMap(c => c.errors)
+  const needsInput = rawNeeds.map(item => typeof item === 'string' ? { title: item } : { title: item.title, ...(item.nodeId ? { nodeId: item.nodeId } : {}), ...(item.blocks ? { blocks: item.blocks } : {}) })
+  for (const node of map.nodes) safePath(root, node.source)
+  const evidence = buildEvidence || collectBuildEvidence({ root, slug, map, checks })
+  const build = { ...evidence.assessment, checkedCommit: commit, checkedAt }
   const nodes = map.nodes.map(node => {
-    const source = safePath(root, node.source), present = isFile(source) || isDir(source)
+    const source = safePath(root, node.source)
     const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
     if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
-    const localErrors = allErrors.filter(e => e.includes(node.source.replace(/\/$/, '')) || e.includes(`«${node.id}»`))
-    const needed = needsInput.filter(i => i.nodeId === node.id)
-    const status = !present ? 'missing' : localErrors.length ? 'error' : needed.length ? 'needs-input' : 'built'
+    const facts = evidence.nodes.get(node.id)
+    const state = resolveBuildState(facts, build.gates)
     const letters = node.kind === 'series' && isDir(source) ? walk(source).filter(p => p.endsWith('.message.yaml')).sort().map(file => {
       safePath(root, rel(root, file))
       try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
     }) : undefined
-    return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source, status,
-      reason: !present ? 'Исходники ещё не созданы' : localErrors[0] || needed[0]?.title || (stableChecks.every(c => c.ok) ? 'Исходники собраны; проверки кода пройдены' : 'Исходники собраны; есть общие замечания проверки'),
+    return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source,
+      ...state, build: facts,
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {
@@ -102,7 +103,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }
   })
   return { version: 1, processPath: slug, ...(map.knowledge ? { knowledge: map.knowledge } : {}),
-    title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput,
+    title: map.title, branch, commit, checkedAt, stages: map.stages, nodes, links, needsInput, build,
     checks: checks.map(item => ({ ...item, errors: boundedMessages(item.errors), warnings: boundedMessages(item.warnings) })) }
 }
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {

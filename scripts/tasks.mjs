@@ -11,6 +11,7 @@ import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
 import { parseYaml } from './lib/yaml.mjs'
+import { syncBuildProgress } from './lib/build-progress.mjs'
 import { acceptanceErrors, createTasksBatch, loadTasks, parseTaskPlan, safeTaskPath,
   creativeNode, creativeOutput, creativeTaskChain, expandedTaskInputs, specialistProposal,
   taskDefinitionDigest, taskInputDigest, taskReadiness, taskReassessmentStatus, writeTask } from './lib/tasks.mjs'
@@ -48,7 +49,9 @@ const root = findRoot(options.root)
 const now = () => new Date().toISOString()
 const sha = content => createHash('sha256').update(content).digest('hex')
 const digest = value => sha(JSON.stringify(value))
-const show = value => {
+const mutatingCommands = new Set(['create', 'create-batch', 'start', 'verify-base', 'step', 'bind', 'ask', 'resolve', 'record', 'accept', 'fail', 'reopen', 'cancel', 'reassess-record'])
+const show = async value => {
+  if (mutatingCommands.has(command)) value = { ...value, boardSync: await syncBuildProgress(root, slug) }
   // Команды ниже завершаются сразу после вывода. Асинхронная запись console.log
   // в медленный pipe могла обрывать большой JSON при process.exit().
   const output = Buffer.from(JSON.stringify(value, null, 2) + '\n')
@@ -133,7 +136,7 @@ async function creativePrerequisites(task, all, plan) {
 try {
   if (command === 'status') {
     const report = taskReadiness({ root, slug, stage: options.stage || 'build' })
-    show(report)
+    await show(report)
     process.exit(report.errors.length ? 1 : 0)
   }
   if (command === 'reassess-prepare') {
@@ -159,30 +162,30 @@ try {
       'changedInputs:[{path,reason}],criteria:[{id,reason}]}]}.',
       'Перенеси digest и версии из пакета без изменения. Содержательную уместность объясни своими словами.',
     ].join('\n') + '\n', { flag: 'wx' })
-    show({ packet: packetPath, prompt: promptPath, packetDigest: packet.packetDigest,
+    await show({ packet: packetPath, prompt: promptPath, packetDigest: packet.packetDigest,
       eligible: packet.eligible.map(item => item.taskId), ineligible: packet.ineligible })
     process.exit(0)
   }
   if (command === 'reassess-record') {
     const result = recordTaskReassessment({ root, slug, report: input() })
-    show(result)
+    await show(result)
     process.exit(0)
   }
   if (command === 'create') {
     const task = input()
     if (id && id !== task.id) throw Error('ID в команде и файле различаются.')
     const [{ path }] = createTasksBatch(root, slug, [task])
-    show({ created: task.id, path, next: `tasks.mjs context ${slug} ${task.id}` })
+    await show({ created: task.id, path, next: `tasks.mjs context ${slug} ${task.id}` })
     process.exit(0)
   }
   if (command === 'create-batch') {
     const created = createTasksBatch(root, slug, input())
-    show({ created, next: `tasks.mjs status ${slug}` })
+    await show({ created, next: `tasks.mjs status ${slug}` })
     process.exit(0)
   }
   if (!id) throw Error('Нужен ID рабочей задачи W….')
   const { task, all, plan, planTask } = state()
-  if (command === 'context') { show(context(task, planTask)); process.exit(0) }
+  if (command === 'context') { await show(context(task, planTask)); process.exit(0) }
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
     const markedProcess = existsSync(join(root, slug, '.workspace.json'))
@@ -231,7 +234,7 @@ try {
     const previous = task.revision
     task.latestAttempt = attemptId; task.attempts.push(attempt); task.status = 'running'
     save(task, previous)
-    show({ attemptId, inputDigest, context: context(task, planTask) })
+    await show({ attemptId, inputDigest, context: context(task, planTask) })
     process.exit(0)
   }
   if (command === 'verify-base') {
@@ -244,7 +247,7 @@ try {
     const previous = task.revision
     attempt.baseVerifiedAt = now()
     save(task, previous)
-    show({ attemptId: attempt.id, checked: attempt.baseInputs || [], baseVerifiedAt: attempt.baseVerifiedAt })
+    await show({ attemptId: attempt.id, checked: attempt.baseInputs || [], baseVerifiedAt: attempt.baseVerifiedAt })
     process.exit(0)
   }
   if (command === 'prepare') {
@@ -279,7 +282,7 @@ try {
     const prompt = specialistPrompt(contract, packetPath)
     writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n', { flag: 'wx' })
     writeFileSync(promptPath, prompt, { flag: 'wx' })
-    show({ packet: packetPath, prompt: promptPath, attemptId: attempt.id,
+    await show({ packet: packetPath, prompt: promptPath, attemptId: attempt.id,
       competencies: specialistManifest(contract), materials: materials.map(m => m.path),
       next: 'Передайте ВЕСЬ текст prompt.md одному subagent, не заменяйте его просьбой прочитать файл. В DSH: continuable:true, run_in_background:true; после agentId выполните tasks bind.' })
     process.exit(0)
@@ -292,7 +295,7 @@ try {
     const previous = task.revision
     step.status = options.status; step.reason = options.status === 'skipped' ? options.reason : null
     save(task, previous)
-    show({ step: step.id, status: step.status })
+    await show({ step: step.id, status: step.status })
     process.exit(0)
   }
   if (command === 'bind') {
@@ -301,7 +304,7 @@ try {
     task.session = { harness: options.harness || 'dsh', agentId: options['agent-id'] }
     task.attempts.at(-1).session = task.session
     save(task, previous)
-    show({ session: task.session })
+    await show({ session: task.session })
     process.exit(0)
   }
   if (command === 'ask') {
@@ -317,7 +320,7 @@ try {
     const attempt = task.attempts.at(-1)
     attempt.status = 'needs-input'; attempt.finishedAt = now()
     task.status = 'needs-input'; save(task, previous)
-    show({ status: task.status, questions: task.questions.filter(q => q.status === 'open') })
+    await show({ status: task.status, questions: task.questions.filter(q => q.status === 'open') })
     process.exit(0)
   }
   if (command === 'resolve') {
@@ -335,7 +338,7 @@ try {
     question.status = 'resolved'
     if (!task.questions.some(q => q.status === 'open')) task.status = 'ready-to-resume'
     save(task, previous)
-    show({ status: task.status, question: question.id })
+    await show({ status: task.status, question: question.id })
     process.exit(0)
   }
   if (command === 'record') {
@@ -377,7 +380,7 @@ try {
     task.result = result; task.status = 'result-ready'
     attempt.status = 'result-ready'; attempt.finishedAt = now()
     save(task, previous)
-    show({ status: task.status, resultDigest: digest(result) })
+    await show({ status: task.status, resultDigest: digest(result) })
     process.exit(0)
   }
   if (command === 'accept') {
@@ -393,7 +396,7 @@ try {
       definitionDigest: attempt.definitionDigest, inputDigest: attempt.inputDigest,
       resultDigest: digest(task.result), reason: 'Все критерии подтверждены актуальным результатом' }
     task.status = 'done'; save(task, previous)
-    show({ status: task.status, acceptance: task.acceptance })
+    await show({ status: task.status, acceptance: task.acceptance })
     process.exit(0)
   }
   if (command === 'fail') {
@@ -404,7 +407,7 @@ try {
     attempt.status = 'failed'; attempt.finishedAt = now(); attempt.failure = failure
     task.status = 'failed'; task.result = null; task.acceptance = null
     save(task, previous)
-    show({ status: task.status, attemptId: attempt.id, failure })
+    await show({ status: task.status, attemptId: attempt.id, failure })
     process.exit(0)
   }
   if (command === 'reopen') {
@@ -418,7 +421,7 @@ try {
     task.acceptance = null; task.result = null; task.status = 'queued'
     task.steps = task.steps.map(step => ({ ...step, status: 'todo', reason: null }))
     save(task, previous)
-    show({ status: task.status, reopened: task.reopens.length, next: `tasks.mjs start ${slug} ${id}` })
+    await show({ status: task.status, reopened: task.reopens.length, next: `tasks.mjs start ${slug} ${id}` })
     process.exit(0)
   }
   if (command === 'cancel') {
@@ -427,7 +430,7 @@ try {
     if (!cancellation.reason || !(cancellation.replacementTaskIds?.length || cancellation.decisionRef)) throw Error('Нужны причина и судьба требования.')
     const previous = task.revision
     task.cancellation = cancellation; task.status = 'cancelled'; save(task, previous)
-    show({ status: task.status, cancellation })
+    await show({ status: task.status, cancellation })
     process.exit(0)
   }
   throw Error(`Неизвестная команда ${command}.`)

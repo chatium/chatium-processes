@@ -423,6 +423,30 @@ export function creativeTaskChain({ root, slug, node, tasks }) {
   return { errors, experts, specTask, implementations }
 }
 
+/** One acceptance verdict for both workflow gates and the process board. */
+export function taskAcceptanceState(root, slug, task, plan, allTasks, reviewCache = new Map()) {
+  if (task.status !== 'done') return {
+    state: task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'cancelled' : 'pending',
+    errors: [],
+  }
+  const errors = []
+  try {
+    const reassessment = taskReassessmentStatus(root, slug, task)
+    const evidenceInputDigest = reassessment.valid && reassessment.current ?
+      task.acceptance?.inputDigest : taskInputDigest(root, task)
+    errors.push(...acceptanceErrors(root, slug, task, plan, allTasks, reviewCache, evidenceInputDigest))
+    const currentDefinition = taskDefinitionDigest(task, plan.find(p => p.id === task.planTask))
+    if (task.acceptance?.definitionDigest !== currentDefinition) errors.push('изменилось задание/критерии после приёмки')
+    if (!reassessment.valid || !reassessment.current)
+      errors.push(`изменились входные материалы после приёмки${reassessment.reason ? ` (${reassessment.reason})` : ''}`)
+    if (!task.result || task.acceptance?.resultDigest !== digest(task.result)) errors.push('результат изменён после приёмки')
+    for (const output of task.result?.outputs || []) if (fileHash(root, output.path) !== output.sha256) errors.push(`изменён результат ${output.path}`)
+    for (const criterion of task.result?.criteriaResults || []) for (const evidence of criterion.evidence || [])
+      if (fileHash(root, evidence.path) !== evidence.sha256) errors.push(`изменено подтверждение ${evidence.path}`)
+  } catch (error) { errors.push(error.message) }
+  return { state: errors.length ? 'stale' : 'accepted', errors }
+}
+
 export function taskReadiness({ root, slug, stage = 'build' }) {
   const planPath = safeTaskPath(root, `${slug}/PLAN.md`, { mayBeMissing: true })
   const plan = existsSync(planPath) ? parseTaskPlan(readFileSync(planPath, 'utf8')) : []
@@ -476,6 +500,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
     stack.delete(id)
   }
   for (const id of byId.keys()) visit(id)
+  const structuralErrors = [...errors]
   for (const task of loaded.tasks) {
     const due = TASK_STAGES.indexOf(task.stage) <= TASK_STAGES.indexOf(stage)
     const issue = message => (due ? errors : warnings).push(`${task.id}: ${message}`)
@@ -484,19 +509,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
       continue
     }
     if (task.status !== 'done') { issue(`задача не завершена (${task.status})`); continue }
-    try {
-      const reassessment = taskReassessmentStatus(root, slug, task)
-      const evidenceInputDigest = reassessment.valid && reassessment.current ?
-        task.acceptance?.inputDigest : taskInputDigest(root, task)
-      for (const error of acceptanceErrors(root, slug, task, plan, loaded.tasks, reviewCache, evidenceInputDigest)) issue(error)
-      const currentDefinition = taskDefinitionDigest(task, plan.find(p => p.id === task.planTask))
-      if (task.acceptance?.definitionDigest !== currentDefinition) issue('изменилось задание/критерии после приёмки')
-      if (!reassessment.valid || !reassessment.current)
-        issue(`изменились входные материалы после приёмки${reassessment.reason ? ` (${reassessment.reason})` : ''}`)
-      if (!task.result || task.acceptance?.resultDigest !== digest(task.result)) issue('результат изменён после приёмки')
-      for (const o of task.result?.outputs || []) if (fileHash(root, o.path) !== o.sha256) issue(`изменён результат ${o.path}`)
-      for (const c of task.result?.criteriaResults || []) for (const e of c.evidence || []) if (fileHash(root, e.path) !== e.sha256) issue(`изменено подтверждение ${e.path}`)
-    } catch (e) { issue(e.message) }
+    for (const error of taskAcceptanceState(root, slug, task, plan, loaded.tasks, reviewCache).errors) issue(error)
   }
   for (const p of plan) {
     const due = p.criteria.filter(c => TASK_STAGES.indexOf(c.stage) <= TASK_STAGES.indexOf(stage))
@@ -510,7 +523,7 @@ export function taskReadiness({ root, slug, stage = 'build' }) {
         p.work.length && p.work.every(id => byId.get(id)?.status === 'done'))
       errors.push(`${p.id}: все карточки приняты, но задача в PLAN.md остаётся открытой`)
   }
-  return { enabled: true, plan, tasks: loaded.tasks, errors, warnings }
+  return { enabled: true, plan, tasks: loaded.tasks, errors, warnings, structuralErrors }
 }
 
 export function writeTask(root, slug, task, expectedRevision = null) {
