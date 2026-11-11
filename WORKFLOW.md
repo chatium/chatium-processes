@@ -58,6 +58,10 @@ CRM-метка «новый» может относиться ко всем за
 Эти правила действуют в вопросах, согласованиях, сообщениях о ходе работы,
 объяснениях ошибок и итоговых ответах, а также в материалах для клиента.
 
+Последняя строка каждого сообщения агента владельцу в рабочем чате после появления доски —
+`[Доска процесса](URL)` по [обязательному правилу общения](SKILL.md#общение-с-владельцем-бизнеса).
+Открытие панели и прежняя ссылка в переписке не заменяют эту строку.
+
 - **Объясняй через бизнес и путь клиента:** что увидит человек, что произойдёт
   после его действия, какой результат получит бизнес. Используй названия
   из его материалов: заявка, запись, заказ, оплата, письмо, менеджер.
@@ -391,7 +395,7 @@ node .agents/skills/chatium-processes/scripts/context.mjs <process> --no-cards
 | `node .agents/skills/chatium-processes/scripts/owner-decisions.mjs prepare <process> --kind plan --board-revision N` | Фиксирует показанный владельцу объём; после его ответа вызови `record` с исходным сообщением |
 | `node .agents/skills/chatium-processes/scripts/agent-review.mjs prepare <process>` | Пакет независимой проверки инструкций и связей помощников; ответ записывается через `record` по [процедуре](build/agent-review.md) |
 | `node .agents/skills/chatium-processes/scripts/agent-review.mjs status <process>` | Актуальность смыслового ревью помощников перед тестовым прогоном |
-| `node .agents/skills/chatium-processes/scripts/test.mjs <process> run --case ID --scope FILE` | Прогон сценария через SDK; `status`, `show --run ID`, `logs --run ID`, `cleanup --run ID`, `record --case ID --evidence FILE`, `finding --evidence FILE` — единый цикл тестирования |
+| `node .agents/skills/chatium-processes/scripts/test.mjs <process> run --case ID --scope FILE` | Прогон сценария через SDK, включая свои app.function через `process.call` / `process.read` по [контракту](formats/test-records.md); `test.blocked(reason)` сохраняет препятствие без удаления сценария. `status`, `show`, `logs`, `cleanup`, `record`, `finding` — единый цикл тестирования |
 | `node .agents/skills/chatium-processes/scripts/agents-runtime.mjs <process> --route-tests FILE --json` | После публикации сверяет исполненный коммит, конфиги, явно выбранную Git-ветку, ID, инструменты и маршрут; тестовые контакты читает из файла вне Git-аккаунта и не записывает в результат. Сохраняй очищенный вывод как артефакт соответствующего сценария; само чтение не доказывает диалог и эффекты. Без общего канала `--route-tests` не нужен |
 | `node .agents/skills/chatium-processes/scripts/board.mjs read <process>` | Весь доступный контекст: снимок процесса, ручные элементы, связи, изображения и поручения |
 | `node .agents/skills/chatium-processes/scripts/board.mjs material <process> --from FILE --element ID` | Проверяет доступ к изображению и возвращает URL для просмотра |

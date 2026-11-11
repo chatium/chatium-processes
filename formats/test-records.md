@@ -131,6 +131,7 @@ node <scripts>/test.mjs demo cleanup --run run-...
 `scenarios/*.mjs` экспортирует `default async function(test)`. Доступны:
 
 - `operation(name, input, requestId)` — операция с обязательным устойчивым ID;
+- `blocked(reason)` — завершить попытку как blocked с конкретным препятствием;
 - `attempt(name, input, requestId)` — то же, но возвращает blocked/uncertain для отрицательных проверок;
 - `check(criterion, ok, actual)` — проверка критерия из YAML;
 - `observe(title, summary)`, `ref(module, kind, id)`, `limitation(text)`;
@@ -148,6 +149,91 @@ node <scripts>/test.mjs demo cleanup --run run-...
 с другими входами блокируется. При pending/uncertain сначала прочитай состояние
 по сохранённым ID; новый requestId не является способом повторить неизвестную
 отправку. Прямой запуск автоматизации и запуск тестовым событием — разные сценарии.
+
+### Собственный серверный код процесса
+
+Для бронирования, отмены, переноса и других собственных операций используй
+`process.call`, `process.read`, `process.diagnostics`, `process.cleanup`.
+Это возможности Start, не отдельный устанавливаемый плагин. Сначала проверь
+их наличие через `getProcessTestCapabilities`; отсутствие возможности —
+блокировка конкретного сценария, а не отсутствие всех серверных тестов.
+
+Сценарий объявляет точные account `app.function` и закрепляет их исходники:
+
+```yaml
+capabilities: [process.call, process.read, sender.transport.send]
+sources:
+  - demo/tests/handlers.ts
+  - demo/server/bookings.ts
+handlers:
+  - {id: book, source: demo/tests/handlers.ts, route: /book, effect: write}
+  - {id: state, source: demo/tests/handlers.ts, route: /state, effect: read}
+  - {id: cleanup, source: demo/tests/handlers.ts, route: /cleanup, effect: cleanup}
+```
+
+В `.mjs`: `await test.operation('process.call', {handler: 'book', params: {...}}, 'book:one')`;
+для наблюдения — `process.read` с `handler: 'state'`. Диагностика и очистка
+имеют обычные имена `process.diagnostics` / `process.cleanup`; штатный finally
+закрывает прогон и вызывает очистку с ID `cleanup:process` и пустым input.
+
+Обёртка вызывает настоящий бизнес-обработчик, не копию его логики. Контракт входа:
+
+```ts
+import { requireProcessTestHandler, registerProcessTestResource,
+  type ProcessTestHandlerRequest } from '@start/sdk'
+import { createBooking, removeOwnedTestBooking } from '../server/bookings'
+
+export const book = app.function('/book', async (ctx, request: ProcessTestHandlerRequest, callerInfo) => {
+  const scope = await requireProcessTestHandler(ctx, request, callerInfo)
+  const booking = await createBooking(ctx, request.input, {
+    testContext: request.testContext, testRunId: scope.runId,
+  })
+  await registerProcessTestResource(ctx, request.testContext,
+    {module: 'process', kind: 'booking', id: booking.id})
+  return {id: booking.id}
+})
+
+export const cleanup = app.function('/cleanup', async (ctx, request: ProcessTestHandlerRequest, callerInfo) => {
+  const scope = await requireProcessTestHandler(ctx, request, callerInfo)
+  for (const ref of scope.resources.filter(r => r.module === 'process' && r.kind === 'booking'))
+    await removeOwnedTestBooking(ctx, ref.id, scope.runId)
+  return {cleaned: true}
+})
+```
+
+`createBooking` здесь — существующая функция процесса с явным тестовым режимом;
+она обязана проверять актуальность контекста перед эффектами, записывать
+принадлежность run и передавать контекст в jobs/SDK. `removeOwnedTestBooking`
+перед удалением проверяет run-маркер в самой записи; отсутствие уже удалённой
+фикстуры допустимо. Очистка также находит записи по run-маркеру на случай
+ошибки между созданием записи и регистрацией ресурса. Никогда не удаляй по
+одному ID из тела запроса. Read-handler читает только данные своего run.
+
+Передай в guard настоящий третий аргумент `callerInfo` от платформы.
+Dispatcher проверяет scope, объявленный handler, исходники и ветку; helper
+отклоняет прямой вызов извне Start. Account-код остаётся доверенным кодом
+разработчика, **не sandbox**: декларация не перехватывает произвольный Heap,
+HTTP, платёж или отправку. Проверь общий бизнес-обработчик и все его эффекты;
+для модулей используй guarded SDK, для своих таблиц — run-маркер и учёт
+ресурсов. Неподдержанный эффект блокируй; не вызывай боевой HTTP-маршрут
+вместо адаптера. Объяви все значимые зависимости handler в sources.
+
+При исключении после вызова запись остаётся uncertain: `reconcile:true`
+не исполняет handler повторно. Выясни исход через `process.read` и диагностику;
+при необходимости используй существующее признание неопределённости перед
+очисткой. Изменение закреплённых исходников блокирует и чтение handler, и
+вызов cleanup-кода; диагностика сохранённых квитанций остаётся доступной.
+
+### Неполная реализация сценария
+
+Сначала создай реальные `.mjs` для каждого объявленного runtime-case.
+Если проверке мешает внешний фактор, сохрани небольшой сценарий
+`export default async test => test.blocked('Конкретная причина и что нужно для продолжения')`
+и запусти его штатной командой. Это фиксирует blocked в истории и на доске.
+Не удаляй обязательные runtime-case, не меняй их на browser и не ослабляй
+критерии ради доступного инструмента. Браузерные проверки добавляются отдельно.
+Обоснованное изменение объёма требует решения владельца, а не исчезновения
+непроверенного обязательства.
 
 В конце команды прогон закрывается, исполнения/цепочки останавливаются,
 тестовые записи убираются разрешённым для модуля способом. Доставка уже принятого

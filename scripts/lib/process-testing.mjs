@@ -69,6 +69,14 @@ export function validatePlan(value, { slug, map } = {}) {
     item.sources.forEach(relativeTestPath); unique(item.sources, 'Исходники')
     if (slug && item.sources.some(p => p.startsWith(`${slug}/tests/runs/`) || p.startsWith(`${slug}/tests/artifacts/`) || p === `${slug}/tests/findings.yaml` || p === `${slug}/tests/index.json`)) fail('Результаты и замечания не могут быть входными исходниками теста.')
     list(item.capabilities ?? [], 'Возможности').forEach(x => text(x, 'Возможность', 100))
+    const handlers = list(item.handlers ?? [], 'Функции процесса', 50)
+    for (const handler of handlers) {
+      object(handler, 'Функция процесса'); id(handler.id, 'ID функции'); relativeTestPath(handler.source)
+      if ((slug && !handler.source.startsWith(`${slug}/`)) || !/\.tsx?$/.test(handler.source) || !item.sources.includes(handler.source)) fail('Исходник функции процесса должен быть внутри процесса и в sources сценария.')
+      if (!['read', 'write', 'cleanup'].includes(handler.effect) || typeof handler.route !== 'string' || !handler.route.startsWith('/') || handler.route.length > 200 || /[?#\\\s\u0000-\u001f]/.test(handler.route) || handler.route.includes('..')) fail('Функция процесса: нужны effect read/write/cleanup и имя app.function route, не URL.')
+    }
+    unique(handlers.map(h => h.id), 'Функции процесса')
+    if (handlers.some(h => h.effect === 'write') && !handlers.some(h => h.effect === 'cleanup')) fail('Запись через функцию процесса требует идемпотентную cleanup-функцию.')
     if (item.kind === 'runtime') {
       relativeTestPath(item.script)
       if (slug && (!item.script.startsWith(`${slug}/tests/scenarios/`) || !item.script.endsWith('.mjs'))) fail('Скрипт сценария должен находиться в tests/scenarios и иметь расширение .mjs.')
@@ -93,7 +101,13 @@ export function readTestPlan(root, slug, map) {
 /** Hash the case, script and explicit dependency closure, never run reports or unrelated cases. */
 export function testInputs(root, slug, scenario) {
   const paths = [...new Set([`${slug}/.workspace.json`, ...scenario.sources, ...(scenario.script ? [scenario.script] : [])])].sort()
-  const files = paths.map(path => ({ path, sha256: hash(read(root, path)) }))
+  const files = paths.map(path => {
+    try { return { path, sha256: hash(read(root, path)) } }
+    catch (error) {
+      if (path === scenario.script && error.code === 'ENOENT') throw Error(`Нет файла сценария ${path}. Создайте исполняемый сценарий; при внешнем препятствии сохраните попытку через test.blocked(reason). Не удаляйте обязательный сценарий из плана.`)
+      throw error
+    }
+  })
   return { caseSha256: hash(canonicalTestJson(scenario)), files }
 }
 
