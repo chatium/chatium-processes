@@ -153,3 +153,17 @@ test('test plan numbers and dates use the same js-yaml JSON schema as Start',t=>
  assert.equal(actual.conditions[0],'2026-10-17');assert.equal(actual.timeoutMs,1000);assert.equal(actual.probeCount,3);assert.equal(actual.probeUnderscore,'1_000')
  assert.equal(canonicalTestJson(actual),canonicalTestJson(scenario))
 })
+
+test('account handlers pin their source and require cleanup; a missing scenario is not an excuse to remove its case', t => {
+  const f = fixture(t)
+  const handler = { id: 'book', source: 'demo/handler.ts', route: '/book', effect: 'write' }
+  const cleanup = { ...handler, id: 'cleanup', route: '/cleanup', effect: 'cleanup' }
+  const plan = {version: 1, cases: [{...f.scenario, handlers: [handler, cleanup]}]}
+  assert.equal(validatePlan(plan, {slug:'demo'}).cases[0].handlers.length, 2)
+  for (const patch of [{source:'other/handler.ts'}, {source:'demo/../handler.ts'}, {route:'https://example.invalid/book'}, {effect:'send'}]) {
+    assert.throws(() => validatePlan({version:1,cases:[{...f.scenario,handlers:[{...handler,...patch},cleanup]}]}, {slug:'demo'}))
+  }
+  assert.throws(() => validatePlan({version:1,cases:[{...f.scenario,handlers:[handler]}]}, {slug:'demo'}), /cleanup/)
+  rmSync(join(f.root, f.scenario.script))
+  assert.throws(() => testInputs(f.root, 'demo', f.scenario), /test.blocked.*Не удаляйте/)
+})
