@@ -100,7 +100,14 @@ export function makeCodeReviewPacket({ root, slug }) {
     question: 'Подготовлена ли тестовая оплата без риска списания через боевого провайдера?',
     lookFor: 'Для каждого тестового вызова runAttemptPayment проверь, что реальный providerId найден через @pay/sdk для ключа pay:sandbox, совпадает с найденным провайдером и передан явно. Без providerId Pay выбирает провайдера по умолчанию. Песочница может быть скрыта из списка; при её недоступности тест останавливается, а не переключается на боевой провайдер. Отдельно оцени контакты, чеки и побочные эффекты; до фактического smoke нужен безопасный сценарий, после него — ID попытки и результат. Не утверждай, что один только текст теста доказывает проведённую оплату.' }]
     : []
-  const questions = [...rubric.questions, ...paymentQuestions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
+  // A Vue island the server renders shares the VM's modules. `ssr` reaches it as a JSX attribute, in spread props or
+  // through `jsx()`: any `ssr` word in server code asks, a false alarm costs a "not applicable".
+  const vueSsrQuestions = files.some(file => /\.(?:ts|tsx|jsx)$/.test(file.path) && /\bssr\b/.test(file.content))
+    ? [{ id: 'security.vue-ssr',
+    question: 'Не попадают ли данные одного пользователя в HTML, который Vue-остров <Comp ssr /> отдаёт другому?',
+    lookFor: 'У каждого Vue-острова с ssr пройди граф импортов (.vue, .ts, composables): изменяемое состояние на уровне модуля (стор, кэш, счётчик, ref вне setup) — одно на все запросы и всех пользователей сервера. Первый рендер — только из JSON-пропсов и браузерного ctx: без ctx на верхнем уровне модуля и без .run() маршрута в setup. Данные другого пользователя в HTML — blocking. Если слово ssr не включает рендер Vue-острова на сервере, пункт не применим.' }]
+    : []
+  const questions = [...rubric.questions, ...paymentQuestions, ...vueSsrQuestions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
     question: `Сопоставь задачу ${task.id} «${task.title}» с реализацией.`,
     lookFor: 'Конкретные файлы, цепочка вызовов и требование плана. Не считать отметку выполненности доказательством. Для теста/запуска оцени готовность сценариев и механизма до фактического выполнения.' }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются вопросы или ID задач плана.')

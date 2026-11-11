@@ -1,0 +1,4 @@
+interface:
+  display_name: "Бизнес-процессы"
+  short_description: "Воронки и автоворонки из связанных компонентов"
+  icon_small: "./assets/icon.svg"

@@ -37,6 +37,8 @@ function fixture(t) {
   put(source, 'SKILL.md', '---\nname: chatium-processes\ndescription: Business processes\n---\n# Processes\n')
   put(source, 'WORKFLOW.md', 'Workflow')
   put(source, 'LICENSE', 'License')
+  put(source, 'agents/openai.yaml', 'interface:\n  display_name: Processes\n  icon_small: ./assets/icon.svg\n')
+  put(source, 'assets/icon.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>\n')
   const pkg = { name: 'release-fixture', version: '1.0.0', private: true,
     type: 'module', scripts: { test: 'node scripts/tests/run.mjs' }, engines: { node: '>=22.0.0' } }
   put(source, 'package.json', pkg)
@@ -66,6 +68,8 @@ test('release copies only the committed runtime, keeps required schemas and veri
     assert.equal(existsSync(join(f.target, excluded)), false, excluded)
   for (const directory of ['scripts', 'templates', 'tasks', 'method'])
     assert.equal(readFileSync(join(f.target, directory, 'runtime.txt'), 'utf8'), directory)
+  assert.match(readFileSync(join(f.target, 'agents/openai.yaml'), 'utf8'), /icon_small: .\/assets\/icon.svg/)
+  assert.equal(readFileSync(join(f.target, 'assets/icon.svg'), 'utf8'), '<svg xmlns="http://www.w3.org/2000/svg"/>\n')
   assert.equal(JSON.parse(readFileSync(join(f.target, 'package.json'))).scripts, undefined)
   assert.equal(readFileSync(join(f.destination, 'README.md'), 'utf8'), 'Keep this file')
   assert.equal(JSON.parse(f.run('release-status').stdout).matches, true)

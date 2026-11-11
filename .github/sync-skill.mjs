@@ -60,7 +60,7 @@ try {
   const archive = execFileSync('git', ['archive', '--format=tar', commit], { cwd: source, maxBuffer: 64 * 1024 * 1024 })
   execFileSync('tar', ['-xf', '-', '-C', unpacked], { input: archive })
   const runtime = ['SKILL.md', 'WORKFLOW.md', 'LICENSE', 'package.json', 'package-lock.json',
-    'blocks', 'build', 'creative', 'formats', 'method', 'scripts', 'specialists', 'tasks', 'templates']
+    'agents', 'assets', 'blocks', 'build', 'creative', 'formats', 'method', 'scripts', 'specialists', 'tasks', 'templates']
   for (const entry of runtime) {
     cpSync(join(unpacked, entry), join(distribution, entry), { recursive: true, filter: path => {
       if (lstatSync(path).isSymbolicLink()) throw Error(`Ссылки не входят в поставку: ${path}`)
