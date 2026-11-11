@@ -30,7 +30,7 @@ test('installed skill entry routes complex processes without claiming standalone
   for (const term of ['рассылка', 'лендинг', 'автоматизация'])
     assert.ok(!description.toLowerCase().includes(term), `description must not route standalone ${term}`)
   const body = entry.slice(frontmatter.length + 9)
-  assert.ok(body.trim().split(/\s+/).length <= 800, 'SKILL.md must remain a short task router')
+  assert.ok(body.trim().split(/\s+/).length <= 900, 'SKILL.md must remain a short task router with essential communication rules')
   assert.match(body, /открывай нужный раздел по текущему этапу/)
   assert.match(body, /Если масштаб неясен, задай один короткий вопрос до создания процесса/)
   assert.match(workflow, /Не достраивай\s+воронку без поручения/)
