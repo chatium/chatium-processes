@@ -1,5 +1,4 @@
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { setTimeout } from 'node:timers/promises'
 import { hash, readTestRun, saveRun, testInputs, testPath } from './process-testing.mjs'
@@ -18,6 +17,10 @@ class Blocked extends Error {}
 class Incomplete extends Error {}
 const api = {
   runId, caseId: scenario.id, contacts: session.contacts, channels: session.channels || [],
+  blocked(reason) {
+    if (typeof reason !== 'string' || !reason.trim() || reason.length > 4000) throw Error('Укажите конкретную причину блокировки до 4000 символов.')
+    throw new Blocked(reason)
+  },
   async attempt(operation, input = {}, requestId) {
     if (!scenario.capabilities?.includes(operation)) throw new Blocked(`Возможность ${operation} не объявлена в сценарии.`)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(requestId || '')) throw Error('Каждая операция требует устойчивый requestId третьим аргументом.')
