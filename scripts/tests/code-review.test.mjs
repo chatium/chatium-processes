@@ -614,3 +614,12 @@ test('new process check exposes uncovered work and missing page brief and review
   assert.match(JSON.parse(built.stdout).checks.find(c => c.id === 'creative.review').errors.join(' '),
     /исходник demo\/index.ts уже есть при непринятом задании/)
 })
+
+test('release preserves the Vue SSR cross-user state review added in production', t => {
+  const f = fixture(t)
+  assert.equal(f.packet().questions.some(q => q.id === 'security.vue-ssr'), false)
+  f.put('demo/index.tsx', 'export default <Form ssr />\n')
+  const question = f.packet().questions.find(q => q.id === 'security.vue-ssr')
+  assert.ok(question)
+  assert.match(question.lookFor, /одн[оа] на все запросы/)
+})
