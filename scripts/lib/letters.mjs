@@ -3,6 +3,11 @@ import { dirname, join, resolve, sep } from 'node:path'
 
 const PREFIX = '.mailings/storage/'
 const SUFFIX = '.message.yaml'
+export function isMailingsSource(source) {
+  if (typeof source !== 'string' || /[\\\u0000-\u001f?#%]/.test(source)) return false
+  const path = source.replace(/\/$/, '')
+  return path.startsWith(PREFIX) && !path.split('/').some(part => !part || part === '.' || part === '..')
+}
 // Read old letterPath configs as well; installing a skill must not rewrite them.
 export function templatePath(step) {
   const params = step?.params

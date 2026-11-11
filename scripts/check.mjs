@@ -24,7 +24,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { findRoot, isDir, isFile, parseArgs, rel, SKILL_DIR, walk } from './lib/project.mjs'
 import { parseYaml, requireYaml } from './lib/yaml.mjs'
-import { templatePath, templateFiles } from './lib/letters.mjs'
+import { isMailingsSource, templatePath, templateFiles } from './lib/letters.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { validateProcessAgents } from './lib/agents.mjs'
 import { agentReviewStatus } from './lib/agent-review.mjs'
@@ -357,6 +357,8 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (n?.id) ids.add(n.id)
     if (n?.stage && !stages.includes(n.stage)) error(`${where}: stage «${n.stage}» нет в stages`)
     if (n?.kind && !NODE_KINDS.includes(n.kind)) error(`${where}: kind «${n.kind}», допустимы ${NODE_KINDS.join(', ')}`)
+    if (isMailingsSource(n?.source) && n?.kind !== 'series')
+      error(`${where}: шаблоны Mailings требуют kind: series, включая одиночные подтверждения и напоминания; external предназначен для сервиса.`)
   }
   for (const [i, l] of links.entries()) {
     const where = `links[${i}] ${l?.from} → ${l?.to}`

@@ -35,6 +35,16 @@ test('template lookup includes all SDK variants, keeps legacy exact paths and re
   assert.deepEqual(templateFiles(f.root,{params:{letterPath:prefix+'welcome.v2.message.yaml'}}),[prefix+'welcome.v2.message.yaml'])
   for(const key of ['../private','/private','a//b','a\\b',{ $ref:'event.key' }]) assert.throws(()=>templatePath({params:{messageKey:key}}))
 })
+test('map check rejects Mailings messages classified as a service, including transactional messages at design stage', t => {
+  const f = fixture(t)
+  const source = '.mailings/storage/processes/demo/confirmation/'
+  const map = kind => `title: Demo\nknowledge: .knowledge-base/processes/demo/\nstages: [Подтверждение]\nnodes:\n  - id: confirmation\n    stage: Подтверждение\n    kind: ${kind}\n    title: Подтверждение записи\n    purpose: Отправить одно письмо\n    source: ${source}\nlinks: []\n`
+  const check = () => JSON.parse(f.run('check', ['--no-snapshot', '--json', '--task-stage', 'design']).stdout).checks.find(c => c.id === 'map')
+  f.put('demo/process.yaml', map('external'))
+  assert.match(check().errors.join('\n'), /confirmation.*Mailings.*series/)
+  f.put('demo/process.yaml', map('series'))
+  assert.equal(check().ok, true)
+})
 test('checker validates plugin route against registry, variables in every variant, and no longer requires reader',t=>{
   const f=fixture(t)
   f.put('demo/process.yaml','title: Demo\naccountId: 10\nstages: []\nnodes: []\nlinks: []\n')
@@ -74,9 +84,11 @@ test('snapshot attributes messageKey sends to their series without losing automa
   f.put(series+'welcome.message.yaml','title: Hello\nsubject: Hello\n')
   f.put('demo/page/index.ts','export {}')
   f.put('demo/automations/a.automationConfig.json',JSON.stringify({steps:[{type:'delay',delay:{type:'delay',amount:1,units:'days'}},{type:'action',actionName:'Welcome',params:{messageKey:'processes/demo/series/welcome'}},{type:'action',actionName:'Other',params:{messageKey:'processes/demo/other/letter'}}]}))
-  const s=buildSnapshot({root:f.root,slug:'demo',branch:'main',commit:'a'.repeat(40),checks:[],map:{title:'Demo',stages:['Start'],nodes:[{id:'page',kind:'page',title:'Page',stage:'Start',source:'demo/page/'},{id:'series',kind:'series',title:'Series',stage:'Start',source:series}],links:[{from:'page',to:'series',when:'Next',via:'demo/automations/'}]}})
-  assert.deepEqual(s.links[0].steps.map(s=>s.kind),['delay','action'])
-  assert.deepEqual(s.links[0].automationFiles,['demo/automations/a.automationConfig.json'])
+  for (const kind of ['series', 'external']) for (const source of [series, series + 'welcome.message.yaml']) {
+    const s=buildSnapshot({root:f.root,slug:'demo',branch:'main',commit:'a'.repeat(40),checks:[],map:{title:'Demo',stages:['Start'],nodes:[{id:'page',kind:'page',title:'Page',stage:'Start',source:'demo/page/'},{id:'series',kind,title:'Series',stage:'Start',source}],links:[{from:'page',to:'series',when:'Next',via:'demo/automations/'}]}})
+    assert.deepEqual(s.links[0].steps.map(s=>s.kind),['delay','action'])
+    assert.deepEqual(s.links[0].automationFiles,['demo/automations/a.automationConfig.json'])
+  }
 })
 
 test('missing or invalid sender channels warn without adding failures to the check', t => {

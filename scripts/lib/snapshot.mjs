@@ -1,9 +1,9 @@
 // Snapshot producer. All paths are account-relative; publication is a separate step.
-import { templatePath } from './letters.mjs'
+import { isMailingsSource, templatePath } from './letters.mjs'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { isDir, isFile, walk, rel } from './project.mjs'
+import { isFile, walk, rel } from './project.mjs'
 import { parseYaml } from './yaml.mjs'
 import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { collectBuildEvidence } from './build-evidence.mjs'
@@ -29,8 +29,11 @@ function delayText(delay) {
 // leading to this destination, but do not attribute other series to the link.
 function stepsForSeries(steps, source) {
   if (!source) return steps
-  const prefix = source.replace(/\/$/, '') + '/'
-  const belongs = step => templatePath(step)?.startsWith(prefix)
+  const base = source.replace(/\/$/, '')
+  const belongs = step => {
+    const path = templatePath(step)
+    return path === base || path?.startsWith(base + '/')
+  }
   const contains = step => belongs(step) || (step?.thenBranch?.steps || []).some(contains) || (step?.elseBranch?.steps || []).some(contains)
   const last = steps.findLastIndex(contains)
   if (last < 0) return []
@@ -79,7 +82,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
     const facts = evidence.nodes.get(node.id)
     const state = resolveBuildState(facts, build.gates)
-    const letters = node.kind === 'series' && isDir(source) ? walk(source).filter(p => p.endsWith('.message.yaml')).sort().map(file => {
+    const letters = node.kind === 'series' || isMailingsSource(node.source) ? (isFile(source) ? [source] : walk(source)).filter(p => p.endsWith('.message.yaml')).sort().map(file => {
       safePath(root, rel(root, file))
       try { const l = parseYaml(readFileSync(file, 'utf8')); return { title: l.title || 'Письмо', subject: l.subject || '', source: rel(root, file) } }
       catch { return { title: 'Письмо не разбирается', subject: '', source: rel(root, file) } }
@@ -97,7 +100,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
         const path = rel(root, file)
         safePath(root, path)
         automationFiles.push(path)
-        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target?.kind === 'series' ? target.source : null), '', steps, path) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
+        try { const target = map.nodes.find(n => n.id === link.to); const all = JSON.parse(readFileSync(file, 'utf8')).steps || []; walkSteps(stepsForSeries(all, target && (target.kind === 'series' || isMailingsSource(target.source)) ? target.source : null), '', steps, path) } catch (e) { steps.push({ kind: 'action', title: 'Ошибка конфигурации', detail: e.message }) }
       }
     }
     return { id: link.id || `link-${i + 1}`, from: link.from, to: link.to, when: link.when || '', ...(link.signal ? { signal: link.signal } : {}), ...(link.via ? { via: link.via, automationFiles } : {}), steps }

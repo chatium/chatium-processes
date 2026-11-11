@@ -14,6 +14,15 @@ test('letters, action branches and needs-input survive in snapshot',()=>{const s
 test('existing sources require verified acceptance',()=>{const snapshot=build();assert.equal(snapshot.nodes[0].status,'in-progress');assert.match(snapshot.nodes[0].reason,/задач принято/);assert.notEqual(snapshot.nodes[0].status,'ready')})
 test('automation file paths survive in snapshot',()=>{assert.deepEqual(build().links[0].automationFiles,['demo/automations/test.automationConfig.json'])})
 
+test('Mailings sources expose their messages even when a node is classified as external', () => {
+  const message = '.mailings/storage/processes/demo/series/01.message.yaml'
+  for (const source of [map.nodes[1].source, message]) {
+    const snapshot = build({ map: { ...map, nodes: [{ ...map.nodes[1], kind: 'external', source }], links: [] } })
+    assert.deepEqual(snapshot.nodes[0].letters, [{ title: 'Hello', subject: 'Your booking', source: message }])
+    assert.equal(snapshot.nodes[0].kind, 'external')
+  }
+})
+
 test('manual handler path survives without invented automation steps',()=>{
   const handler='demo/api/retry.ts'
   mkdirSync(join(root,'demo/api'),{recursive:true})
