@@ -128,7 +128,7 @@ test('one repeated code quote cannot approve every implementation question', t =
   assert.ok(!existsSync(codeReviewPath(f.root, 'demo')))
 })
 
-test('payment implementation receives a dedicated sandbox-provider review question', t => {
+test('CRM checkout and direct Pay code receive the full payment review', t => {
   const f = fixture(t)
   assert.equal(f.packet().questions.some(question => question.id === 'payments.smoke'), false)
   f.put(codePath, `${quote}\nconst attempt = await runAttemptPayment(ctx, options)\n`)
@@ -137,12 +137,19 @@ test('payment implementation receives a dedicated sandbox-provider review questi
   assert.ok(question)
   assert.match(question.lookFor, /providerId/)
   assert.match(question.lookFor, /pay:sandbox/)
+  assert.equal(packet.staticChecks.find(check => check.id === 'crm.ownership').ok, true)
   const report = syntheticReport(packet)
   Object.assign(report.answers.find(answer => answer.id === question.id), {
     status: 'gap', priority: 'blocking', reason: 'Тестовый вызов может выбрать провайдера по умолчанию.',
     nextAction: 'Найти ID песочницы и передать providerId явно.', evidence: [],
   })
   assert.equal(save(f, packet, report).status, 'needs-work')
+  f.put(codePath, "import { createDeal as order } from '@crm/sdk'\nexport const create = order\n")
+  assert.ok(f.packet().questions.some(item => item.id === 'payments.smoke'))
+  f.put(codePath, "export const link = '/app/crm/pay?deal=demo'\n")
+  assert.ok(f.packet().questions.some(item => item.id === 'payments.smoke'))
+  f.put(codePath, "import { runAttemptPayment as pay } from '@pay/sdk'\nexport const create = pay\n")
+  assert.equal(f.packet().staticChecks.find(check => check.id === 'crm.ownership').ok, false)
 })
 
 test('code conclusion ignores bookkeeping and launch toggle but tracks business changes', t => {

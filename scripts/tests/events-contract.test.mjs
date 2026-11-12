@@ -28,6 +28,79 @@ function fixture(t) {
 
 const named = (checks, id) => checks.find(check => check.id === id)
 
+test('native CRM events connect map and automation without a duplicate local event writer', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', 'events: []\n')
+  f.put('demo/process.yaml', `title: Demo
+nodes: []
+links:
+  - from: checkout
+    to: delivery
+    when: Заказ оплачен
+    signal: event://crm/deal/paid
+    via: demo/automations/paid.automationConfig.json
+`)
+  const config = urls => f.put('demo/automations/paid.automationConfig.json', JSON.stringify({
+    title: 'Выдать результат', eventUrls: urls, settings: { continueOnError: false }, steps: [],
+  }))
+  config(['event://crm/deal/paid'])
+  let checks = f.run()
+  assert.deepEqual(named(checks, 'events.used').errors, [])
+  assert.doesNotMatch(named(checks, 'map').errors.join('\n'), /signal|событие|не слушает/)
+  config(['event://crm/deal/created'])
+  checks = f.run()
+  assert.match(named(checks, 'map').errors.join('\n'), /не слушает event:\/\/crm\/deal\/paid/)
+  config(['event://crm/deal/unknown-paid'])
+  checks = f.run()
+  assert.ok(checks.some(check => check.errors.some(error => /неизвестное событие сделки CRM/.test(error))))
+})
+
+test('native CRM analytics keeps identity and payment deduplication checks', t => {
+  const f = fixture(t)
+  f.put('demo/specs/events.yaml', 'events: []\n')
+  const funnel = (field = 'dealId', deduplicate = true, paid = 'paid') => `funnels:
+  - id: order_to_payment
+    question: Какая доля заказов оплачена?
+    identity: entity
+    identityField: ${field}
+    windowDays: 30
+    steps: ["event://crm/deal/created", "event://crm/deal/${paid}"]
+${deduplicate ? '    deduplicateBy: dealId' : ''}
+`
+  f.put('demo/specs/analytics.yaml', funnel())
+  let check = named(f.run(), 'analytics.spec')
+  assert.equal(check.ok, true, check.errors.join('\n'))
+  assert.match(check.warnings.join('\n'), /paidMoney/)
+  f.put('demo/specs/analytics.yaml', funnel('orderId'))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /orderId/)
+  f.put('demo/specs/analytics.yaml', funnel('dealId', false))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /deduplicateBy/)
+  f.put('demo/specs/analytics.yaml', funnel('dealId', true, 'not-paid'))
+  assert.match(named(f.run(), 'analytics.spec').errors.join('\n'), /не объявлено/)
+  f.put('demo/specs/analytics.yaml', `metrics:
+  - id: orders
+    question: Сколько заказов?
+    sourceEvents: ["event://crm/deal/created"]
+ratios:
+  - id: won_among_decided
+    question: Какая доля решённых сделок выиграна?
+    numeratorEvent: "event://crm/deal/won"
+    denominatorEvents: ["event://crm/deal/won", "event://crm/deal/lost"]
+    subjectField: dealId
+    periodDays: 30
+    conflictRule: exclude-and-report
+`)
+  assert.equal(named(f.run(), 'analytics.spec').ok, true)
+})
+
+test('check surfaces direct Pay bypass and accepts CRM checkout', t => {
+  const f = fixture(t)
+  f.put('demo/api/order.ts', "import { runAttemptPayment as pay } from '@pay/sdk'\nexport const run = pay\n")
+  assert.equal(named(f.run(), 'crm.ownership').ok, false)
+  f.put('demo/api/order.ts', "import { createDeal } from '@crm/sdk'\nexport const run = createDeal\n")
+  assert.equal(named(f.run(), 'crm.ownership').ok, true)
+})
+
 test('event registry blocks reserved contact slot, numeric IDs, misplaced UTM and contact mapping', t => {
   const f = fixture(t)
   f.put('demo/specs/events.yaml', `events:

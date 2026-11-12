@@ -12,8 +12,8 @@
 | Серия сообщений | `series` | [message-series.md](message-series.md) | [sender-messaging.md](../../chatium-development/sender-messaging.md) |
 | Автоматизация | стрелка с `via` | [automation.md](automation.md) | [automations-configuration.md](../../chatium-development/automations-configuration.md), [automations-actions.md](../../chatium-development/automations-actions.md) |
 | Каналы и настройки процесса | — | [channels.md](channels.md) | [sender-entities.md](../../chatium-development/sender-entities.md) |
-| Оплата | `payment` | [payment.md](payment.md) | [payments.md](../../chatium-development/payments.md) |
-| CRM | `crm` | [crm.md](crm.md) | [automations-events.md](../../chatium-development/automations-events.md) |
+| Оплата заказа CRM | `payment` | [payment.md](payment.md), [тест sandbox](payment-testing.md) | Pay — справка низкого уровня; основной путь через CRM |
+| CRM: клиенты, заказы, компании, сегменты | `crm` | [crm.md](crm.md) | Установленные типы `@crm/sdk` |
 | Самостоятельный помощник | `agent` | [ai-agent.md](ai-agent.md) | [ai-agent-config.md](../../chatium-development/ai-agent-config.md), [ai-routing-and-handoff.md](../../chatium-development/ai-routing-and-handoff.md), [ai-autonomy.md](../../chatium-development/ai-autonomy.md), [ai-tools.md](../../chatium-development/ai-tools.md) |
 | Аналитика пути клиента | `specs/analytics.yaml` | [analytics.md](analytics.md) | [analytics-traffic.md](../../chatium-development/analytics-traffic.md), [analytics-attribution.md](../../chatium-development/analytics-attribution.md) |
 
