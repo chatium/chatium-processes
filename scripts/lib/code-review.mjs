@@ -9,6 +9,7 @@ import { isProcessSlug, SKILL_DIR } from './project.mjs'
 import { changedInspectedReferences, collectReferenceLibrary, informationalReferenceChanges, inspectedReferenceHashes, verifyReferenceSnapshot, withReferenceLibrary } from './review-library.mjs'
 import { loadTasks, parseTaskPlan, taskDefinition } from './tasks.mjs'
 import { parseYaml } from './yaml.mjs'
+import { crmUsageChecks } from './crm-contract.mjs'
 
 export function codeReviewPath(root, slug) {
   if (!isProcessSlug(slug)) throw Error('Некорректный слаг процесса.')
@@ -88,17 +89,18 @@ export function makeCodeReviewPacket({ root, slug }) {
   const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
   const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
-  if (rubric.version !== 6 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 7 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
     throw Error('Некорректная рубрика ревью реализации.')
   let paymentNode = false
   try { paymentNode = parseYaml(files.find(file => file.path === `${slug}/process.yaml`)?.content || '')?.nodes
     ?.some(node => node?.kind === 'payment') === true }
   catch { /* A malformed map is reported by the static checks. */ }
-  const paymentCode = files.some(file => /\.(?:ts|tsx)$/.test(file.path) && /\brunAttemptPayment\s*\(/.test(file.content))
+  const paymentCode = files.some(file => /\.(?:[cm]?[jt]sx?|vue)$/.test(file.path) &&
+    /\b(?:runAttemptPayment|createDeal|chargeDealWithSavedCard|syncDealPayments)\b|\/app\/crm\/pay|@pay\/sdk/.test(file.content))
   const paymentQuestions = paymentNode || paymentCode ? [{ id: 'payments.smoke',
     question: 'Подготовлена ли тестовая оплата без риска списания через боевого провайдера?',
-    lookFor: 'Для каждого тестового вызова runAttemptPayment проверь, что реальный providerId найден через @pay/sdk для ключа pay:sandbox, совпадает с найденным провайдером и передан явно. Без providerId Pay выбирает провайдера по умолчанию. Песочница может быть скрыта из списка; при её недоступности тест останавливается, а не переключается на боевой провайдер. Отдельно оцени контакты, чеки и побочные эффекты; до фактического smoke нужен безопасный сценарий, после него — ID попытки и результат. Не утверждай, что один только текст теста доказывает проведённую оплату.' }]
+    lookFor: 'Проверь полный путь заказа через CRM → pay:sandbox → CRM → выдачу результата по blocks/payment-testing.md. ID sandbox получают getAllPaymentProviders либо ensureSandboxProvider; это не выбирает providerId на странице CRM. У штатной CRM-страницы нет публичного параметра providerId: нужен разрешённый отдельный стенд с единственным sandbox либо поддерживаемый CRM-контракт явного выбора. Не переключать боевой default и не обходить CRM прямым runAttemptPayment. Sandbox запускает настоящие callbacks/сообщения: проверить все эффекты и тестовых получателей. У TestContext может не быть адаптера оплаты; браузерный проход стенда — отдельное доказательство, не выдуманная capability. До прогона нужен безопасный план; после — ID заказа/попытки/платежа, origin/paymentOrigin=test, paidTest при неизменном paidMoney, результат callback, транши, отказы и идемпотентность. Отсутствие ещё не проведённого теста не блокирует ревью сборки; отсутствие безопасного пути — блокирует.' }]
     : []
   // A Vue island the server renders shares the VM's modules. `ssr` reaches it as a JSX attribute, in spread props or
   // through `jsx()`: any `ssr` word in server code asks, a false alarm costs a "not applicable".
@@ -115,7 +117,10 @@ export function makeCodeReviewPacket({ root, slug }) {
     rubricVersion: rubric.version, questions, tasks: corpus.tasks.map(({ markedDone, ...task }) => task), workTasks,
     reviewerInstructions: readFileSync(join(SKILL_DIR, 'build/reviewer.md'), 'utf8'),
     files, assets: corpus.assets, dependencies: corpus.dependencies,
-    staticChecks: [...corpus.checks, { id: 'table-schema-history', title: 'Прежние схемы заполненных таблиц',
+    staticChecks: [...corpus.checks, (() => {
+      const result = crmUsageChecks(files)
+      return { id: 'crm.ownership', title: 'Заказы и оплата через CRM', ok: !result.errors.length, ...result }
+    })(), { id: 'table-schema-history', title: 'Прежние схемы заполненных таблиц',
       ok: !tableHistory.errors.length, errors: tableHistory.errors, warnings: [] }] }
   return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation' }))
 }

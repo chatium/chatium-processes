@@ -36,6 +36,7 @@ import { validateDataContracts } from './lib/data-contracts.mjs'
 import { validateMessageMedia } from './lib/message-media.mjs'
 import { validateChannelPlan, validateMessageDelivery } from './lib/message-delivery.mjs'
 import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCount } from './lib/source-lex.mjs'
+import { crmUsageChecks, crmAnalyticsEvent, CRM_DEAL_EVENTS, isModuleEventUrl } from './lib/crm-contract.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
 
@@ -365,7 +366,11 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (!l?.when) warn(`${where}: нет подписи when`)
     if (l?.signal !== undefined) {
       const m = /^event:([a-zA-Z0-9_-]+)$/.exec(String(l.signal))
-      if (!m) error(`${where}: signal должен быть вида event:<ключ>`)
+      if (isModuleEventUrl(l.signal)) {
+        if (l.signal.startsWith('event://crm/deal/') && !CRM_DEAL_EVENTS.has(l.signal))
+          error(`${where}: неизвестное событие сделки CRM ${l.signal}`)
+      }
+      else if (!m) error(`${where}: signal должен быть вида event:<ключ> или полного URL события модуля event://crm/deal/paid`)
       else if (!eventByKey.has(m[1])) error(`${where}: событие ${m[1]} не объявлено в specs/events.yaml`)
     }
     if (l?.via !== undefined) {
@@ -388,13 +393,20 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
           else error(message)
         } else if (l.signal) {
           const ev = eventByKey.get(String(l.signal).replace(/^event:/, ''))
-          if (ev && !matching.some(a => (a.config?.eventUrls || []).includes(eventUrl(ev)))) {
-            error(`${where}: автоматизация ${via} не слушает ${eventUrl(ev)}`)
+          const url = isModuleEventUrl(l.signal) ? l.signal : ev && eventUrl(ev)
+          if (url && !matching.some(a => (a.config?.eventUrls || []).includes(url))) {
+            error(`${where}: автоматизация ${via} не слушает ${url}`)
           }
         }
       }
     }
   }
+})
+
+check('crm.ownership', 'Заказы и оплата через CRM', ({ error, warn }) => {
+  const result = crmUsageChecks([...codeSources].map(([file, content]) => ({ path: rel(root, file), content })))
+  result.errors.forEach(error)
+  result.warnings.forEach(warn)
 })
 
 check('owner.questions', 'Открытые вопросы владельцу', ({ error }) => {
@@ -621,7 +633,7 @@ check('events.used', 'Каждое событие кто-то пишет и кт
   }
 })
 
-check('analytics.spec', 'Связность аналитической воронки', ({ error }) => {
+check('analytics.spec', 'Связность аналитической воронки', ({ error, warn }) => {
   if (analyticsRes.missing) {
     if ([...codeSources.values()].some(source => /\bqueryAi\s*\(/.test(source)))
       error('Для собственного аналитического запроса нужен specs/analytics.yaml с вопросом владельца и реальными источниками.')
@@ -635,6 +647,12 @@ check('analytics.spec', 'Связность аналитической воро�
       funnels.length + metrics.length + ratios.length < 1 || funnels.length + metrics.length + ratios.length > 50)
     return error('analytics.yaml: нужны funnels, metrics или ratios (в сумме от 1 до 50).')
   const ids = new Set()
+  const nativeEvents = new Set()
+  const analyticsEvent = key => {
+    if (!CRM_DEAL_EVENTS.has(key)) return eventByKey.get(key)
+    nativeEvents.add(key)
+    return crmAnalyticsEvent(key)
+  }
   for (const [index, metric] of metrics.entries()) {
     const where = `analytics.metrics[${index}]${metric?.id ? ` (${metric.id})` : ''}`
     if (typeof metric?.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(metric.id) || ids.has(metric.id))
@@ -644,7 +662,7 @@ check('analytics.spec', 'Связность аналитической воро�
     if (!Array.isArray(metric?.sourceEvents) || metric.sourceEvents.length !== 1)
       error(`${where}: простая метрика должна ссылаться на одно событие; для конверсии разных событий опиши funnels.`)
     for (const key of Array.isArray(metric?.sourceEvents) ? metric.sourceEvents : [])
-      if (!eventByKey.has(key)) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      if (!analyticsEvent(key)) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
   }
   for (const [index, funnel] of funnels.entries()) {
     const where = `analytics.funnels[${index}]${funnel?.id ? ` (${funnel.id})` : ''}`
@@ -664,19 +682,19 @@ check('analytics.spec', 'Связность аналитической воро�
       error(`${where}: нужны от 2 до 30 разных шагов steps в порядке пути клиента.`)
     const revenue = []
     for (const key of Array.isArray(steps) ? steps : []) {
-      const event = eventByKey.get(key)
-      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      const event = analyticsEvent(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
       else {
         if (event.type !== 'customerEvent') error(`${where}: ${key} имеет type ${event.type}; его нельзя связывать с клиентской конверсией без подтверждённой идентичности.`)
         if (funnel.identity === 'entity' && funnel.identityField &&
             event.payloadMapping?.[funnel.identityField]?.type !== 'string')
           error(`${where}: ${key} должен передавать строковый ${funnel.identityField} в payloadMapping для связи шагов одной сущности.`)
-        if (event.category === 'revenue') revenue.push(event)
+        if (event.category === 'revenue' || event.payment) revenue.push(event)
       }
     }
     if (revenue.length && (!funnel.deduplicateBy || revenue.some(event =>
       !Object.hasOwn(event.payloadMapping || {}, funnel.deduplicateBy))))
-      error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого revenue-события.`)
+      error(`${where}: для оплаты нужен deduplicateBy — одно поле заказа в payloadMapping каждого события оплаты.`)
   }
   for (const [index, ratio] of ratios.entries()) {
     const where = `analytics.ratios[${index}]${ratio?.id ? ` (${ratio.id})` : ''}`
@@ -697,8 +715,8 @@ check('analytics.spec', 'Связность аналитической воро�
     if (ratio?.conflictRule !== 'exclude-and-report')
       error(`${where}: для взаимоисключающих исходов нужен conflictRule: exclude-and-report.`)
     for (const key of Array.isArray(denominator) ? denominator : []) {
-      const event = eventByKey.get(key)
-      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml.`)
+      const event = analyticsEvent(key)
+      if (!event) error(`${where}: событие ${key} не объявлено в specs/events.yaml и не является известным событием CRM.`)
       else {
         if (event.type !== 'customerEvent')
           error(`${where}: ${key} должен быть customerEvent, чтобы считать связанные исходы клиента.`)
@@ -707,6 +725,7 @@ check('analytics.spec', 'Связность аналитической воро�
       }
     }
   }
+  if (nativeEvents.size) warn('Аналитика использует события CRM: сверь актуальный getAccountEvents, принадлежность заказов процессу и контакты для identity: customer. paid включает тесты и баланс; выручка — paidMoney. Статика не подтверждает эти условия.')
 })
 
 /** Модули действий, которые импортирует хук '@automations/actions' процесса. */
@@ -752,8 +771,14 @@ check('automations', 'Автоматизации: конфиг, шаги, ссы
     }
     if (!Array.isArray(c.eventUrls)) error(`${name}: eventUrls должен быть массивом`)
     for (const url of Array.isArray(c.eventUrls) ? c.eventUrls : []) {
+      if (typeof url !== 'string') { error(`${name}: eventUrls должен содержать строки`); continue }
+      if (url.startsWith('event://crm/deal/') && !CRM_DEAL_EVENTS.has(url)) {
+        error(`${name}: неизвестное событие сделки CRM ${url}`)
+        continue
+      }
       const found = eventFromUrl(url)
-      if (!found) warn(`${name}: внешнее событие ${url} не проверяется`)
+      if (!found && !CRM_DEAL_EVENTS.has(url)) warn(`${name}: внешнее событие ${url} не проверяется`)
+      else if (!found) { /* Native CRM event; fields and process scope are verified by review. */ }
       else if (found.foreign) error(`${name}: ${url} — событие чужого воркспейса; события процесса — ${EVENT_URL_PREFIX.customerEvent}<ключ> или ${EVENT_URL_PREFIX.workspaceEvent}<ключ>`)
       else if (!found.event) error(`${name}: слушает ${url}, но события ${found.key} нет в specs/events.yaml`)
       else if (found.event.type !== found.type) error(`${name}: ${url} — у события ${found.key} type: ${found.event.type}, его URL — ${eventUrl(found.event)}`)

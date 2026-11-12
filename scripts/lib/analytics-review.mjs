@@ -50,7 +50,7 @@ export function makeAnalyticsReviewPacket({ root, slug, skillDir = SKILL_DIR }) 
   })
   if (codeFiles.length > 100) throw Error('Слишком много исходников для ревью аналитики.')
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/analytics-review-questions.json'), 'utf8'))
-  if (rubric.version !== 3 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 4 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||
       rubric.questions.some(question => typeof question.id !== 'string' || !question.id ||
         typeof question.question !== 'string' || !question.question))
