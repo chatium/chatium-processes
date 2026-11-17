@@ -289,6 +289,18 @@ if (report) {
     summary.push('Переход дальше заблокирован. Непройденные пункты:')
     for (const check of failures) summary.push(`  ✘ ${check.id}: ${check.title}${check.errors?.length ? ` — ${check.errors.join('; ')}` : ''}`)
   } else summary.push('Локальные проверки пройдены; проверь также согласования, материалы доски и опубликованную версию.')
+  const construction = report.snapshot?.construction
+  summary.push(`Сверка статусов сборки с доской: ${construction?.status || 'не подтверждена'}.`)
+  for (const node of construction?.nodes || [])
+    summary.push(`  ${node.id}: доска ${node.actual}; текущая приёмка ${node.expected}. ${node.reason}`)
+  if (construction?.errors.length) summary.push('Исправление рассинхрона обязательно до сдачи: проверь задачи и их приёмку, синхронизируй прогресс и опубликуй актуальный check. Не устанавливай «собрано» вручную.',
+    ...construction.next.map(command => `  ${command}`))
+  const testing = report.testing
+  summary.push(`Тестирование на доске: ${testing?.status || 'не подтверждено'}${Number.isInteger(testing?.totalRuns) ? `; попыток ${testing.totalRuns}` : ''}.`)
+  for (const scenario of testing?.cases || []) summary.push(`  ${scenario.id}: ${scenario.status}${scenario.required ? ' (обязательный)' : ''}${scenario.reason ? ` — ${scenario.reason}` : ''}`)
+  for (const issue of testing?.errors || []) summary.push(`  ✘ ${issue}`)
+  if (testing?.cases?.some(scenario => scenario.required && scenario.status !== 'passed'))
+    summary.push('Тестирование не завершено: сохраняй попытки через test.mjs run/record и сверяй status/show на этой ветке; локальный прогон историю доски не заменяет.')
 }
 if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
 if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)

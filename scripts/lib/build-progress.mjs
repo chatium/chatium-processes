@@ -12,9 +12,11 @@ const inside = (path, source) => typeof source === 'string' && (path === source.
 
 /** Metadata only. A checkpoint can invalidate acceptance, never certify a build. */
 export async function syncBuildProgress(root, slug, { execute = startExec, executionRoot = root, http } = {}) {
-  const pending = [], synced = [], discarded = []
+  const pending = [], synced = [], discarded = [], writes = []
   try {
-    const origin = git(root, ['remote', 'get-url', 'origin'])
+    let origin
+    try { origin = git(root, ['remote', 'get-url', 'origin']) }
+    catch { return { status: 'local-only', reason: 'Локальные задачи сохранены; origin Source Git аккаунта не настроен.' } }
     if (!/^https:\/\/[^/]+\/s\/(?:source-git|git)\//.test(origin))
       return { status: 'local-only', reason: 'Локальные задачи сохранены; подключение к доске Source Git отсутствует.' }
     root = realpathSync(root)
@@ -43,6 +45,7 @@ export async function syncBuildProgress(root, slug, { execute = startExec, execu
       const current = gitState(root)
       if (current.branch !== state.branch || current.commit !== state.commit) throw Error('Ветка изменилась во время синхронизации.')
       if (executionRoot !== root) assertLocalState(executionRoot, hostState)
+      writes.push(input)
       return call('writeProcessBuildProgress', [input])
     }
     const events = new Map(board.snapshot.snapshot.nodes.flatMap(node => node.progress || []).map(event => [event.taskId, event]))
@@ -76,6 +79,34 @@ export async function syncBuildProgress(root, slug, { execute = startExec, execu
         if (!result?.saved) throw Error(`Сверка прогресса не записана: ${result?.reason || 'неподтверждённый ответ'}`)
         discarded.push(event.taskId)
       } catch (error) { pending.push({ taskId: event.taskId, reason: error.message }) }
+    }
+    // A saved response is not proof that the board exposes the new state.
+    if (writes.length) {
+      const fresh = await call('readProcessBoardForAgent', [slug, state.branch])
+      const current = gitState(root)
+      if (current.branch !== state.branch || current.commit !== state.commit ||
+          fresh?.snapshot?.snapshot?.processPath !== slug || fresh.snapshot.snapshot.branch !== state.branch ||
+          fresh.snapshot.snapshot.commit !== baseCommit || fresh.snapshot.revision !== scope.snapshotRevision)
+        throw Error('Версия доски или рабочей копии изменилась во время контрольного чтения прогресса. Перечитайте её.')
+      const visible = fresh.snapshot.snapshot.nodes.flatMap(node => node.progress || [])
+      for (const input of writes) {
+        const id = input.action === 'checkpoint' ? input.event.taskId : input.taskId
+        const confirmed = input.action === 'checkpoint'
+          ? hash(readFileSync(join(root, slug, 'tasks', `${id}.json`))) === input.event.taskSha256 &&
+            visible.some(event => event.taskId === id && event.requestId === input.event.requestId &&
+              event.taskSha256 === input.event.taskSha256 && event.state === input.event.state &&
+              event.workspaceId === input.event.workspaceId)
+          : !visible.some(event => event.taskId === id && event.requestId === input.requestId)
+        const index = pending.findIndex(item => item.taskId === id)
+        if (confirmed) {
+          if (index >= 0) pending.splice(index, 1)
+          const collection = input.action === 'checkpoint' ? synced : discarded
+          if (!collection.includes(id)) collection.push(id)
+        } else {
+          for (const collection of [synced, discarded]) if (collection.includes(id)) collection.splice(collection.indexOf(id), 1)
+          if (index < 0) pending.push({ taskId: id, reason: 'Запись прогресса не подтверждена контрольным чтением доски.' })
+        }
+      }
     }
     return { status: pending.length ? 'pending' : 'synced', workingCommit: state.commit, baseCommit, tasks: synced, discarded, pending,
       ...(pending.length ? { next: `construction.mjs sync ${slug}; локальную операцию задачи повторять не нужно.` } : {}) }

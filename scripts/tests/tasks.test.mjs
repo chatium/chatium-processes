@@ -58,6 +58,21 @@ test('task CLI uses code 2 for invalid invocation and code 1 for unmet readiness
   assert.ok(JSON.parse(unready.stdout).errors.some(error => /задача не завершена/.test(error)))
 })
 
+test('saved task mutation exits with failure when the board cannot confirm synchronization', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nnodes: []\nlinks: []\n')
+  assert.equal(spawnSync('git', ['remote', 'add', 'origin', 'https://example.invalid/s/source-git/repo'],
+    { cwd: f.root, encoding: 'utf8' }).status, 0)
+  const bin = join(f.root, 'bin'); mkdirSync(bin)
+  writeFileSync(join(bin, 'chatium'), '#!/bin/sh\nexit 13\n', { mode: 0o755 })
+  const result = spawnSync(process.execPath, [cli, 'create', 'demo', 'W001', '--file', join(f.root, 'task.json'), '--root', f.root],
+    { cwd: f.root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
+  assert.equal(result.status, 1, result.stderr)
+  assert.equal(JSON.parse(result.stdout).boardSync.status, 'pending')
+  assert.equal(f.task().status, 'queued', 'the saved local operation is not rolled back or repeated')
+  assert.match(result.stderr, /Локальная операция сохранена.*операцию задачи не повторяйте/)
+})
+
 test('task status writes complete JSON when a large stdout pipe is read late', async t => {
   const f = fixture(t)
   const template = JSON.parse(readFileSync(join(f.root, 'task.json'), 'utf8'))

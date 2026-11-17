@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { gitState, assertPublishedState, SnapshotDrift } from '../lib/git-state.mjs'
 import { buildSnapshot } from '../lib/snapshot.mjs'
-import { compareSnapshot, readBoard, verifySnapshot } from '../lib/freshness.mjs'
+import { compareSnapshot, compareConstruction, inheritedTypecheck, readBoard, verifySnapshot } from '../lib/freshness.mjs'
 import { fileURLToPath } from 'node:url'
 
 const checkCli = fileURLToPath(new URL('../check.mjs', import.meta.url))
@@ -68,6 +68,49 @@ test('fresh board matches local HEAD and actual remote; preserves shared notes',
   assert.equal(result.verified, true)
   assert.equal(result.boardRevision, 8)
   assert.equal(result.elements.blocks[0].text, 'Change the title')
+  assert.equal(result.construction.status, 'current')
+})
+
+test('a current graph cannot conceal stale construction, tasks, or unconfirmed working progress', async t => {
+  const f = fixture(t), actual = structuredClone(f.expected)
+  actual.nodes[0].status = 'built'
+  const result = await verifySnapshot(f.root, f.expected, { reader: async () => ({ ...f.board, snapshot: { revision: 3, snapshot: actual } }) })
+  assert.equal(result.verified, true, 'graph freshness and acceptance remain separate')
+  assert.equal(result.construction.status, 'stale')
+  assert.match(result.construction.errors.join('\n'), /текущая приёмка|собственным фактам/)
+  actual.nodes[0] = structuredClone(f.expected.nodes[0])
+  actual.build.kind = 'build'
+  assert.match(compareConstruction(f.expected, actual).errors.join('\n'), /не опубликованы/)
+  assert.match(compareConstruction(f.expected, actual, { taskStage: 'test' }).next.at(-1), /--task-stage test --knowledge-stage build/)
+  actual.build = structuredClone(f.expected.build)
+  actual.nodes[0].progress = [{ taskId: 'W001', state: 'running', workspaceId: 'another-copy' }]
+  assert.match(compareConstruction(f.expected, actual).errors.join('\n'), /неопубликованная работа/)
+})
+
+test('an omitted typecheck preserves current acceptance but changed inputs or facts require new acceptance', () => {
+  const gate = id => ({ id, title: id, state: 'passed', details: [], evidence: [] })
+  const common = ['technical','typecheck','task-structure','knowledge-build','architecture','implementation','owner-plan'].map(gate)
+  const facts = { source: 'present', tasks: [{ id: 'W001', status: 'done', acceptance: 'accepted', title: 'Page', details: [] }],
+    gates: ['tasks','review'].map(gate), blockers: [] }
+  const actual = { processPath: 'demo', build: { kind: 'check', contract: 'same', inputs: [{path:'demo/page.ts',sha256:'old'}], inventory:['demo/page.ts'], gates: common },
+    nodes: [{ id: 'page', title: 'Page', status: 'built', build: facts }] }
+  actual.commit = 'a'.repeat(40); actual.build.checkedCommit = actual.commit
+  actual.checks = [{ id: 'typecheck', title: 'Types', ok: true, errors: [], warnings: [] }]
+  const expected = structuredClone(actual)
+  expected.build.gates.find(item => item.id === 'typecheck').state = 'pending'
+  assert.equal(compareConstruction(expected, actual).status, 'current')
+  assert.equal(compareConstruction(expected, actual).nodes[0].expected, 'built')
+  assert.equal(inheritedTypecheck(expected, actual).ok, true)
+  expected.commit = 'b'.repeat(40)
+  assert.equal(inheritedTypecheck(expected, actual), null, 'another account commit needs a new full-account typecheck')
+  expected.commit = actual.commit
+  expected.build.inputs[0].sha256 = 'new'
+  assert.equal(inheritedTypecheck(expected, actual), null)
+  assert.equal(compareConstruction(expected, actual).status, 'stale')
+  assert.equal(compareConstruction(expected, actual).nodes[0].expected, 'in-progress')
+  expected.build.inputs[0].sha256 = 'old'
+  actual.nodes[0].build.tasks[0].status = 'running'
+  assert.equal(compareConstruction(expected, actual).status, 'stale')
 })
 
 test('online check tags its one board read', async t => {
@@ -331,6 +374,7 @@ if (code.includes('writeProcessSnapshot')) {
   let result = check(['--verify-snapshot'])
   assert.equal(result.report.snapshot.verified, true, JSON.stringify(result.report.snapshot))
   assert.equal(result.report.snapshot.elements, undefined)
+  assert.equal(result.report.checks.find(item => item.id === 'board.status').ok, true)
   assert.doesNotMatch(result.stdout, /Please review/)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\n')
   assert.equal(result.status, result.report.passed === result.report.total ? 0 : 1)
@@ -338,24 +382,36 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(result.report.snapshot.saved, false)
   assert.equal(result.report.snapshot.verified, true)
   assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\n')
+  const drifted = JSON.parse(readFileSync(boardFile, 'utf8'))
+  drifted.snapshot.snapshot.nodes[0].status = 'built'
+  writeFileSync(boardFile, JSON.stringify(drifted))
+  const drift = check(['--verify-snapshot'])
+  assert.equal(drift.report.snapshot.verified, true)
+  assert.equal(drift.report.checks.find(item => item.id === 'board.status').ok, false)
+  assert.equal(drift.status, 1)
+  writeFileSync(boardFile, JSON.stringify(initial))
+  writeFileSync(callsFile, 'read\nread\n')
   result = check(['--publish-snapshot'])
   assert.equal(result.report.snapshot.saved, true)
   assert.equal(result.report.snapshot.verified, true)
-  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nwrite\nread\n')
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nread\nwrite\nread\n')
   result = check(['--no-snapshot'])
   assert.equal(result.report.snapshot.skipped, true)
   assert.notEqual(result.report.snapshot.verified, true)
-  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nwrite\nread\n')
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nread\nwrite\nread\n')
   const context = spawnSync(process.execPath, [join(scripts, 'context.mjs'), 'demo', '--no-cards'], { cwd: f.root, encoding: 'utf8', env })
   assert.equal(context.status, 0)
   assert.match(context.stdout, /Please review/)
   assert.match(context.stdout, /актуальна/)
   assert.match(context.stdout, /Переход дальше заблокирован/)
+  assert.match(context.stdout, /Сверка статусов сборки с доской:/)
+  assert.match(context.stdout, /first: доска .*текущая приёмка/)
+  assert.match(context.stdout, /Тестирование на доске:/)
   assert.ok(context.stdout.indexOf('Переход дальше заблокирован') < context.stdout.indexOf('Please review'))
   result = check(['--typecheck'])
   assert.equal(result.report.checks.find(c => c.id === 'typecheck').ok, true)
   assert.equal(result.report.snapshot.verified, true)
-  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nwrite\nread\nread\nread\ntypecheck\nread\n')
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nread\nwrite\nread\nread\nread\ntypecheck\nread\n')
   // Missing workspace metadata makes the local generation uncertain; do not run the new workflow.
   const marker = join(f.root, 'demo/.workspace.json')
   const markerContent = readFileSync(marker, 'utf8')
@@ -366,7 +422,15 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(missing.status, 0, missing.stderr)
   assert.match(missing.stdout, /unknown-process/)
   assert.doesNotMatch(missing.stdout, /Please review/)
-  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nwrite\nread\nread\nread\ntypecheck\nread\n')
+  assert.equal(readFileSync(callsFile, 'utf8'), 'read\nread\nread\nwrite\nread\nread\nread\ntypecheck\nread\n')
+  const typed = check(['--typecheck', '--publish-snapshot'])
+  assert.equal(typed.report.snapshot.verified, true)
+  const repeated = check(['--publish-snapshot'])
+  assert.equal(repeated.report.snapshot.verified, true)
+  const retained = repeated.report.checks.find(item => item.id === 'typecheck')
+  assert.equal(retained.ok, true)
+  assert.match(retained.warnings.join('\n'), /Сохранён результат typecheck/)
+  assert.equal(JSON.parse(readFileSync(boardFile, 'utf8')).snapshot.snapshot.build.gates.find(item => item.id === 'typecheck').state, 'passed')
   env.TEST_EXECUTED_SHA = '0'.repeat(40)
   const wrongCommit = check(['--verify-snapshot'])
   assert.equal(wrongCommit.report.snapshot.verified, false)

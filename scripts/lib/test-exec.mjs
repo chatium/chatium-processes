@@ -23,12 +23,17 @@ export function saveTestPluginBranches(root, plugins) {
   writeFileSync(path, JSON.stringify(plugins), { mode: 0o600 })
 }
 
-export function testExec(root, commit, code) {
+export function testExec(root, commit, code, { allowEquivalentTree = false } = {}) {
   const result = spawnSync('chatium', ['exec'], { cwd: root, input: code, encoding: 'utf8', timeout: 45000, maxBuffer: 4 * 1024 * 1024 })
   // Do not echo CLI output: runtime errors may contain request bodies and capability tokens.
   if (result.error || result.status !== 0) throw Error('chatium exec не завершился успешно. Исход операции неизвестен; запросите состояние модуля, не повторяйте отправку с новым requestId.')
   const executedCommit = result.stderr.match(/^Executed commit: ([a-f0-9]{40})$/m)?.[1]
-  if (executedCommit !== commit) throw Error('Исполненная версия изменилась или не подтверждена CLI. Прогон неполный.')
+  let equivalent = false
+  if (allowEquivalentTree && executedCommit && executedCommit !== commit) {
+    try { equivalent = git(root, ['rev-parse', `${executedCommit}^{tree}`]) === git(root, ['rev-parse', `${commit}^{tree}`]) }
+    catch { /* Unknown versions cannot prove equivalence. */ }
+  }
+  if (executedCommit !== commit && !equivalent) throw Error('Исполненная версия изменилась или не подтверждена CLI. Прогон неполный.')
   return JSON.parse(result.stdout)
 }
 

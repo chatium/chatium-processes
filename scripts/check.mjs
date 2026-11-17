@@ -7,7 +7,7 @@ import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
-import { verifySnapshot } from './lib/freshness.mjs'
+import { verifySnapshot, readBoard, inheritedTypecheck } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
@@ -1203,8 +1203,22 @@ if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о
   if (decision.status !== 'ready') error(decision.error || decision.status)
   else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
 })
+let testingReport = { status: 'not-checked', cases: [], errors: [], syncErrors: [] }
+try {
+  if (['test', 'launch'].includes(options['task-stage']))
+    testingReport = testStatus({ root, slug, map, remote: true })
+  else if (!options['no-snapshot'] && isFile(join(dir, 'tests/plan.yaml'))) {
+    const plan = readTestPlan(root, slug, map)
+    testingReport = plan.cases.length ? testStatus({ root, slug, map, remote: true })
+      : { status: 'not-planned', cases: [], errors: [], syncErrors: [] }
+  }
+} catch (cause) { testingReport = { status: 'unavailable', cases: [], errors: [cause.message], syncErrors: [] } }
 if (['test', 'launch'].includes(options['task-stage'])) check('process.testing', 'Тестирование текущей версии процесса', ({ error }) => {
-  for (const issue of testStatus({ root, slug, map, remote: true }).errors) error(issue)
+  for (const issue of testingReport.errors) error(issue)
+})
+if (!options['no-snapshot']) check('board.testing', 'Сценарии на доске соответствуют плану', ({ error }) => {
+  for (const issue of testingReport.syncErrors) error(issue)
+  if (testingReport.status === 'unavailable') error(`Статусы тестирования не подтверждены: ${testingReport.errors.join('; ')}`)
 })
 
 check('skill.clean', 'В скилле нет кода и файлов воркспейса', ({ error }) => {
@@ -1235,11 +1249,23 @@ if (options.typecheck) {
 let snapshotResult = { saved: false, skipped: Boolean(options['no-snapshot']) }
 try {
   if (!options['no-snapshot'] || options['snapshot-file']) {
-    const snapshot = prepareSnapshot({ root, slug, map, checks,
+    const prepare = () => prepareSnapshot({ root, slug, map, checks,
       allowInvalidMap: !options['publish-snapshot'], ...(sourceState ? { state: sourceState } : {}) })
+    let snapshot = prepare(), previous
+    if (!options['no-snapshot'] && !options.typecheck) {
+      previous = await readBoard(root, snapshot, { usage: 'check' })
+      const actual = previous?.snapshot?.snapshot
+      if (!sourceError) try { assertLocalState(root, sourceState) } catch (cause) { sourceError = cause }
+      if (!sourceError && actual?.processPath === slug && actual.branch === snapshot.branch) {
+        const typecheck = inheritedTypecheck(snapshot, actual)
+        if (typecheck) { checks.push(typecheck); snapshot = prepare() }
+      }
+    }
     if (options['snapshot-file']) writeFileSync(options['snapshot-file'], JSON.stringify(snapshot, null, 2) + '\n')
+    const verification = { taskStage: options['task-stage'] || 'build', knowledgeStage }
     if (!options['publish-snapshot']) {
-      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot) }
+      snapshotResult = { saved: false, ...await verifySnapshot(root, snapshot,
+        { ...verification, ...(previous ? { reader: async () => previous } : {}) }) }
       if (sourceError) {
         if (snapshotResult.verified) throw sourceError
         snapshotResult.localError = sourceError.message
@@ -1248,12 +1274,17 @@ try {
       if (sourceError) throw sourceError
       snapshotResult = await publishSnapshot(root, snapshot)
       snapshotResult = { ...snapshotResult, ...await verifySnapshot(root, snapshot,
-        { expectedRevision: snapshotResult.revision }) }
+        { ...verification, expectedRevision: snapshotResult.revision }) }
     }
   }
 } catch (e) {
   snapshotResult = { ...snapshotResult, verified: false, status: e instanceof SnapshotDrift ? 'stale' : 'unavailable', error: e.message }
 }
+if (!options['no-snapshot']) check('board.status', 'Статусы блоков и приёмка синхронизированы с доской', ({ error }) => {
+  const construction = snapshotResult.construction
+  if (!construction) return error('Статусы сборки на доске не подтверждены. Прочитайте доску и устраните причину недоступности.')
+  for (const issue of construction.errors) error(issue)
+})
 if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согласование текущей доски владельцем', ({ error }) => {
   if (!snapshotResult.verified) return error('Нельзя подтвердить показанную владельцу доску без актуального снимка.')
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })
@@ -1283,7 +1314,7 @@ const warnCount = checks.reduce((s, c) => s + c.warnings.length, 0)
 
 if (options.json) {
   const { elements, ...snapshotSummary } = snapshotResult
-  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotSummary }, null, 2))
+  console.log(JSON.stringify({ process: slug, root, passed, total, checks, snapshot: snapshotSummary, testing: testingReport }, null, 2))
 } else {
   console.log(`check ${slug}`)
   for (const c of checks) {
@@ -1301,5 +1332,8 @@ if (!options.json) {
   console.log(snapshotResult.verified
     ? `Карта актуальна: ${snapshotResult.branch} @ ${snapshotResult.commit}; снимок ${snapshotResult.revision}, доска ${snapshotResult.boardRevision}.`
     : snapshotResult.error || 'Актуальность карты не проверялась (--no-snapshot).')
+  for (const node of snapshotResult.construction?.nodes || [])
+    console.log(`  ${node.id}: доска ${node.actual}; текущая приёмка ${node.expected}. ${node.reason}`)
+  for (const command of snapshotResult.construction?.next || []) console.log(`Сверка: ${command}`)
 }
 process.exitCode = snapshotResult.status === 'stale' ? 1 : snapshotResult.error ? 2 : passed !== total ? 1 : 0

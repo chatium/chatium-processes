@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSy
 import { dirname, join, resolve, sep } from 'node:path'
 import { isProcessSlug } from './project.mjs'
 import { parseTestPlanYaml } from './yaml.mjs'
-import { testSdk } from './test-exec.mjs'
+import { testExec, testSdk } from './test-exec.mjs'
 import { git, gitState } from './git-state.mjs'
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/
@@ -196,17 +196,52 @@ export function readFindings(root, slug) {
   return findings
 }
 
-export function testStatus({ root, slug, map, branch, remote = false }) {
+export function compareTestingPlan(plan, summary) {
+  const errors = []
+  if (!summary || summary.version !== 1 || !Array.isArray(summary.cases) || !Array.isArray(summary.runs))
+    throw Error('SDK вернул неполную историю тестирования; статусы не подтверждены.')
+  const actual = new Map(summary.cases.map(item => [item.id, item]))
+  if (actual.size !== summary.cases.length) errors.push('На доске повторяются ID сценариев.')
+  const shape = item => ({ title: item.title, kind: item.kind, required: item.required,
+    conditions: item.conditions, expected: item.expected,
+    targets: [...item.targets].map(targetKey).sort() })
+  for (const scenario of plan.cases) {
+    const stored = actual.get(scenario.id)
+    if (!stored) errors.push(`${scenario.id}: запланированный сценарий отсутствует на доске.`)
+    else if (canonicalTestJson(shape(scenario)) !== canonicalTestJson(shape(stored)))
+      errors.push(`${scenario.id}: условия, критерии или цели на доске отличаются от tests/plan.yaml.`)
+  }
+  for (const stored of summary.cases) if (!plan.cases.some(scenario => scenario.id === stored.id))
+    errors.push(`${stored.id}: сценарий на доске отсутствует в текущем tests/plan.yaml.`)
+  return errors
+}
+
+export function testStatus({ root, slug, map, branch, remote = false, readRemote,
+  verifyBuild = (root, commit) => testExec(root, commit, 'return true', { allowEquivalentTree: true }) }) {
   if (!existsSync(testPath(root, `${slug}/tests/plan.yaml`))) return { version: 1, status: 'not-tested', cases: [], findings: [], errors: ['Нет плана тестирования.'], runs: [] }
   const plan = readTestPlan(root, slug, map)
   branch ??= gitState(root).branch
   if (remote) {
+    const state = gitState(root)
+    if (branch !== state.branch) fail('Сверяйте тестирование в checkout той же ветки, что выбрана на доске.')
+    const planPath = `${slug}/tests/plan.yaml`
+    assertTestSourcesCommitted(root, { files: [{ path: planPath, sha256: hash(read(root, planPath)) }] })
     for (const scenario of plan.cases) assertTestSourcesCommitted(root, testInputs(root, slug, scenario))
-    const summary = testSdk(root, gitState(root).commit, 'readProcessTesting', { process: slug, branch })
+    const head = git(root, ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`]).split(/\s+/)[0]
+    if (head !== state.commit) fail('План или исходники этой версии ещё не опубликованы. Синхронизируйте ветку перед сверкой тестов.')
+    // The HTTP session may outlive a build. A published Git HEAD alone cannot
+    // prove that readProcessTesting will inspect this version of Source Build.
+    try { if (verifyBuild(root, state.commit) !== true) throw Error('Build not confirmed') }
+    catch { fail('Текущая версия Source Build не подтверждена. Дождитесь успешной сборки этой ветки и повторите чтение статусов.') }
+    const summary = (readRemote || (() => testSdk(root, gitState(root).commit, 'readProcessTesting', { process: slug, branch })))()
+    const current = gitState(root)
+    if (current.branch !== state.branch || current.commit !== state.commit) fail('Рабочая версия изменилась во время чтения статусов тестирования.')
+    const syncErrors = compareTestingPlan(plan, summary)
     const errors = summary.cases.filter(c => c.required && c.status !== 'passed').map(c => `${c.id}: ${c.status}${c.reason ? ` — ${c.reason}` : ''}`)
+    errors.push(...syncErrors)
     if (summary.error) errors.push(summary.error)
     else if (!summary.cases.length) errors.push('План тестирования пуст.')
-    return { ...summary, status: errors.length ? 'incomplete' : 'passed', errors }
+    return { ...summary, status: errors.length ? 'incomplete' : 'passed', errors, syncErrors }
   }
   const findings = readFindings(root, slug)
   const directory = testCachePath(root, slug)

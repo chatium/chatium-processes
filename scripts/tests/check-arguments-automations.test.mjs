@@ -32,6 +32,24 @@ test('unknown option exits before any snapshot or output-file write', t => {
   assert.throws(() => readFileSync(target))
 })
 
+test('unavailable board test history cannot produce a green synchronization check during build', t => {
+  const f = fixture(t)
+  f.put('demo/source.ts', 'export const value = 1\n')
+  f.put('demo/tests/scenarios/flow.mjs', 'export default async test => {}\n')
+  f.put('demo/tests/plan.yaml', JSON.stringify({ version: 1, cases: [{
+    id: 'flow', title: 'Flow', kind: 'runtime', required: true,
+    conditions: ['Test client'], expected: ['One result'], targets: [{ kind: 'node', id: 'form' }],
+    sources: ['demo/source.ts'], script: 'demo/tests/scenarios/flow.mjs',
+  }] }))
+  f.put('demo/process.yaml', 'title: Demo\nnodes:\n  - {id: form, kind: external, stage: Start, title: Form, purpose: Result, source: demo/source.ts}\nstages: [Start]\nlinks: []\n')
+  const result = spawnSync(process.execPath, [checkScript, 'demo', '--root', f.root, '--verify-snapshot', '--task-stage', 'build', '--json'],
+    { encoding: 'utf8', timeout: 15_000 })
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.testing.status, 'unavailable')
+  assert.equal(report.checks.find(item => item.id === 'board.testing').ok, false)
+  assert.match(report.checks.find(item => item.id === 'board.testing').errors.join('\n'), /не подтверждены/)
+})
+
 test('source check validates the installed account skill rather than source-only fixtures', t => {
   const f = fixture(t)
   f.put('.agents/skills/chatium-processes/SKILL.md', '# Processes\n')

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { stringifyYaml } from '../lib/yaml.mjs'
+import { testExec } from '../lib/test-exec.mjs'
 import { createRun, saveRun, testInputs, readTestRun, testStatus, testPath, validatePlan, validateRun, coverageForTargets, testCachePath, assertTestSourcesCommitted, hash, canonicalTestJson, readTestPlan } from '../lib/process-testing.mjs'
 
 function fixture(t) {
@@ -45,6 +46,53 @@ test('successful attempt keeps evidence limits, targets and immutable history', 
   assert.equal(result.cases[0].limitations[0], 'Получение адресатом не проверено')
   assert.equal(coverageForTargets(result.cases, [{ kind: 'link', id: 'welcome-link' }]), 'passed')
   assert.equal(coverageForTargets(result.cases, [{ kind: 'node', id: 'untested' }]), 'not-tested')
+})
+
+test('remote success must cover the current plan, criteria and board targets', t => {
+  const f = fixture(t)
+  const origin = join(f.root, '.git', 'test-origin.git')
+  f.git('init', '--bare', origin); f.git('remote', 'add', 'origin', origin); f.git('push', 'origin', 'main')
+  const summary = { version: 1, cases: [{ ...f.scenario, status: 'passed', attempts: 1 }], runs: [], findings: [] }
+  const status = () => testStatus({ root: f.root, slug: 'demo', map: f.map, remote: true, verifyBuild: () => true, readRemote: () => summary })
+  assert.equal(status().status, 'passed')
+  let read = false
+  assert.throws(() => testStatus({ root: f.root, slug: 'demo', map: f.map, remote: true,
+    verifyBuild: () => { throw Error('Executed an older commit') }, readRemote: () => { read = true; return summary } }), /Source Build не подтверждена/)
+  assert.equal(read, false, 'a cached HTTP session must not return old success before the build is confirmed')
+  summary.cases = []
+  assert.match(status().syncErrors.join('\n'), /welcome.*отсутствует на доске/)
+  assert.equal(status().status, 'incomplete')
+  summary.cases = [{ ...f.scenario, expected: ['Другая проверка'], status: 'passed' }]
+  assert.match(status().syncErrors.join('\n'), /критерии или цели/)
+  summary.cases = [{ ...f.scenario, id: 'old-case', status: 'passed' }]
+  assert.match(status().syncErrors.join('\n'), /old-case.*отсутствует в текущем/)
+  summary.cases = [{ ...f.scenario, status: 'stale', reason: 'Изменился исходник' }]
+  assert.equal(status().syncErrors.length, 0)
+  assert.equal(status().status, 'incomplete')
+  assert.match(status().errors.join('\n'), /stale/)
+  f.put('demo/tests/plan.yaml', stringifyYaml({ version: 1, cases: [{ ...f.scenario, capabilities: ['another.read'] }] }))
+  assert.throws(status, /tests\/plan.yaml.*изменён/)
+  f.git('add', 'demo/tests/plan.yaml'); f.git('commit', '-m', 'Plan is committed but not published')
+  assert.throws(status, /ещё не опубликованы/)
+})
+
+test('read-only build verification accepts an identical Git tree but never different code or an unknown version', t => {
+  const f = fixture(t), original = f.git('rev-parse', 'HEAD').toString().trim()
+  const bin = join(f.root, 'bin'); mkdirSync(bin)
+  writeFileSync(join(bin, 'chatium'), `#!/bin/sh\ncat >/dev/null\nprintf 'true\\n'\nprintf 'Executed commit: ${original}\\n' >&2\n`, { mode: 0o755 })
+  f.git('commit', '--allow-empty', '-m', 'Same tree')
+  const current = f.git('rev-parse', 'HEAD').toString().trim()
+  const previousPath = process.env.PATH
+  process.env.PATH = `${bin}:${previousPath}`
+  try {
+    assert.throws(() => testExec(f.root, current, 'return true'), /версия изменилась/, 'runtime execution remains strict by default')
+    assert.equal(testExec(f.root, current, 'return true', { allowEquivalentTree: true }), true)
+    f.put('demo/handler.ts', 'export const handler = 2\n')
+    f.git('add', 'demo/handler.ts'); f.git('commit', '-m', 'Changed tree')
+    const changed = f.git('rev-parse', 'HEAD').toString().trim()
+    assert.throws(() => testExec(f.root, changed, 'return true', { allowEquivalentTree: true }), /версия изменилась/)
+    assert.throws(() => testExec(f.root, '0'.repeat(40), 'return true', { allowEquivalentTree: true }), /версия изменилась/)
+  } finally { process.env.PATH = previousPath }
 })
 
 test('report commits and notes do not stale evidence; source, script and settings edits do', t => {

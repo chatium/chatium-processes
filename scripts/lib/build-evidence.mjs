@@ -14,7 +14,7 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const limit = values => values.slice(0, 12).map(value => String(value).slice(0, 1000))
 const gate = (id, title, state, details = [], evidence = []) => ({ id, title, state, details: limit(details), evidence })
 const inside = (path, source) => path === source.replace(/\/$/, '') || path.startsWith(source.replace(/\/$/, '') + '/')
-const separate = new Set(['tasks', 'creative', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.plan.board', 'owner.launch', 'owner.launch.board', 'process.testing', 'launch.variables', 'owner.questions', 'agents.review', 'typecheck'])
+const separate = new Set(['tasks', 'creative', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.plan.board', 'owner.launch', 'owner.launch.board', 'process.testing', 'board.status', 'board.testing', 'launch.variables', 'owner.questions', 'agents.review', 'typecheck'])
 const runtime = path => /\.(?:[cm]?[jt]sx?|vue|json|ya?ml|css|scss|svg)$/.test(path) && !/\/(?:tasks|reviews|decisions|tests)\//.test(path)
 
 /** Uses the same acceptance and review functions as the CLI; no second acceptance engine. */

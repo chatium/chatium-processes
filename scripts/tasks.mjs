@@ -60,6 +60,8 @@ const show = async value => {
     if (!written) throw Error('Не удалось записать результат команды в stdout.')
     offset += written
   }
+  if (value.boardSync?.status === 'pending')
+    throw Error(`Локальная операция сохранена, но доска не синхронизирована. Повторите только construction.mjs sync ${slug}; операцию задачи не повторяйте.`)
 }
 const input = () => {
   try { return JSON.parse(readFileSync(options.file, 'utf8')) }

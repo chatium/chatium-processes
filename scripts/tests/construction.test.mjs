@@ -20,7 +20,11 @@ function fixture(t){
   const state={commit:git('rev-parse','HEAD'),branch:git('branch','--show-current')}
   const board={snapshot:{revision:1,snapshot:{...state,processPath:'demo',nodes:[{id:'page',progress:[]}]}}}
   const calls=[]
-  const execute=async(root,code)=>{calls.push(code);if(code.includes('readProcessBoardForAgent'))return board;return {saved:true}}
+  const execute=async(root,code)=>{calls.push(code);if(code.includes('readProcessBoardForAgent'))return structuredClone(board)
+    const input=JSON.parse(code.match(/ctx, (.+)\)/)[1])
+    if(input.action==='checkpoint')board.snapshot.snapshot.nodes[0].progress=[input.event]
+    else board.snapshot.snapshot.nodes[0].progress=board.snapshot.snapshot.nodes[0].progress.filter(event=>event.requestId!==input.requestId)
+    return {saved:true}}
   return{root,put,git,map,state,board,calls,execute}
 }
 test('offline resolver is pinned and requires all acceptance gates',()=>{
@@ -33,7 +37,7 @@ test('offline resolver is pinned and requires all acceptance gates',()=>{
 })
 test('checkpoint publishes metadata, stable request ID and no working source; retry does not repeat task mutation',async t=>{
   const f=fixture(t);f.put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'running',revision:2,expectedOutputs:[{path:'demo/page.ts'}]})
-  const result=await syncBuildProgress(f.root,'demo',{execute:f.execute});assert.equal(result.status,'synced');assert.equal(f.calls.length,2)
+  const result=await syncBuildProgress(f.root,'demo',{execute:f.execute});assert.equal(result.status,'synced');assert.equal(f.calls.length,3)
   const event=JSON.parse(f.calls[1].match(/ctx, (.+)\)/)[1]);assert.equal(event.action,'checkpoint');assert.equal(event.event.taskRevision,2);assert.equal(event.event.taskSha256,digest(readFileSync(join(f.root,'demo/tasks/W001.json'))));assert.equal(event.baseCommit,f.state.commit)
   const before=readFileSync(join(f.root,'demo/tasks/W001.json'),'utf8')
   f.calls.length=0;f.board.snapshot.snapshot.nodes[0].progress=[event.event]
@@ -48,7 +52,7 @@ test('only clean own workspace claims may be discarded after local revert',async
   await syncBuildProgress(f.root,'demo',{execute:f.execute});const event=JSON.parse(f.calls[1].match(/ctx, (.+)\)/)[1]).event
   f.board.snapshot.snapshot.nodes[0].progress=[{...event}, {...event,taskId:'W002',workspaceId:'c'.repeat(32)}]
   f.git('restore','demo/tasks/W001.json');f.calls.length=0
-  const result=await syncBuildProgress(f.root,'demo',{execute:f.execute});assert.deepEqual(result.discarded,['W001']);assert.equal(f.calls.length,2);assert.match(f.calls[1],/"action":"discard"/)
+  const result=await syncBuildProgress(f.root,'demo',{execute:f.execute});assert.deepEqual(result.discarded,['W001']);assert.equal(f.calls.length,3);assert.match(f.calls[1],/"action":"discard"/)
 })
 test('evidence includes code checks, excludes launch-only conditions and refuses fake done',t=>{
   const f=fixture(t)
@@ -70,7 +74,10 @@ test('a committed but unbuilt task reports failure through a healthy checkout of
   f.put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'failed',revision:2,attempts:[{failure:{reason:'Source Build failed'}}]})
   f.git('add','.');f.git('commit','-qm','Unbuilt candidate')
   const calls=[]
-  const execute=async(root,code,expected)=>{assert.equal(realpathSync(root),realpathSync(host));assert.equal(expected,f.state.commit);calls.push(code);return code.includes('readProcessBoardForAgent')?f.board:{saved:true}}
+  const execute=async(root,code,expected)=>{assert.equal(realpathSync(root),realpathSync(host));assert.equal(expected,f.state.commit);calls.push(code)
+    if(code.includes('readProcessBoardForAgent'))return structuredClone(f.board)
+    f.board.snapshot.snapshot.nodes[0].progress=[JSON.parse(code.match(/ctx, (.+)\)/)[1]).event]
+    return {saved:true}}
   const http=(root,commit,method,args,options)=>{assert.equal(realpathSync(root),realpathSync(f.root));assert.equal(realpathSync(options.executionRoot),realpathSync(host));assert.deepEqual(options.plugins,{});return execute(host,`import { ${method} } from '@start/sdk'\nreturn await ${method}(ctx, ${args.map(v=>JSON.stringify(v)).join(', ')})`,commit)}
   const result=await syncBuildProgress(f.root,'demo',{executionRoot:host,execute,http})
   assert.equal(result.status,'synced',JSON.stringify(result));assert.notEqual(result.workingCommit,result.baseCommit);assert.deepEqual(result.discarded,[])
@@ -83,4 +90,17 @@ test('a different-account or dirty SDK checkout is rejected before SDK execution
   assert.equal((await syncBuildProgress(f.root,'demo',{executionRoot:other.root,execute})).status,'pending');assert.equal(calls,0)
   other.git('remote','set-url','origin','https://example.invalid/s/source-git/repo');other.put('uncommitted.txt','edit')
   assert.equal((await syncBuildProgress(f.root,'demo',{executionRoot:other.root,execute})).status,'pending');assert.equal(calls,0)
+})
+
+test('a saved response without visible progress stays pending; an ambiguous saved write is reconciled by reading',async t=>{
+  const f=fixture(t);f.put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'running',revision:2,expectedOutputs:[{path:'demo/page.ts'}]})
+  const unchanged=await syncBuildProgress(f.root,'demo',{execute:async(_root,code)=>code.includes('readProcessBoardForAgent')?structuredClone(f.board):{saved:true}})
+  assert.equal(unchanged.status,'pending');assert.deepEqual(unchanged.tasks,[])
+  assert.match(unchanged.pending[0].reason,/контрольным чтением/)
+  const ambiguous=await syncBuildProgress(f.root,'demo',{execute:async(_root,code)=>{
+    if(code.includes('readProcessBoardForAgent'))return structuredClone(f.board)
+    f.board.snapshot.snapshot.nodes[0].progress=[JSON.parse(code.match(/ctx, (.+)\)/)[1]).event]
+    throw Error('Response lost after persistence')
+  }})
+  assert.equal(ambiguous.status,'synced');assert.deepEqual(ambiguous.pending,[])
 })
