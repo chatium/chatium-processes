@@ -929,7 +929,6 @@ check('automations.refs', 'Параметры шагов ведут на сущ�
 const letterDeliveryExpectations = []
 check('letters', 'Письма шагов отправки и их переменные', ({ error, warn }) => {
   const sent = new Set()
-  const manuallyInvoked = new Set()
   const formatsByLetter = new Map()
   const requirementsByLetter = new Map()
   const channelsByLetter = new Map()
@@ -961,10 +960,6 @@ check('letters', 'Письма шагов отправки и их переме�
         channelFormatsByLetter.set(message.path, plan.formatById)
       }
     }
-    const manual = spec.data?.deliveryMode === 'manual' &&
-      ['caller', 'trigger', 'recipient', 'stop'].every(field => typeof spec.data.manualInvocation?.[field] === 'string' && spec.data.manualInvocation[field].trim())
-    if (manual) for (const message of spec.data.messages || []) if (typeof message.path === 'string')
-      manuallyInvoked.add(message.path)
   }
   for (const { automation, step } of sendSteps) {
     const where = `${rel(root, automation.file)} шаг ${step.id}`
@@ -1064,8 +1059,8 @@ check('letters', 'Письма шагов отправки и их переме�
       if (!v?.name || !v?.description) error(`${p}: у переменной нет name или description`)
       else if (!used.has(v.name)) warn(`${p}: переменная ${v.name} объявлена, но не используется`)
     }
-    if (!sent.has(p) && !manuallyInvoked.has(p)) {
-      const message = `${p}: письмо не отправляет ни один шаг автоматизации и нет ручного контракта запуска`
+    if (!sent.has(p)) {
+      const message = `${p}: письмо не отправляет ни один шаг автоматизации`
       if (options['task-stage'] === 'design' && formatsByLetter.has(basePath)) warn(`${message}; подключение проверяется на этапе сборки`)
       else error(message)
     }
@@ -1073,13 +1068,28 @@ check('letters', 'Письма шагов отправки и их переме�
 })
 
 
-check('letters.transport', 'Отправка через SDK Mailings', ({ error, warn }) => {
+check('letters.transport', 'Маршрут шаблонов через Automations и Mailings', ({ error, warn }) => {
+  for (const node of nodes.filter(node => node?.kind === 'series')) {
+    const source = norm(node.source)
+    const steps = sendSteps.filter(({ step }) => {
+      try { return templatePath(step)?.startsWith(`${source}/`) }
+      catch { return false } // The letters check reports the invalid key.
+    })
+    if (!steps.length) {
+      const message = `${node.id}: нет шага Automations с messageKey для серии ${source}; прямой Sender или jobs не заменяют рассылку`
+      if (options['task-stage'] === 'design') warn(`${message}; подключение проверяется на этапе сборки`)
+      else error(message)
+    }
+  }
+  for (const automation of new Set(sendSteps.map(item => item.automation)))
+    if (!Array.isArray(automation.config?.eventUrls) || !automation.config.eventUrls.some(url => typeof url === 'string' && url.trim()))
+      error(`${rel(root, automation.file)}: отправка шаблонов требует триггер в eventUrls для истории исполнения`)
   if (sendSteps.some(({ step }) => 'letterPath' in step.params))
     warn('Есть прежние шаги letterPath: сохраните их до явного перехода на messageKey и SDK Mailings')
   for (const [file, src] of codeSources) {
     if (/readLetterFn|read-letter/.test(src)) warn(`${rel(root, file)}: прежний читатель писем; при переходе замените на readMessageFile из @mailings/sdk`)
   }
-  if (!sendSteps.some(({ step }) => 'messageKey' in step.params)) return
+  if (!sendSteps.some(({ step }) => 'messageKey' in step.params) && !nodes.some(node => node?.kind === 'series')) return
   const ws = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
   const policy = ws.config?.mailings
   if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')

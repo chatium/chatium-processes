@@ -76,7 +76,7 @@ export function makeCodeReviewPacket({ root, slug }) {
     dep.source?.startsWith(testRoot) && dep.target?.startsWith(testRoot)).map(dep => dep.target))
   const testSource = path => !path.startsWith(testRoot) ||
     (path !== `${testRoot}records.ts` && !path.startsWith(`${testRoot}artifacts/`) && !path.startsWith(`${testRoot}runs/`) && (
-      /\.(?:[cm]?[jt]sx?|vue)$/i.test(path) || path.startsWith(`${testRoot}fixtures/`) ||
+      path === `${testRoot}plan.yaml` || /\.(?:[cm]?[jt]sx?|vue)$/i.test(path) || path.startsWith(`${testRoot}fixtures/`) ||
       importedTestFiles.has(path)))
   const files = corpus.files.filter(file => !file.path.startsWith(`${slug}/tasks/`) &&
     testSource(file.path) &&
@@ -89,13 +89,18 @@ export function makeCodeReviewPacket({ root, slug }) {
   const plan = parseTaskPlan(files.find(file => file.path === planPath)?.content || '')
   const workTasks = loadTasks(root, slug).tasks.map(task => taskDefinition(task, plan.find(p => p.id === task.planTask)))
   const rubric = JSON.parse(readFileSync(join(SKILL_DIR, 'build/review-questions.json'), 'utf8'))
-  if (rubric.version !== 7 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
+  if (rubric.version !== 8 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       rubric.questions.some(q => typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question))
     throw Error('Некорректная рубрика ревью реализации.')
-  let paymentNode = false
-  try { paymentNode = parseYaml(files.find(file => file.path === `${slug}/process.yaml`)?.content || '')?.nodes
-    ?.some(node => node?.kind === 'payment') === true }
+  let nodes = []
+  try { const map = parseYaml(files.find(file => file.path === `${slug}/process.yaml`)?.content || '')
+    if (Array.isArray(map?.nodes)) nodes = map.nodes }
   catch { /* A malformed map is reported by the static checks. */ }
+  const paymentNode = nodes.some(node => node?.kind === 'payment')
+  const messageSeries = nodes.some(node => node?.kind === 'series' ||
+    typeof node?.source === 'string' && node.source.startsWith('.mailings/storage/'))
+  const messageFiles = files.filter(file => file.path.endsWith('.message.yaml'))
+  const messageCode = files.some(file => /@(?:mailings|sender)\/sdk/.test(file.content))
   const paymentCode = files.some(file => /\.(?:[cm]?[jt]sx?|vue)$/.test(file.path) &&
     /\b(?:runAttemptPayment|createDeal|chargeDealWithSavedCard|syncDealPayments)\b|\/app\/crm\/pay|@pay\/sdk/.test(file.content))
   const paymentQuestions = paymentNode || paymentCode ? [{ id: 'payments.smoke',
@@ -109,7 +114,11 @@ export function makeCodeReviewPacket({ root, slug }) {
     question: 'Не попадают ли данные одного пользователя в HTML, который Vue-остров <Comp ssr /> отдаёт другому?',
     lookFor: 'У каждого Vue-острова с ssr пройди граф импортов (.vue, .ts, composables): изменяемое состояние на уровне модуля (стор, кэш, счётчик, ref вне setup) — одно на все запросы и всех пользователей сервера. Первый рендер — только из JSON-пропсов и браузерного ctx: без ctx на верхнем уровне модуля и без .run() маршрута в setup. Данные другого пользователя в HTML — blocking. Если слово ssr не включает рендер Vue-острова на сервере, пункт не применим.' }]
     : []
-  const questions = [...rubric.questions, ...paymentQuestions, ...vueSsrQuestions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
+  const questions = [...rubric.questions.map(question => question.id === 'messages.delivery' && (messageSeries || messageFiles.length)
+    ? { ...question, allowNotApplicable: false, requiredEvidenceGroups: [
+      { paths: messageFiles.map(file => file.path) },
+      { paths: files.filter(file => file.path.endsWith('.automationConfig.json')).map(file => file.path) },
+    ] } : question), ...paymentQuestions, ...vueSsrQuestions, ...corpus.tasks.map(task => ({ id: `plan.${task.id}`,
     question: `Сопоставь задачу ${task.id} «${task.title}» с реализацией.`,
     lookFor: 'Конкретные файлы, цепочка вызовов и требование плана. Не считать отметку выполненности доказательством. Для теста/запуска оцени готовность сценариев и механизма до фактического выполнения.' }))]
   if (new Set(questions.map(q => q.id)).size !== questions.length) throw Error('Повторяются вопросы или ID задач плана.')
@@ -122,7 +131,11 @@ export function makeCodeReviewPacket({ root, slug }) {
       return { id: 'crm.ownership', title: 'Заказы и оплата через CRM', ok: !result.errors.length, ...result }
     })(), { id: 'table-schema-history', title: 'Прежние схемы заполненных таблиц',
       ok: !tableHistory.errors.length, errors: tableHistory.errors, warnings: [] }] }
-  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation' }))
+  return withReferenceLibrary(base, collectReferenceLibrary({ root, slug, stage: 'implementation',
+    requiredReferences: ['skills/chatium-processes/formats/test-records.md',
+      ...(messageSeries || messageFiles.length || messageCode ? [
+        'skills/chatium-processes/blocks/message-series.md', 'skills/chatium-processes/blocks/automation.md',
+      ] : [])] }))
 }
 export function recordCodeReview({ root, slug, packet, report, agentReference, packetDirectory }) {
   if (typeof agentReference !== 'string' || !agentReference.trim() || agentReference.length > 500) throw Error('Нужен идентификатор реального вызова reviewer.')

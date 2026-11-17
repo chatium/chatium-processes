@@ -59,7 +59,7 @@ function sectionHashes(files) {
   return result
 }
 
-export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DIR, limits = LIBRARY_LIMITS }) {
+export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DIR, limits = LIBRARY_LIMITS, requiredReferences = [] }) {
   const files = new Map()
   let bytes = 0, entries = 0
   function walk(base, path, prefix, kind, ancestors = new Set()) {
@@ -149,6 +149,7 @@ export function collectReferenceLibrary({ root, slug, stage, skillDir = SKILL_DI
     'skills/chatium-development/auth.md',
   ] :
     ['skills/chatium-processes/method/README.md', 'skills/chatium-processes/method/readiness.md'])]
+  for (const path of requiredReferences) if (!required.includes(path)) required.push(path)
   for (const path of required) if (!files.has(path)) throw Error(`Нет обязательной справки: ${path}`)
   const sorted = [...files.values()].sort((a, b) => a.path.localeCompare(b.path, 'en'))
   const ruleDigests = Object.fromEntries(entrypoints.map(path => [path,

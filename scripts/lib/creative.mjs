@@ -276,31 +276,27 @@ function validateSeries(spec, errors, references) {
       errors.push(`Письмо ${m.id}: приём не обоснован источником.`)
   }
   if (spec.seriesType === 'sales' && !(spec.messages || []).some(m => m.cta)) errors.push('В продающей серии нужен хотя бы один обоснованный следующий шаг к покупке.')
-  if (spec.deliveryMode && !['automation', 'manual'].includes(spec.deliveryMode))
-    errors.push('deliveryMode серии: нужен automation или manual.')
+  if (spec.deliveryMode !== undefined && spec.deliveryMode !== 'automation')
+    errors.push('Письма и рассылки запускаются через Automations; deliveryMode может быть только automation.')
+  if (spec.manualInvocation !== undefined)
+    errors.push('manualInvocation не заменяет триггер Automations для шаблонного письма.')
   const automationRefs = seriesAutomationRefs(spec)
   if (spec.automationRef !== undefined && spec.automationRefs !== undefined)
     errors.push('Укажите automationRef или automationRefs, но не оба поля.')
   if (!Array.isArray(automationRefs) || automationRefs.length > 12 || !unique(automationRefs) ||
       automationRefs.some(ref => !text(ref)))
     errors.push('automationRefs: нужны уникальные непустые пути, не более 12.')
-  if (spec.deliveryMode === 'manual') {
-    if (Array.isArray(automationRefs) && automationRefs.length) errors.push('Ручная серия не должна ссылаться на фиктивную автоматизацию.')
-    for (const field of ['caller', 'trigger', 'recipient', 'stop'])
-      if (!text(spec.manualInvocation?.[field])) errors.push(`Ручная серия: нужен manualInvocation.${field}.`)
-  } else {
-    if (!Array.isArray(automationRefs) || !automationRefs.length)
-      errors.push('Автоматической серии нужна automationRef или automationRefs для проверки запуска и остановки.')
-    if (Array.isArray(spec.messages) && spec.messages.length > 1) {
-      const stop = spec.automationStop
-      if (!Array.isArray(stop?.reasons) || !stop.reasons.length || stop.reasons.length > 12 ||
-          stop.reasons.some(reason => !text(reason?.when) || !text(reason?.stateSource)))
-        errors.push('Автоматической серии из нескольких сообщений нужны automationStop.reasons с причиной и источником состояния.')
-      if (!text(stop?.replyHandling))
-        errors.push('Автоматической серии нужно automationStop.replyHandling: что происходит после ответа или отказа.')
-      if (!text(stop?.checkBeforeSend))
-        errors.push('Автоматической серии нужно automationStop.checkBeforeSend: где состояние проверяется перед отправкой.')
-    }
+  if (!Array.isArray(automationRefs) || !automationRefs.length)
+    errors.push('Серии нужна automationRef или automationRefs для проверки запуска и остановки.')
+  if (Array.isArray(spec.messages) && spec.messages.length > 1) {
+    const stop = spec.automationStop
+    if (!Array.isArray(stop?.reasons) || !stop.reasons.length || stop.reasons.length > 12 ||
+        stop.reasons.some(reason => !text(reason?.when) || !text(reason?.stateSource)))
+      errors.push('Автоматической серии из нескольких сообщений нужны automationStop.reasons с причиной и источником состояния.')
+    if (!text(stop?.replyHandling))
+      errors.push('Автоматической серии нужно automationStop.replyHandling: что происходит после ответа или отказа.')
+    if (!text(stop?.checkBeforeSend))
+      errors.push('Автоматической серии нужно automationStop.checkBeforeSend: где состояние проверяется перед отправкой.')
   }
   return { guidance: catalogData.types[spec.seriesType], blocks: catalogData.blocks }
 }
@@ -458,8 +454,7 @@ export function compileCreative(packet) {
       ...m.blocks.map(b => `- ${b.type}: ${b.text} [${b.sourceRef}]`),
       `Маркетинговый приём: ${m.marketingTrigger ? json(m.marketingTrigger) : 'не выбран'}`,
       `CTA: ${m.cta ? `${m.cta.label} → ${m.cta.target}` : 'не нужен по задаче'}`, '')
-    if (spec.deliveryMode === 'manual') lines.push('## Ручной запуск', json(spec.manualInvocation))
-    else lines.push('## Автоматизации', ...automationFiles.map(file => `- ${file.path}`),
+    lines.push('## Автоматизации', ...automationFiles.map(file => `- ${file.path}`),
       ...(spec.automationStop ? ['## Остановка следующих касаний', json(spec.automationStop)] : []))
   }
   lines.push('', '## Критерии приёмки', ...spec.acceptance.map(a => `- ${a}`), '',

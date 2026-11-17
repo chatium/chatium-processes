@@ -313,12 +313,8 @@ messages:
       - type: confirmation
         text: Мы получили заявку и скоро предложим время.
         sourceRef: offer
-deliveryMode: manual
-manualInvocation:
-  caller: Менеджер по текущей заявке
-  trigger: После разговора с клиентом
-  recipient: Контакт этого клиента из CRM
-  stop: Клиент отказался или уже получил ответ
+deliveryMode: automation
+automationRef: demo/automations/welcome/welcome.automationConfig.json
 openQuestions: []
 acceptance: [Сообщение отправлено только нужному клиенту]
 ```
@@ -329,11 +325,13 @@ email-канала из `getChannels(ctx)` и запиши тот же ID в
 примера шаблон должен иметь `title`, `description`, `subject`, `plain` и
 `html`; полный формат — в [справке о письмах](letters.md).
 
-`deliveryMode: manual` нужен для серии, которую вызывает человек или
-бизнес-операция без автоматизации. Без `manualInvocation` такая серия не
-проходит сборку. Для автоматической серии опусти `deliveryMode` или поставь
-`automation`, убери `manualInvocation` и укажи существующий
+Письма и рассылки, включая одно шаблонное письмо, отправляются автоматизацией
+по триггеру. Опусти `deliveryMode` или поставь `automation`; укажи существующий
 `automationRef: <process>/automations/<name>/<name>.automationConfig.json`.
+Конфиг содержит `eventUrls` и шаг с `messageKey` для каждого письма.
+Нажатие сотрудника или бизнес-операция создаёт событие, которое запускает
+эту цепочку. Прямые сообщения вне рассылок описываются своим контрактом,
+а не ручным режимом шаблонной серии.
 Если разные исходы запускают **разные автоматизации**, укажи вместо него
 `automationRefs` — список путей ко всем их `*.automationConfig.json` (не
 более 12, без повторов). Например, событие подтверждения и событие отказа

@@ -126,7 +126,7 @@ test('planned automation edge stays on the map during design and requires code d
   assert.equal(implemented.ok, true, implemented.errors.join('\n'))
 })
 
-test('manual series edge points to a real handler, never a fictional automation', t => {
+test('a manual transition validates its handler and does not masquerade as an event', t => {
   const f = fixture(t)
   const mapPath = 'demo/process.yaml'
   const base = 'title: Demo\nknowledge: .knowledge-base/processes/demo/\nstages: [Lead]\nnodes:\n  - {id: queue, kind: page, stage: Lead, title: Queue, purpose: Decide, source: demo/admin/}\n  - {id: message, kind: series, stage: Lead, title: Message, purpose: Notify, source: .mailings/storage/processes/demo/message/}\nlinks:\n  - {from: queue, to: message, when: Admin retries, via: demo/api/retry.ts}\n'
@@ -283,7 +283,7 @@ test('local-time delay requires a real timezone instead of an example placeholde
   assert.doesNotMatch(errors(), /defaultTimezone/)
 })
 
-test('manual series letters do not require a fictional automation', t => {
+test('manual invocation cannot exempt a template from its automation', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nknowledge: .knowledge-base/processes/demo/\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    purpose: Reply\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
   const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
@@ -292,15 +292,37 @@ test('manual series letters do not require a fictional automation', t => {
     manualInvocation: { caller: 'Менеджер', trigger: 'После звонка', recipient: 'Контакт клиента', stop: 'Отказ' },
     messages: [{ path }] }))
   const letters = JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters')
-  assert.doesNotMatch(letters.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+  assert.match(letters.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+})
+
+test('series delivery rejects inline code and empty triggers but allows a native route and direct non-series messages', t => {
+  const f = fixture(t)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { mailings: { testOnly: true, testContacts: [] } } }))
+  f.put('demo/process.yaml', 'title: Demo\nnodes:\n  - {id: letters, kind: series, source: demo/messages.ts}\nlinks: []\n')
+  f.put('demo/messages.ts', "export const messages = ['Первый выпуск']\n")
+  f.put('demo/send.ts', "import { sendMessageToChat } from '@sender/sdk'\n")
+  const transport = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters.transport')
+  assert.match(transport().errors.join('\n'), /нет шага Automations/)
+  f.put('demo/process.yaml', 'title: Demo\nnodes:\n  - {id: letters, kind: series, source: .mailings/storage/processes/demo/welcome/}\nlinks: []\n')
+  const config = { title: 'Welcome', eventUrls: [], steps: [
+    { id: 'send', type: 'action', params: { messageKey: 'processes/demo/welcome/first' } },
+  ] }
+  f.put('demo/automations/welcome.automationConfig.json', JSON.stringify(config))
+  assert.match(transport().errors.join('\n'), /триггер в eventUrls/)
+  config.eventUrls = ['event://crm/deal/created']
+  f.put('demo/automations/welcome.automationConfig.json', JSON.stringify(config))
+  assert.equal(transport().ok, true, 'this check validates the route, not action implementation')
+  rmSync(join(f.root, 'demo/automations'), { recursive: true })
+  f.put('demo/process.yaml', 'title: Demo\nnodes: []\nlinks: []\n')
+  assert.equal(transport().ok, true, 'Sender outside a series is not rejected by an import rule')
 })
 
 test('letter check requires content for selected transports only', t => {
   const f = fixture(t)
   const path = '.mailings/storage/processes/demo/followup/01.message.yaml'
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
-  const spec = (formats, requiredMedia) => f.put('demo/creative/followup/spec.yaml', JSON.stringify({ formats, deliveryMode: 'manual',
-    manualInvocation: { caller: 'Менеджер', trigger: 'После звонка', recipient: 'Контакт клиента', stop: 'Отказ' },
+  const spec = (formats, requiredMedia) => f.put('demo/creative/followup/spec.yaml', JSON.stringify({ formats, deliveryMode: 'automation',
     messages: [{ path, ...(requiredMedia ? { requiredMedia } : {}) }] }))
   const errors = () => JSON.parse(f.run().stdout).checks.find(check => check.id === 'letters').errors.join('\n')
   spec(['email'])
@@ -330,8 +352,7 @@ test('channel plan constrains every message variant to its selected Sender IDs',
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\n    creativeRef: demo/creative/followup/spec.yaml\nlinks: []\n')
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
     config: { senderChannels: ['email-1', 'telegram-1'] } }))
-  const spec = { formats: ['messenger'], channelIdsByFormat: { messenger: ['telegram-1'] }, deliveryMode: 'manual',
-    manualInvocation: { caller: 'Менеджер', trigger: 'Заявка', recipient: 'Контакт', stop: 'Отказ' },
+  const spec = { formats: ['messenger'], channelIdsByFormat: { messenger: ['telegram-1'] }, deliveryMode: 'automation',
     messages: [{ path }] }
   f.put('demo/creative/followup/spec.yaml', JSON.stringify(spec))
   const message = { title: 'Первый шаг', description: 'Материал', plain: 'Откройте материал.' }

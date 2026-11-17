@@ -140,6 +140,7 @@ test('documented page and manual-series specifications compile from their exampl
       creativeRef: 'demo/creative/welcome/spec.yaml' },
   ] })
   const page = example('Страница'), series = example('Серия сообщений')
+  f.put(series.automationRef, { eventUrls: ['event://account/demo/requested'], steps: [] })
   f.put('demo/creative/signup/spec.yaml', page)
   f.put('demo/creative/welcome/spec.yaml', series)
   const pagePacket = creativePacket({ root: f.root, slug: 'demo', nodeId: 'signup' })
@@ -150,13 +151,13 @@ test('documented page and manual-series specifications compile from their exampl
   assert.deepEqual(series.channelIdsByFormat, { email: ['email-1'] })
   assert.match(series.messages[0].path, /01-welcome\.message\.yaml$/)
   assert.match(compileCreative(pagePacket), /request-form/)
-  assert.match(compileCreative(seriesPacket), /Ручной запуск/)
+  assert.match(compileCreative(seriesPacket), /Автоматизации/)
   delete page.mechanics[0].target
   f.put('demo/creative/signup/spec.yaml', page)
   assert.match(creativePacket({ root: f.root, slug: 'demo', nodeId: 'signup' }).errors.join('\n'), /требуется target/)
-  delete series.manualInvocation.stop
+  delete series.automationRef
   f.put('demo/creative/welcome/spec.yaml', series)
-  assert.match(creativePacket({ root: f.root, slug: 'demo', nodeId: 'welcome' }).errors.join('\n'), /manualInvocation.stop/)
+  assert.match(creativePacket({ root: f.root, slug: 'demo', nodeId: 'welcome' }).errors.join('\n'), /нужна automationRef/)
 })
 
 test('compiler expands selected landing settings and detects changed inputs or generated text', t => {
@@ -634,7 +635,7 @@ test('separate outcome automations are all required and all invalidate the creat
   assert.match(creativePacket(args).errors.join('\n'), /уникальные/)
 })
 
-test('manual series has a real invocation contract without a fake automation', t => {
+test('a templated letter needs an automation even when initiated by a person', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', { title: 'Проба', nodes: [{ id: 'followup', kind: 'series', title: 'Сообщение после разговора',
     source: '.mailings/storage/processes/demo/followup/', creativeRef: 'demo/creative/followup/spec.yaml' }] })
@@ -650,12 +651,10 @@ test('manual series has a real invocation contract without a fake automation', t
   }
   const args = { root: f.root, slug: 'demo', nodeId: 'followup' }
   f.put('demo/creative/followup/spec.yaml', spec)
-  assert.match(creativePacket(args).errors.join('\n'), /manualInvocation.caller/)
+  assert.match(creativePacket(args).errors.join('\n'), /deliveryMode может быть только automation/)
   spec.manualInvocation = { caller: 'Менеджер', trigger: 'После разговора', recipient: 'Контакт текущего клиента', stop: 'Если клиент отказался' }
   f.put('demo/creative/followup/spec.yaml', spec)
-  assert.deepEqual(creativePacket(args).errors, [])
-  const build = writeCreativeBuild(args)
-  assert.match(readFileSync(join(f.root, build.path), 'utf8'), /Ручной запуск/)
+  assert.match(creativePacket(args).errors.join('\n'), /manualInvocation не заменяет/)
   f.put('demo/.workspace.json', { type: 'process', processEngine: 'processes-v2' })
   f.put(spec.messages[0].path, { title: 'Первый шаг', description: 'После разговора',
     subject: 'Первый шаг', plain: 'Материал помогает начать.', html: '<p>Материал помогает начать.</p>',
@@ -667,10 +666,17 @@ test('manual series has a real invocation contract without a fake automation', t
     assert.ok([0, 1].includes(result.status), result.stderr)
     return JSON.parse(result.stdout).checks.find(item => item.id === 'letters')
   }
-  assert.equal(check().ok, true, 'ручной вызов не требует фиктивной автоматизации')
-  delete spec.manualInvocation.stop
+  assert.match(check().errors.join('\n'), /не отправляет ни один шаг автоматизации/)
+  delete spec.manualInvocation
+  spec.deliveryMode = 'automation'
+  spec.automationRef = 'demo/automations/followup.automationConfig.json'
+  f.put(spec.automationRef, { title: 'После разговора', eventUrls: ['event://account/demo/conversation_finished'],
+    steps: [{ id: 'send', type: 'action', params: { messageKey: 'processes/demo/followup/01' } }] })
   f.put('demo/creative/followup/spec.yaml', spec)
-  assert.match(check().errors.join('\n'), /нет ручного контракта запуска/)
+  assert.deepEqual(creativePacket(args).errors, [])
+  assert.equal(check().ok, true)
+  const build = writeCreativeBuild(args)
+  assert.match(readFileSync(join(f.root, build.path), 'utf8'), /Автоматизации/)
 })
 
 test('series result checks every channel version and email render per message', t => {

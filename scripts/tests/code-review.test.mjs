@@ -189,6 +189,49 @@ test('test reports do not stale code review while test sources and fixtures do',
   assert.notEqual(f.packet().inputDigest, withImported)
 })
 
+test('test plan reaches implementation review and changing its coverage invalidates the conclusion', t => {
+  const f = fixture(t)
+  f.put('demo/tests/plan.yaml', 'version: 1\ncases:\n  - id: delivery\n    required: true\n')
+  const packet = f.packet()
+  assert.ok(packet.files.some(file => file.path === 'demo/tests/plan.yaml'))
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-processes/formats/test-records.md'))
+  save(f, packet)
+  assert.equal(codeReviewStatus({ root: f.root, slug: 'demo' }).status, 'ready')
+  f.put('demo/tests/plan.yaml', 'version: 1\ncases: []\n')
+  assert.equal(codeReviewStatus({ root: f.root, slug: 'demo' }).status, 'stale')
+})
+
+test('series review cannot omit delivery rules or approve missing Mailings and Automations evidence', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - {id: letters, kind: series, source: demo/messages.ts}\n')
+  f.put('demo/messages.ts', "export const messages = ['Первый выпуск']\n")
+  f.put(codePath, `${quote}\nimport { sendMessageToChat } from '@sender/sdk'\n`)
+  const packet = f.packet(), report = syntheticReport(packet)
+  for (const ref of ['blocks/message-series.md', 'blocks/automation.md'])
+    assert.ok(packet.referenceLibrary.required.includes(`skills/chatium-processes/${ref}`))
+  report.inspectedReferences = report.inspectedReferences.filter(path => !path.endsWith('/blocks/message-series.md'))
+  assert.throws(() => save(f, packet, report), /обязательн/i)
+  report.inspectedReferences = [...packet.referenceLibrary.required]
+  const answer = report.answers.find(item => item.id === 'messages.delivery')
+  answer.status = 'not-applicable'
+  assert.throws(() => save(f, packet, report), /неприменимым/)
+  answer.status = 'covered'
+  assert.throws(() => save(f, packet, report), /messages.delivery.*доказательства/)
+  Object.assign(answer, { status: 'gap', priority: 'blocking', reason: 'Серия заменена текстом в TS и прямой отправкой.',
+    nextAction: 'Создать шаблоны и событийную автоматизацию.', evidence: [] })
+  assert.equal(save(f, packet, report).status, 'needs-work')
+})
+
+test('direct dialog delivery requests review without imposing a mailing configuration', t => {
+  const f = fixture(t)
+  f.put(codePath, `${quote}\nimport { sendMessageToChat as reply } from '@sender/sdk'\n`)
+  const packet = f.packet(), question = packet.questions.find(item => item.id === 'messages.delivery')
+  assert.ok(packet.referenceLibrary.required.includes('skills/chatium-processes/blocks/message-series.md'))
+  assert.equal(question.requiredEvidenceGroups, undefined)
+  assert.equal(packet.staticChecks.every(check => check.ok), true)
+  assert.equal(save(f, packet).status, 'ready', 'synthetic validation only; intent remains a reviewer judgment')
+})
+
 test('no letters is valid without a letters directory; explicit missing letters is an error', t => {
   const f = fixture(t)
   rmSync(join(f.root, '.mailings/storage/processes/demo'), { recursive: true })

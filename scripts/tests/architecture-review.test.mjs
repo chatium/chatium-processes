@@ -69,6 +69,11 @@ test('architecture reviewer receives actual component specifications and notices
   assert.equal(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, current.inputDigest)
   put('demo/tools/requestStaff.ts', 'export const requestStaff = app.function("/staff")\n')
   assert.notEqual(makeArchitectureReviewPacket({ root, slug: 'demo' }).inputDigest, current.inputDigest)
+  assert.ok(!current.referenceLibrary.required.includes('skills/chatium-processes/blocks/message-series.md'))
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - {id: welcome, kind: series, source: .mailings/storage/processes/demo/welcome/}\n')
+  const withSeries = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  for (const ref of ['blocks/message-series.md', 'blocks/automation.md'])
+    assert.ok(withSeries.referenceLibrary.required.includes(`skills/chatium-processes/${ref}`))
 })
 
 test('architecture reviewer checks existing work-card conditions without tracking status bookkeeping', t => {

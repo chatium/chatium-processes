@@ -21,6 +21,7 @@ function fixture(t) {
   put('skills/chatium-processes/method/README.md', '# Method\nInterview before design.\n')
   put('skills/chatium-processes/method/readiness.md', '# Readiness\nRequire evidence for each question.\n')
   put('skills/chatium-processes/build/review-safety.md', '# Safety\nBound every Heap read and job retry.\n')
+  put('skills/chatium-processes/formats/test-records.md', '# Testing\nRecord the planned scenarios.\n')
   put('skills/chatium-development/SKILL.md', '# Development\n[Heap](references/heap.md)\n## Runtime and module boundaries\nReview API boundaries.\n## API source of truth\nUse published contracts.\n')
   put('skills/chatium-development/auth.md', '# Auth\nProtect each handler on the server.\n')
   put('skills/chatium-development/routing.md', '# Routes\nInventory pages and APIs.\n')
