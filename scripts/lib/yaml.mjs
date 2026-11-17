@@ -50,7 +50,7 @@ const testYaml = loadYaml('js-yaml')
 export function requireYaml() {
   if (!yaml) {
     const err = new Error(
-      'Не найден пакет yaml. Из каталога скилла выполните npm ci --ignore-scripts ' +
+      'Не найден пакет yaml. Из каталога скилла выполните npm ci --ignore-scripts --no-bin-links ' +
         'либо задайте PROCESSES_YAML_PATH — каталог, ' +
         'от которого доступен node_modules/yaml. См. build/environment.md.',
     )
@@ -70,7 +70,7 @@ export function stringifyYaml(value) {
 
 // Same schema as the Start runtime: date-like scalars remain strings; numeric syntax matches js-yaml.
 export function parseTestPlanYaml(source) {
-  if (!testYaml) throw Error('Не найден js-yaml для плана тестирования. Из каталога скилла выполните npm ci --ignore-scripts.')
+  if (!testYaml) throw Error('Не найден js-yaml для плана тестирования. Из каталога скилла выполните npm ci --ignore-scripts --no-bin-links.')
   const schema = testYaml.JSON_SCHEMA.extend({ implicit: ['int', 'float'].map(name => {
     const type = testYaml.types[name]
     return new testYaml.Type(`tag:yaml.org,2002:${name}`, { kind: 'scalar',

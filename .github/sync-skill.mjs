@@ -98,7 +98,7 @@ try {
     mkdirSync(target, { recursive: true })
     execFileSync('rsync', ['-ac', '--delete', ...(!releasing ? ['--exclude=/node_modules/'] : []),
       distribution + sep, target + sep], { stdio: 'inherit' })
-    if (!releasing) execFileSync('npm', ['ci', '--ignore-scripts'], { cwd: target, stdio: 'inherit' })
+    if (!releasing) execFileSync('npm', ['ci', '--ignore-scripts', '--no-bin-links'], { cwd: target, stdio: 'inherit' })
     if (fingerprint(target, ignored) !== contentHash) {
       throw Error('Установленная копия отличается от исходника')
     }
