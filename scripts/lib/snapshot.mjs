@@ -8,6 +8,7 @@ import { parseYaml } from './yaml.mjs'
 import { git, gitState, assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { collectBuildEvidence } from './build-evidence.mjs'
 import { resolveBuildState } from './build-state.mjs'
+import { externalUrlForNode } from './external-url.mjs'
 
 function safePath(root, value) {
   if (typeof value !== 'string' || !value || value.startsWith('/') || value.includes('\\') || value.replace(/\/$/, '').split('/').some(p => !p || p === '.' || p === '..')) throw Error('Некорректный относительный путь источника снимка.')
@@ -74,6 +75,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
   const evidence = buildEvidence || collectBuildEvidence({ root, slug, map, checks })
   const build = { ...evidence.assessment, checkedCommit: commit, checkedAt }
   const nodes = map.nodes.map(node => {
+    const externalUrl = externalUrlForNode(node)
     const source = safePath(root, node.source)
     const agentPath = node.source.endsWith('.agent.json') ? node.source : undefined
     if (node.agentId !== undefined && (!agentPath || typeof node.agentId !== 'string' || !node.agentId.trim() || node.agentId.length > 200 || /[\u0000-\u001f]/.test(node.agentId))) throw Error('agentId допустим только для исходника .agent.json и должен быть непустой строкой до 200 символов.')
@@ -86,6 +88,7 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
     }) : undefined
     return { id: node.id, stage: node.stage, kind: node.kind, title: node.title, purpose: node.purpose || '', source: node.source,
       ...state, build: facts,
+      ...(externalUrl !== undefined ? { externalUrl } : {}),
       ...(agentPath ? { agent: { path: agentPath, ...(node.agentId ? { id: node.agentId } : {}) } } : {}), ...(letters ? { letters } : {}) }
   })
   const links = (map.links || []).map((link, i) => {

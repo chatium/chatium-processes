@@ -39,6 +39,7 @@ import { scanJsSource, balancedObjectEnd, hasExportedGetRoute, routeDefinitionCo
 import { crmUsageChecks, crmAnalyticsEvent, CRM_DEAL_EVENTS, isModuleEventUrl } from './lib/crm-contract.mjs'
 import { validateClientModules } from './lib/client-modules.mjs'
 import { internalPageErrors, needsCreativeReview } from './lib/page-mode.mjs'
+import { externalUrlForNode } from './lib/external-url.mjs'
 
 const NODE_KINDS = ['page', 'table', 'series', 'payment', 'crm', 'external', 'agent']
 const EVENT_TYPES = ['workspaceEvent', 'customerEvent']
@@ -358,6 +359,7 @@ check('map', 'Карта процесса process.yaml', ({ error, warn }) => {
     if (n?.id) ids.add(n.id)
     if (n?.stage && !stages.includes(n.stage)) error(`${where}: stage «${n.stage}» нет в stages`)
     if (n?.kind && !NODE_KINDS.includes(n.kind)) error(`${where}: kind «${n.kind}», допустимы ${NODE_KINDS.join(', ')}`)
+    try { externalUrlForNode(n) } catch (e) { error(`${where}: ${e.message}`) }
   }
   for (const [i, l] of links.entries()) {
     const where = `links[${i}] ${l?.from} → ${l?.to}`
