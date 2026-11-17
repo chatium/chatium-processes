@@ -103,7 +103,8 @@ test('board writes execute the public SDK once with saved revisions and literal 
   ]) {
     let calls = 0
     const result = await writeBoardElements(root, context, { slug: 'demo', operation, changes }, {
-      execute: async (_, code) => {
+      execute: async (_, code, _commit, options) => {
+        assert.equal(options.write, true)
         assert.ok(code.startsWith(`import { ${method} } from '@start/sdk'`))
         const run = new Function(method, 'ctx', `return (async () => {${code.replace(/^import .*\n/, '')}})()`)
         return run(async (_ctx, payload) => {

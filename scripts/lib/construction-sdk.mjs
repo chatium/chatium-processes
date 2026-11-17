@@ -7,5 +7,6 @@ export function constructionSdk(root, method, args, { executionRoot = root, exec
   const state = gitState(root), host = gitState(executionRoot)
   if (state.branch !== host.branch)
     return http(root, host.commit, method, args, { executionRoot, plugins: {} })
-  return execute(executionRoot, `import { ${method} } from '@start/sdk'\nreturn await ${method}(ctx, ${args.map(value => JSON.stringify(value)).join(', ')})`, host.commit)
+  return execute(executionRoot, `import { ${method} } from '@start/sdk'\nreturn await ${method}(ctx, ${args.map(value => JSON.stringify(value)).join(', ')})`, host.commit,
+    { write: method === 'writeProcessBuildProgress' })
 }

@@ -73,7 +73,7 @@ export async function writeBoardElements(root, context, { slug, operation, chang
   let result
   try {
     result = await execute(root, `import { ${method} } from '@start/sdk'
-return await ${method}(ctx, ${JSON.stringify(payload)})`)
+return await ${method}(ctx, ${JSON.stringify(payload)})`, undefined, { write: true })
   } catch (error) {
     throw Error(`${error.message} Изменения могли сохраниться; перечитайте доску перед повтором.`)
   }

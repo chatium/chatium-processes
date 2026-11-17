@@ -112,9 +112,9 @@ export function buildSnapshot({ root, slug, map, checks, branch, commit, checked
 export function prepareSnapshot({ root, slug, map, checks, state = gitState(root), allowInvalidMap = false }) {
   return buildSnapshot({ root, slug, map, checks, ...state, allowInvalidMap })
 }
-export async function startExec(root, sdkCode, expectedCommit) {
+export async function startExec(root, sdkCode, expectedCommit, { write = false } = {}) {
   // Use the public CLI entrypoint, including the image's supported wrapper.
-  const r = spawnSync('chatium', ['exec'], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
+  const r = spawnSync('chatium', ['exec', ...(write ? ['--write'] : [])], { cwd: root, input: sdkCode, encoding: 'utf8', timeout: 45_000, maxBuffer: 4 * 1024 * 1024 })
   if (r.error || r.status !== 0) throw Error(`Не удалось выполнить chatium exec: ${r.error?.message || r.stderr.trim()}`)
   if (expectedCommit) {
     const executed = r.stderr.match(/^Executed commit: ([0-9a-f]{40})$/m)?.[1]
@@ -135,7 +135,7 @@ export async function publishSnapshot(root, snapshot) {
   if (payload.length > 250_000) throw Error('Снимок превышает предел сервера: 250 000 символов JSON. Сократите карту или диагностику.')
   assertPublishedState(root, snapshot)
   const saved = await startExec(root,
-    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit)
+    `import { writeProcessSnapshot } from '@start/sdk'\nreturn await writeProcessSnapshot(ctx, ${payload})`, snapshot.commit, { write: true })
   if (!saved?.saved) throw Error(`Снимок не сохранён: ${saved?.reason || 'SDK вернул неожиданный ответ'}`)
   if (!Number.isInteger(saved.revision) || saved.revision < 1) throw Error('SDK вернул некорректную ревизию снимка.')
   return { saved: true, revision: saved.revision }

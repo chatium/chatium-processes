@@ -355,12 +355,14 @@ const file = process.env.TEST_BOARD_FILE
 const board = JSON.parse(readFileSync(file, 'utf8'))
 process.stderr.write('Executed commit: ' + (process.env.TEST_EXECUTED_SHA || process.env.TEST_PUBLISHED_SHA) + '\\n')
 if (code.includes('writeProcessSnapshot')) {
+  if (!process.argv.includes('--write')) { console.error('read-only transaction'); process.exit(6) }
   appendFileSync(process.env.TEST_CALLS_FILE, 'write\\n')
   const snapshot = JSON.parse(code.slice(code.indexOf('(ctx, ') + 6, code.lastIndexOf(')')))
   board.snapshot = { snapshot, revision: board.snapshot.revision + 1 }
   writeFileSync(file, JSON.stringify(board))
   console.log(JSON.stringify({ saved: true, revision: board.snapshot.revision }))
 } else if (code.includes('readProcessBoardForAgent')) {
+  if (process.argv.includes('--write')) { console.error('board reads must stay read-only'); process.exit(6) }
   appendFileSync(process.env.TEST_CALLS_FILE, 'read\\n')
   console.log(JSON.stringify(board))
 } else process.exit(9)

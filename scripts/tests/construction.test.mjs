@@ -20,7 +20,8 @@ function fixture(t){
   const state={commit:git('rev-parse','HEAD'),branch:git('branch','--show-current')}
   const board={snapshot:{revision:1,snapshot:{...state,processPath:'demo',nodes:[{id:'page',progress:[]}]}}}
   const calls=[]
-  const execute=async(root,code)=>{calls.push(code);if(code.includes('readProcessBoardForAgent'))return structuredClone(board)
+  const execute=async(root,code,_commit,options)=>{calls.push(code);if(code.includes('readProcessBoardForAgent')){assert.equal(options.write,false);return structuredClone(board)}
+    assert.equal(options.write,true)
     const input=JSON.parse(code.match(/ctx, (.+)\)/)[1])
     if(input.action==='checkpoint')board.snapshot.snapshot.nodes[0].progress=[input.event]
     else board.snapshot.snapshot.nodes[0].progress=board.snapshot.snapshot.nodes[0].progress.filter(event=>event.requestId!==input.requestId)

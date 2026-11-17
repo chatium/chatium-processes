@@ -105,7 +105,7 @@ if (requester?.type !== 'Real' || requester.accountRole !== 'Owner')
   try {
     result = await execute(root,
       `import { respondToProcessBoardNote } from '@start/sdk'\n${authorityCheck}return await respondToProcessBoardNote(ctx, ${JSON.stringify(payload)})`,
-      payload.status === 'done' ? payload.commit : undefined)
+      payload.status === 'done' ? payload.commit : undefined, { write: true })
   } catch (error) {
     throw Error(`${error.message} Ответ мог уже сохраниться; перечитайте доску перед повтором.`)
   }

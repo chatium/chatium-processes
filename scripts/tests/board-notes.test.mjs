@@ -105,7 +105,7 @@ test('response uses public SDK and escaped JSON; it does not invoke code from no
   const message = 'Question: "value"?\n`$(unsafe)`'
   let code
   const result = await respondToNote(root, c, { ...options, status: 'needs-info', message }, {
-    execute: async (_, snippet) => { code = snippet; return { ok: true, revision: 4, noteId: 'n' } },
+    execute: async (_, snippet, _commit, options) => { assert.equal(options.write, true); code = snippet; return { ok: true, revision: 4, noteId: 'n' } },
   })
   assert.equal(result.ok, true)
   assert.match(code, /from '@start\/sdk'/)
