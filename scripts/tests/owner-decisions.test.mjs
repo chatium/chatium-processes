@@ -265,6 +265,8 @@ test('context does not present stale owner approval from an old PLAN.md line', t
     return result.stdout
   }
   const initial = context()
+  assert.match(initial, /Сборка и приёмка блоков по актуальной доске не подтверждены/)
+  assert.doesNotMatch(initial, /прошли приёмку — \d/)
   assert.match(initial, /решение «строим так\?» missing/)
   assert.match(initial, /check\.mjs demo --task-stage design --knowledge-stage design/)
   assert.match(initial, /Этап: 2\. План — ждёт независимых заключений/)

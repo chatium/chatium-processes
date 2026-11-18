@@ -153,27 +153,10 @@ else if (!planApproved) stage = '2. План — ждёт согласовани
 else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
 else if (buildReview?.status !== 'ready') stage = '4. Проверка сборки — ждёт независимых заключений'
 else if (!launchApproved)
-  stage = '5–6. Тестовый прогон и согласование 2 «запускаем?» — все задачи закрыты'
+  stage = '5–6. Проверка пути клиента перед согласованием запуска'
 else stage = launchDecision.authority === 'delegated-test'
   ? '7–8. Учебный запуск разрешён исполнителем — боевой запуск требует ответа владельца'
   : '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
-
-let nextAction
-if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
-else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
-  nextAction = 'Заверши план задач и карту пути клиента.'
-else if (designReview.status !== 'ready')
-  nextAction = `Получи недостающие заключения design: ${designReview.requirements?.filter(item => item.status !== 'ready')
-    .map(item => `${item.id} (${item.status})`).join(', ') || designReview.error || 'см. reviews.mjs status'}.`
-else if (!planApproved)
-  nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
-else if (realTasks.some(task => !task.done))
-  nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
-else if (buildReview?.status !== 'ready')
-  nextAction = 'Закончи пакет сборки и получи недостающие заключения build; полный тест ещё не разрешён.'
-else if (!launchApproved)
-  nextAction = `Проверь путь клиента в тестовом режиме и получи решение владельца «запускаем?»: ${launchDecision.error || launchDecision.status}`
-else nextAction = 'Проверь полный check и опубликованный снимок перед сдачей или запуском.'
 
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
@@ -281,6 +264,16 @@ const deliverable = taskStage === 'design'
       : 'Что действительно включено, карта опубликованной версии, наблюдение и остановка.'
 const summary = [`Процесс: ${map?.title || slug} (${slug}/)`, `Этап: ${stage}`,
   `Работа на этапе ${taskStage}: ${allowedWork}`]
+const currentNodes = report?.snapshot?.verified && !boardChanged ? sharedBoard?.snapshot?.nodes : null
+const acceptedCount = currentNodes?.filter(node => node.status === 'built').length
+if (currentNodes?.length) {
+  const drafts = currentNodes.every(node => ['present', 'missing'].includes(node.build?.source))
+    ? `${currentNodes.filter(node => node.build.source === 'present').length} из ${currentNodes.length}` : 'неизвестно'
+  summary.push(`По актуальной доске: собрано в черновике — ${drafts}; прошли приёмку — ${acceptedCount} из ${currentNodes.length}.`)
+  if (report.snapshot.construction?.status !== 'current')
+    summary.push('Приёмка на доске требует сверки. Эти цифры показывают состояние доски; готовность к запуску не подтверждена.')
+} else summary.push('Сборка и приёмка блоков по актуальной доске не подтверждены.')
+
 if (options['task-stage']) summary.push('Этап проверки задан вручную; это не разрешает пропускать предыдущие этапы.')
 if (report) {
   const failures = report.checks.filter(check => !check.ok)
@@ -305,6 +298,32 @@ if (report) {
 if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
 if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)
   summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
+let nextAction
+if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
+else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
+  nextAction = 'Заверши план задач и карту пути клиента.'
+else if (designReview.status !== 'ready')
+  nextAction = `Получи недостающие заключения design: ${designReview.requirements?.filter(item => item.status !== 'ready')
+    .map(item => `${item.id} (${item.status})`).join(', ') || designReview.error || 'см. reviews.mjs status'}.`
+else if (!planApproved)
+  nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
+else if (realTasks.some(task => !task.done))
+  nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
+else if (buildReview?.status !== 'ready')
+  nextAction = 'Закончи пакет сборки и получи недостающие заключения build; полный тест ещё не разрешён.'
+else if (!currentNodes?.length)
+  nextAction = 'Сверь актуальную доску с опубликованной версией и установи, какие блоки прошли приёмку.'
+else if (acceptedCount !== currentNodes.length || report?.snapshot?.construction?.status !== 'current')
+  nextAction = 'Сверь результаты и задачи по непринятым блокам, устрани замечания и опубликуй актуальную приёмку.'
+else if (report?.testing?.status !== 'passed')
+  nextAction = 'Проверь оставшиеся обязательные сценарии пути клиента и зафиксируй результаты на доске.'
+else if (result.status !== 0 || checkError)
+  nextAction = 'Разбери непройденные проверки этапа, исправь причины и проверь результат.'
+else if (!launchApproved)
+  nextAction = taskStage === 'test' ? 'Покажи подтверждённые результаты и согласуй с владельцем запуск для клиентов.'
+    : 'Подтверди результат этапа тестирования перед согласованием запуска.'
+else nextAction = 'Сверь фактическое состояние с согласованным объёмом запуска и сообщи, что действительно включено.'
+
 const pendingReviewStage = designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
 const nextCommand = pendingReviewStage
   ? `node .agents/skills/chatium-processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
@@ -318,7 +337,7 @@ try {
   if (!branch) throw Error('HEAD отсоединён')
   summary.push(`Карта (путь в аккаунте, доступность проверяется отдельно): /app/start/process-map?${new URLSearchParams({ process: slug, branch })}`)
 } catch { summary.push('Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.') }
-summary.push('Если этап не завершён: сообщи, что сделано и что мешает продолжению. Не заменяй это заявлением «готово».', '')
+summary.push('В сообщении владельцу назови результат и один следующий шаг с исполнителем. Завершая итерацию, укажи, какая приёмка и какие проверки ещё впереди.', '')
 out.splice(1, 0, ...summary)
 
 // Карточки компонентов по видам узлов карты

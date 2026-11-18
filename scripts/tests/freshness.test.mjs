@@ -406,6 +406,7 @@ if (code.includes('writeProcessSnapshot')) {
   assert.match(context.stdout, /Please review/)
   assert.match(context.stdout, /актуальна/)
   assert.match(context.stdout, /Переход дальше заблокирован/)
+  assert.match(context.stdout, /собрано в черновике — 1 из 1; прошли приёмку — 0 из 1/)
   assert.match(context.stdout, /Сверка статусов сборки с доской:/)
   assert.match(context.stdout, /first: доска .*текущая приёмка/)
   assert.match(context.stdout, /Тестирование на доске:/)
