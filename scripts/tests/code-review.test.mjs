@@ -146,6 +146,8 @@ test('CRM checkout and direct Pay code receive the full payment review', t => {
   assert.equal(save(f, packet, report).status, 'needs-work')
   f.put(codePath, "import { createDeal as order } from '@crm/sdk'\nexport const create = order\n")
   assert.ok(f.packet().questions.some(item => item.id === 'payments.smoke'))
+  f.put(codePath, "import { startDealSandboxPayment as testPayment } from '@crm/sdk'\nexport const start = testPayment\n")
+  assert.ok(f.packet().questions.some(item => item.id === 'payments.smoke'))
   f.put(codePath, "export const link = '/app/crm/pay?deal=demo'\n")
   assert.ok(f.packet().questions.some(item => item.id === 'payments.smoke'))
   f.put(codePath, "import { runAttemptPayment as pay } from '@pay/sdk'\nexport const create = pay\n")
