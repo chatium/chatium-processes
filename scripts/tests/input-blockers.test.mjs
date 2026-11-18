@@ -42,12 +42,16 @@ needsInput:
   - title: Нужна ли ручная проверка заявки?
     kind: question
     blocks: [build]
+  - title: Передать providerId
+  - title: В какой Telegram-чат прислать пробное сообщение?
 `)
   const cli = fileURLToPath(new URL('../check.mjs', import.meta.url))
   const run = stage => spawnSync(process.execPath,
     [cli, 'demo', '--root', root, '--no-snapshot', '--task-stage', stage, '--json'], { encoding: 'utf8' })
   const design = JSON.parse(run('design').stdout).checks.find(check => check.id === 'owner.questions')
   assert.equal(design.ok, true)
+  assert.equal(design.warnings.length, 1)
+  assert.match(design.warnings[0], /providerId/)
   const build = JSON.parse(run('build').stdout).checks.find(check => check.id === 'owner.questions')
   assert.equal(build.ok, false)
   assert.match(build.errors.join(' '), /Нужна ли ручная проверка заявки/)

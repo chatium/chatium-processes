@@ -411,10 +411,15 @@ check('crm.ownership', 'Заказы и оплата через CRM', ({ error, 
   result.warnings.forEach(warn)
 })
 
-check('owner.questions', 'Открытые вопросы владельцу', ({ error }) => {
+check('owner.questions', 'Открытые вопросы владельцу', ({ error, warn }) => {
   const stage = options['task-stage'] || 'build'
   const result = inputBlockers(map, stage)
   for (const issue of result.errors) error(issue)
+  // Report implementation terms in visible copy without treating ordinary product names as blockers.
+  for (const item of Array.isArray(map?.needsInput) ? map.needsInput : []) {
+    if (typeof item?.title === 'string' && /(?:@(?:crm|pay|start|sender)\/sdk|\b(?:SDK|typecheck|callback|webhook|LinkBucket|TestContext|senderChannels|paidTest|process\.yaml|providerId|chatium exec)\b)/i.test(item.title))
+      warn(`«Нужно от вас»: «${item.title}». Оставьте действие или выбор владельца и объясните его цель обычными словами. Техническую работу перенесите в задачу агента.`)
+  }
   for (const item of result.pending)
     error(`${item.kind === 'question' ? 'Открытый бизнес-вопрос' : 'Незакрытая зависимость'} блокирует ${stage}: ${item.title}. Зафиксируйте решение или готовность, обновите знания и карту.`)
 })
