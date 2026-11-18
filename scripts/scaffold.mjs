@@ -17,7 +17,7 @@ const slug = positional[0]
 
 if (options.help || !slug) {
   console.log(
-    'Использование: scaffold.mjs <process> --title "Название" [--topics audience,offer,journey,pages,series,operations] [--account-id 123] [--root DIR] [--dry-run] [--allow-main]',
+    'Использование: scaffold.mjs <process> --title "Название" [--topics audience,offer,journey,pages,series,operations] [--account-id 123] [--root DIR] [--dry-run]',
   )
   process.exit(options.help ? 0 : 2)
 }
@@ -61,24 +61,22 @@ if (!dryRun && !existsSync(wsFile) && existsSync(join(root, '.git'))) {
     { encoding: 'utf8', timeout: 5000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }).trim() }
   catch (error) { console.error(`Нельзя определить ветку аккаунта: ${error.message}`); process.exit(2) }
   if (!branch) { console.error('Нельзя создавать процесс при отсоединённом HEAD: сначала выбери рабочую ветку.'); process.exit(2) }
-  if (['main', 'master'].includes(branch) && !options['allow-main']) {
-    console.error('Новый процесс нельзя создавать прямо в main/master. Сначала создай ветку process/<process>. --allow-main допустим только при явном разрешении владельца для тестового аккаунта.')
+  if (branch === 'master' && !options['allow-main']) {
+    console.error('Для нового процесса переключись на актуальную main.')
     process.exit(2)
   }
-  if (!(['main', 'master'].includes(branch) && options['allow-main'])) {
-    const runGit = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 15_000,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } })
-    const remote = runGit(['ls-remote', '--heads', 'origin', 'refs/heads/main'])
-    const currentMain = /^([0-9a-f]{40})\s+refs\/heads\/main$/m.exec(remote.stdout || '')?.[1]
-    if (remote.status !== 0 || !currentMain) {
-      console.error('Нельзя подтвердить текущий origin/main. Проверь доступ к Git и повтори создание процесса; файлы не записаны.')
-      process.exit(2)
-    }
-    const ancestor = runGit(['merge-base', '--is-ancestor', currentMain, 'HEAD'])
-    if (ancestor.status !== 0) {
-      console.error(`Ветка ${branch} не содержит опубликованный origin/main ${currentMain.slice(0, 7)}. Сначала git fetch origin main и создай ветку от origin/main либо влей его обычным merge; файлы не записаны.`)
-      process.exit(2)
-    }
+  const runGit = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 15_000,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } })
+  const remote = runGit(['ls-remote', '--heads', 'origin', 'refs/heads/main'])
+  const currentMain = /^([0-9a-f]{40})\s+refs\/heads\/main$/m.exec(remote.stdout || '')?.[1]
+  if (remote.status !== 0 || !currentMain) {
+    console.error('Нельзя подтвердить текущий origin/main. Проверь доступ к Git и повтори создание процесса; файлы не записаны.')
+    process.exit(2)
+  }
+  const ancestor = runGit(['merge-base', '--is-ancestor', currentMain, 'HEAD'])
+  if (ancestor.status !== 0) {
+    console.error(`Ветка ${branch} не содержит опубликованный origin/main ${currentMain.slice(0, 7)}. Сначала обнови main или рабочую ветку из origin/main; файлы не записаны.`)
+    process.exit(2)
   }
 }
 try {

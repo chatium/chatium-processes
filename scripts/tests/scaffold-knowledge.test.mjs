@@ -58,17 +58,22 @@ test('a newly scaffolded TODO article keeps context at the interview stage', t =
   assert.doesNotMatch(context.stdout, /Этап: 2\. План/)
 })
 
-test('new process cannot be scaffolded on main without the owner-authorized lab override', t => {
+test('a new process starts on current main with test-only delivery and no recipient', t => {
   const f = fixture(t)
-  const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: f.root, encoding: 'utf8' })
-  assert.equal(init.status, 0, init.stderr)
-  const denied = f.run()
-  assert.equal(denied.status, 2)
-  assert.match(denied.stderr, /Новый процесс нельзя создавать прямо в main/)
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  git('init', '-q', '-b', 'main')
+  git('-c', 'user.name=Process test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'base')
+  git('remote', 'add', 'origin', '.')
+  git('switch', '--detach', 'HEAD')
+  assert.equal(f.run().status, 2)
   assert.equal(existsSync(join(f.root, 'demo/.workspace.json')), false)
-  assert.equal(f.run('--dry-run').status, 0)
-  assert.equal(f.run('--allow-main').status, 0)
-  assert.equal(existsSync(join(f.root, 'demo/.workspace.json')), true)
+  git('switch', 'main')
+  const result = f.run()
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(JSON.parse(f.read('demo/.workspace.json')).config.mailings, { testOnly: true, testContacts: [] })
 })
 
 test('new process refuses a stale account base but permits a CLI-managed skill independent of account Git', t => {
@@ -97,6 +102,14 @@ test('new process refuses a stale account base but permits a CLI-managed skill i
   git(['add', 'README.md'])
   git(['commit', '-qm', 'update account'])
   git(['push', '-q', 'origin', 'main'])
+  git(['branch', '-m', 'main', 'published-base'])
+  git(['switch', '-q', '-c', 'main', 'process/demo'])
+  for (const args of [[], ['--allow-main']]) {
+    const staleMain = f.run(...args)
+    assert.equal(staleMain.status, 2)
+    assert.match(staleMain.stderr, /не содержит опубликованный origin\/main/)
+  }
+  assert.equal(existsSync(join(f.root, 'demo/.workspace.json')), false)
   git(['switch', '-q', 'process/demo'])
 
   const stale = f.run()
