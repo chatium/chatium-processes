@@ -266,13 +266,6 @@ const allowedWork = taskStage === 'design'
     : taskStage === 'test'
       ? 'Подготовка теста; полный прогон только после ревью реализации и при выполненных условиях теста. Боевой запуск не разрешён.'
       : 'Запуск только в согласованном объёме после полной проверки; затем наблюдение.'
-const deliverable = taskStage === 'design'
-  ? 'Подтверждённые вводные и открытые вопросы; по готовности — план, карта и результат ревью перед «строим так?».'
-  : taskStage === 'build'
-    ? 'Собранные части, ссылки на результат и карту, итоги ревью и оставшиеся проверки.'
-    : taskStage === 'test'
-      ? 'Результаты теста, ограничения, карта и точный объём предлагаемого запуска перед «запускаем?».'
-      : 'Что действительно включено, карта опубликованной версии, наблюдение и остановка.'
 const currentNodes = report?.snapshot?.verified && !boardChanged ? sharedBoard?.snapshot?.nodes : null
 const progress = implementationStep({
   prematureContent: report?.checks.some(check => check.id === 'design.content' && !check.ok),
@@ -310,19 +303,19 @@ if (report) {
   summary.push(`Тестирование на доске: ${testing?.status || 'не подтверждено'}${Number.isInteger(testing?.totalRuns) ? `; попыток ${testing.totalRuns}` : ''}.`)
   for (const scenario of testing?.cases || []) summary.push(`  ${scenario.id}: ${scenario.status}${scenario.required ? ' (обязательный)' : ''}${scenario.reason ? ` — ${scenario.reason}` : ''}`)
   for (const issue of testing?.errors || []) summary.push(`  ✘ ${issue}`)
-  if (progress.number >= 5 && testing?.cases?.some(scenario => scenario.required && scenario.status !== 'passed'))
+  if (progress.number >= 6 && testing?.cases?.some(scenario => scenario.required && scenario.status !== 'passed'))
     summary.push('Тестирование не завершено: сохраняй попытки через test.mjs run/record и сверяй status/show на этой ветке; локальный прогон историю доски не заменяет.')
 }
 if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
 if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)
   summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
-const pendingReviewStage = designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
+const pendingReviewStage = progress.number === 3 && designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
 const nextCommand = pendingReviewStage
   ? `node .agents/skills/chatium-processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
   : `node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`
 summary.push(`Следующая команда: ${nextCommand}`,
   'Повторять check без изменения причины незачем: сначала выполни следующий шаг, затем проверяй пакет изменений.',
-  `Результат этапа для владельца: ${deliverable}`)
+  `Результат этапа для владельца: ${progress.deliverable}`)
 summary.push(boardPath ? `Карта (путь в аккаунте, доступность проверяется отдельно): ${boardPath}` :
   'Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.')
 summary.push('В подписи после ссылки на доску укажи текущий шаг и ближайшее действие с исполнителем. Уточни действие по реальным задачам и вопросам владельцу.', '')
@@ -339,7 +332,7 @@ if (kinds.has('payment')) cards.push('payment.md')
 if (kinds.has('crm')) cards.push('crm.md')
 if (kinds.has('agent')) cards.push('ai-agent.md')
 
-if (!options['no-cards'] && progress.number >= 3) {
+if (!options['no-cards'] && progress.number >= 4) {
   for (const card of cards) {
     const p = join(SKILL_DIR, 'blocks', card)
     if (!existsSync(p)) continue
@@ -347,11 +340,11 @@ if (!options['no-cards'] && progress.number >= 3) {
     say(`===== blocks/${card} =====`)
     say(readFileSync(p, 'utf8').trimEnd())
   }
-} else if (progress.number >= 3) {
+} else if (progress.number >= 4) {
   say(`Карточки: ${cards.map(c => `blocks/${c}`).join(', ')}`)
 }
 
-if (progress.number >= 3 && !isDir(lettersDir) && kinds.has('series')) {
+if (progress.number >= 4 && !isDir(lettersDir) && kinds.has('series')) {
   say('')
   say(`Папки писем ещё нет: ${rel(root, lettersDir)}`)
 }
