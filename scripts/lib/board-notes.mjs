@@ -10,8 +10,12 @@ export async function readBoardWithAuthority(root, target, { execute = startExec
   return execute(root, `import { readProcessBoardForAgent } from '@start/sdk'
 import { findUsersByIds } from '@app/auth'
 const board = await readProcessBoardForAgent(ctx, ${JSON.stringify(target.processPath)}, ${JSON.stringify(target.branch)}, ${JSON.stringify(usage)})
-const notes = Array.isArray(board.notes) ? board.notes : board.elements.blocks.filter(b => b.type === 'sticky')
-const ids = [...new Set(notes.filter(n => n.task?.requestedBy?.kind !== 'agent').map(n => n.task?.requestedBy?.id).filter(id => typeof id === 'string' && id))]
+const notes = Array.isArray(board.notes) ? board.notes : []
+const ids = [...new Set(notes.flatMap(note => {
+  const requester = note.task?.requestedBy
+  const id = requester?.id
+  return requester?.kind !== 'agent' && typeof id === 'string' && id.length > 0 ? [id] : []
+}))]
 let authorRoles = null
 try {
   const users = ids.length ? await findUsersByIds(ctx, ids) : []
