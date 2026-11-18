@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { boardDecisionDigest, prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
+import { designContentIssue } from './lib/design-content.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { readProcessBoard } from './lib/board.mjs'
 
@@ -31,7 +32,12 @@ try {
     throw Error('Укажите --board-revision NUMBER или none после чтения доски.')
   if (command === 'record' && (!options.packet || !options.response))
     throw Error('Нужны --packet и --response с записанным решением.')
+  const response = command === 'record' ? JSON.parse(readFileSync(options.response, 'utf8')) : null
   if (kind === 'plan' && ['prepare', 'record'].includes(command)) {
+    if (command === 'prepare' || response?.decision === 'approve') {
+      const issue = designContentIssue(root, slug)
+      if (issue) throw Error(issue)
+    }
     const design = commissionStatus({ root, slug, stage: 'design' })
     if (design.status !== 'ready') throw Error(`Сначала нужны принятые заключения методологии и архитектуры: ${design.requirements
       .filter(item => item.status !== 'ready').map(item => `${item.id} ${item.status}`).join(', ')}.`)
@@ -50,7 +56,7 @@ try {
   } else if (command === 'record') {
     result = recordOwnerDecision({ root, slug, kind,
       packet: JSON.parse(readFileSync(options.packet, 'utf8')),
-      response: JSON.parse(readFileSync(options.response, 'utf8')) })
+      response })
   } else if (command === 'status') result = ownerDecisionStatus({ root, slug, kind })
   console.log(JSON.stringify(result, null, 2))
   process.exitCode = ['missing', 'stale', 'declined', 'invalid'].includes(result.status) ? 1 : 0

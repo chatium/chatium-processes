@@ -54,8 +54,8 @@ test('a newly scaffolded TODO article keeps context at the interview stage', t =
   assert.equal(f.run().status, 0)
   const context = spawnSync(process.execPath, [contextCli, 'demo', '--root', f.root, '--offline', '--no-cards'], { encoding: 'utf8' })
   assert.equal(context.status, 0, context.stderr)
-  assert.match(context.stdout, /1\. Знания/)
-  assert.doesNotMatch(context.stdout, /Этап: 2\. План/)
+  assert.match(context.stdout, /Текущий шаг: 1 из 7 — Вводные о бизнесе/)
+  assert.doesNotMatch(context.stdout, /Текущий шаг: 2 из 7/)
 })
 
 test('a new process starts on current main with test-only delivery and no recipient', t => {

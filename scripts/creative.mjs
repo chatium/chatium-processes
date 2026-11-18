@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Проверка и детерминированная сборка подробного задания страницы/серии.
 import { findRoot, parseArgs } from './lib/project.mjs'
+import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
 import { creativePacket, creativeStatus, writeCreativeBuild } from './lib/creative.mjs'
 
 let parsed
@@ -22,8 +23,12 @@ try {
       inputDigest: packet.inputDigest, references: packet.referenceFiles.map(f => f.path) }
   } else if (command === 'compile') {
     const packet = creativePacket(args)
-    result = packet.errors.length ? { status: 'invalid', errors: packet.errors } :
-      { status: 'compiled', ...writeCreativeBuild(args, packet) }
+    if (packet.errors.length) result = { status: 'invalid', errors: packet.errors }
+    else {
+      const decision = await ownerDecisionForCurrentBoard({ ...args, kind: 'plan' })
+      if (decision.status !== 'ready') throw Error(`Подробное задание собирается после согласования структуры: ${decision.error || decision.status}`)
+      result = { status: 'compiled', ...writeCreativeBuild(args, packet) }
+    }
   }
   else if (command === 'status') result = creativeStatus(args)
   else throw Error(`Неизвестная команда ${command}.`)

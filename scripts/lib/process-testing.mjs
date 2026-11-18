@@ -88,9 +88,10 @@ export function validatePlan(value, { slug, map } = {}) {
   return { version: 1, cases }
 }
 
-export function readTestPlan(root, slug, map) {
+export function readTestPlan(root, slug, map, { design = false } = {}) {
   if (!isProcessSlug(slug)) fail('Некорректный процесс.')
   const plan = validatePlan(parseTestPlanYaml(read(root, `${slug}/tests/plan.yaml`)), { slug, map })
+  if (design) return plan // Automation step IDs are verified against code during build.
   const hasStep = (steps, id) => (steps || []).some(s => s.id === id || hasStep(s.thenBranch?.steps, id) || hasStep(s.elseBranch?.steps, id))
   for (const scenario of plan.cases) for (const target of scenario.targets.filter(t => t.kind === 'step')) {
     if (!scenario.sources.includes(target.source) || !target.source.endsWith('.automationConfig.json') || !hasStep(JSON.parse(read(root, target.source)).steps, target.id)) fail(`${scenario.id}: шаг ${target.id} отсутствует в проверяемом исходнике.`)

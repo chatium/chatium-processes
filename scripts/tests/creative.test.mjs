@@ -396,6 +396,10 @@ test('creative CLI distinguishes invalid work from an unusable command', t => {
   const cli = fileURLToPath(new URL('../creative.mjs', import.meta.url))
   const run = command => spawnSync(process.execPath,
     [cli, command, 'demo', 'lead-page', '--root', f.root], { encoding: 'utf8' })
+  const premature = run('compile')
+  assert.notEqual(premature.status, 0)
+  assert.match(premature.stderr, /после согласования структуры/)
+  assert.throws(() => readFileSync(join(f.root, 'demo/creative/lead-page/build.md')), { code: 'ENOENT' })
   f.spec.mechanics[0].expectedOutcome = ''
   f.put('demo/creative/lead-page/spec.yaml', f.spec)
   const invalid = run('validate')

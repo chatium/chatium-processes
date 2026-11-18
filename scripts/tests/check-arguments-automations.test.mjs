@@ -129,6 +129,22 @@ test('design gate asks for design review without requiring implementation source
   assert.match(checks.find(check => check.id === 'map.sources').warnings.join('\n'), /этапе сборки/)
 })
 
+test('empty design placeholders and planning materials never require writing page, agent or letter contents', t => {
+  const f = fixture(t)
+  f.put('demo/process.yaml', JSON.stringify({ title: 'Тест', stages: ['Проба'], knowledge: '.knowledge-base/processes/demo',
+    nodes: [['page','demo/home/'], ['series','.mailings/storage/processes/demo/touch/']].map(([kind, source]) =>
+      ({ id: kind, kind, stage: 'Проба', title: kind, purpose: 'Проба', source })), links: [] }))
+  f.put('demo/home/.gitkeep', '')
+  f.put('.mailings/storage/processes/demo/touch/01.message.yaml', '# TODO')
+  f.put('demo/automations/wait.automationConfig.json', '')
+  f.put('demo/materials/interview.txt', 'Исходная цитата владельца')
+  const checks = JSON.parse(f.run('--task-stage', 'design').stdout).checks
+  for (const id of ['design.content', 'map.sources', 'letters', 'automations']) {
+    const check = checks.find(item => item.id === id)
+    assert.equal(check.ok, true, JSON.stringify(check))
+  }
+})
+
 test('planned automation edge stays on the map during design and requires code during build', t => {
   const f = fixture(t)
   f.put('demo/process.yaml', 'title: Demo\naccountId: 123\nstages: [Lead, Followup]\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - id: form\n    kind: page\n    stage: Lead\n    title: Form\n    purpose: Capture\n    source: demo/form/\n  - id: message\n    kind: series\n    stage: Followup\n    title: Message\n    purpose: Reply\n    source: .mailings/storage/processes/demo/message/\nlinks:\n  - from: form\n    to: message\n    when: after form\n    via: demo/automations/reply/\n')
@@ -174,13 +190,19 @@ test('map accepts a matching event in any automation within the linked folder', 
   assert.match(map().errors.join('\n'), /не слушает event:\/\/account\/demo\/finished/)
 })
 
-test('design accepts a planned letter before its automation, but build requires a sender', t => {
+test('design rejects premature copy even for a planned letter, while build requires its sender', t => {
   const f = fixture(t)
   const path = '.mailings/storage/processes/demo/welcome/01.message.yaml'
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: welcome\n    kind: series\n    stage: Lead\n    title: Welcome\n    source: .mailings/storage/processes/demo/welcome/\n    creativeRef: demo/creative/welcome/spec.yaml\nlinks: []\n')
   f.put('demo/creative/welcome/spec.yaml', JSON.stringify({ deliveryMode: 'automation', messages: [{ path }] }))
   f.put(path, 'title: Первый шаг\ndescription: Выдача материала\nsubject: Материал\nplain: Текст\nhtml: <p>Текст</p>\n')
   const letters = (...flags) => JSON.parse(f.run(...flags).stdout).checks.find(check => check.id === 'letters')
+  const gate = () => JSON.parse(f.run('--task-stage', 'design').stdout).checks.find(check => check.id === 'design.content')
+  f.put('demo/home/index.tsx', "export default () => <h1>Купить курс</h1>")
+  const blocked = gate()
+  assert.equal(blocked.ok, false)
+  for (const file of [path, 'demo/home/index.tsx', 'demo/creative/welcome/spec.yaml'])
+    assert.ok(blocked.errors.join(' ').includes(file))
   const design = letters('--task-stage', 'design')
   assert.doesNotMatch(design.errors.join('\n'), /не отправляет ни один шаг автоматизации/)
   assert.match(design.warnings.join('\n'), /подключение проверяется на этапе сборки/)

@@ -105,7 +105,7 @@ function validateKnowledgeAccess(root, sources, config, where, errors) {
 }
 
 /** Local, read-only checks. Published agents, routing and tool availability require separate verification. */
-export function validateProcessAgents({ root, slug, map }) {
+export function validateProcessAgents({ root, slug, map, design = false }) {
   const errors = [], warnings = []
   const dir = resolve(root, slug)
   const configs = agentFiles(dir, errors)
@@ -145,7 +145,7 @@ export function validateProcessAgents({ root, slug, map }) {
     if (Array.isArray(agent?.inputs) && agent.inputs.some(input => input?.kind === 'manual')) {
       const delivery = agent.delivery
       const handler = localFile(root, delivery?.handler)
-      if (!['direct-output', 'send-tool'].includes(delivery?.kind) || !handler || !isFile(handler))
+      if (!['direct-output', 'send-tool'].includes(delivery?.kind) || !handler || (!design && !isFile(handler)))
         errors.push(`${where}: ручной вход требует delivery.kind (direct-output или send-tool) и существующий delivery.handler; без приёмника ответа агент может зациклиться на отсутствующей отправке`)
     }
     if (!Array.isArray(agent?.knowledge)) errors.push(`${where}: knowledge должен быть списком фактически доступных источников`)
@@ -160,8 +160,8 @@ export function validateProcessAgents({ root, slug, map }) {
     else {
       if (byConfig.has(configPath)) errors.push(`${where}: config повторяется`)
       byConfig.set(configPath, agent)
-      if (!isFile(configPath)) errors.push(`${where}: нет ${agent.config}`)
-      else try {
+      if (!design && !isFile(configPath)) errors.push(`${where}: нет ${agent.config}`)
+      else if (!design) try {
         const config = JSON.parse(readFileSync(configPath, 'utf8'))
         if (!config.title || !config.model || !Array.isArray(config.instructions) || !config.instructions.some(s => typeof s === 'string' && s.trim())) errors.push(`${where}: в конфиге нужны title, model и непустые instructions[]`)
         if (config.goal?.type === 'redirect2') redirectGoals.add(agent.key)
@@ -256,7 +256,7 @@ export function validateProcessAgents({ root, slug, map }) {
     if (handoff?.mechanism === 'goal-redirect2') {
       const source = byKey.get(handoff.from)
       const configPath = localFile(root, source?.config)
-      if (configPath && isFile(configPath)) {
+      if (!design && configPath && isFile(configPath)) {
         try {
           const goal = JSON.parse(readFileSync(configPath, 'utf8')).goal
           if (goal?.type !== 'redirect2' || typeof goal.trigger !== 'string' || !goal.trigger.trim() ||
@@ -273,7 +273,7 @@ export function validateProcessAgents({ root, slug, map }) {
       }
     } else if (handoff?.mechanism === 'sdk-redirect') {
       const handler = localFile(root, handoff?.handler)
-      if (!handler || !isFile(handler))
+      if (!handler || (!design && !isFile(handler)))
         errors.push(`${where}: sdk-redirect требует существующий handler в аккаунте`)
     } else errors.push(`${where}: mechanism должен быть goal-redirect2 или sdk-redirect`)
   }

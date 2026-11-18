@@ -7,6 +7,7 @@ import { isAbsolute, join, resolve, sep } from 'node:path'
 import { findRoot, parseArgs } from './lib/project.mjs'
 import { canonicalTarget } from './lib/knowledge-review.mjs'
 import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
+import { isImplementationOutput } from './lib/design-content.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { assertSkillProcess } from './lib/process-format.mjs'
 import { inputBlockers } from './lib/input-blockers.mjs'
@@ -191,6 +192,8 @@ try {
   if (command === 'start') {
     if (!['queued', 'ready-to-resume', 'failed'].includes(task.status)) throw Error('Начать можно только ожидающую задачу.')
     const markedProcess = existsSync(join(root, slug, '.workspace.json'))
+    if (markedProcess && task.stage === 'design' && task.expectedOutputs.some(output => isImplementationOutput(slug, output.path)))
+      throw Error('Задача создаёт материалы блока. Запланируйте её на этапе build после согласования структуры.')
     if (task.mode === 'implement' || (markedProcess && task.stage !== 'design')) {
       const mapPath = join(root, slug, 'process.yaml')
       if (existsSync(mapPath)) {

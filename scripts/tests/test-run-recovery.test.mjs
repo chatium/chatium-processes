@@ -19,7 +19,8 @@ const sdk=(_root,_commit,method)=>{
 const modules={
  'node:child_process':{spawnSync(){calls.push('worker');if(mode==='sealed'){local={...run,status:'passed'};remote=copies(local)}return {status:0}}},
  'node:fs':{readFileSync:file=>file==='/outside/scope.json'?'{}':'{}',realpathSync:p=>p},'node:path':path,'node:url':url,
- './lib/project.mjs':{parseArgs:()=>({positional:['demo','run'],options:{case:'case',scope:'/outside/scope.json'}}),findRoot:()=>'/account'},
+ './lib/project.mjs':{parseArgs:()=>({positional:['demo',mode==='early-record'?'record':'run'],options:{case:'case',scope:'/outside/scope.json'}}),findRoot:()=>'/account'},
+ './lib/owner-decisions.mjs':{ownerDecisionForCurrentBoard:async()=>({status:mode.startsWith('early-')?'missing':'ready'})},'./lib/commission.mjs':{commissionStatus:()=>({status:mode==='unreviewed'?'needs-work':'ready',requirements:[{id:'implementation',status:'missing'}]})},
  './lib/git-state.mjs':{git:()=>commit,gitState:()=>({branch:'main',commit})},'./lib/yaml.mjs':{parseYaml:()=>({})},
  './lib/process-testing.mjs':{assertTestSourcesCommitted(){},hash:()=>'',createRun:()=>copies(run),readTestPlan:()=>({cases:[scenario]}),readTestRun:()=>copies(local),saveRun:(_root,value)=>{local=copies(value)},testPath:(_root,p)=>'/account/'+p,testStatus:()=>({})},
  './lib/test-exec.mjs':{readSession:()=>({context:{token:'private'},contacts:[]}),saveSession(){},saveTestPluginBranches(){},testSdk:sdk,redact:x=>x,redactData:x=>x,platformTestLogs:()=>[]},
@@ -38,11 +39,15 @@ const main=new vm.SourceTextModule(source,{context,identifier:url.pathToFileURL(
 await main.link(name=>{const values=modules[name];if(!values)throw Error('Unmocked import '+name);return new vm.SyntheticModule(Object.keys(values),function(){for(const [key,value]of Object.entries(values))this.setExport(key,value)},{context})});
 await main.evaluate();process.stdout.write(JSON.stringify({calls,local,remote,errors,code:fakeProcess.exitCode}));
 `
-for (const mode of ['protocol','capabilities','recovery','publish','sealed']) test(`CLI handles an incompatible or interrupted run: ${mode}`,()=>{
+for (const mode of ['early-run','early-record','unreviewed','protocol','capabilities','recovery','publish','sealed']) test(`CLI handles an incompatible or interrupted run: ${mode}`,()=>{
  const result=spawnSync(process.execPath,['--experimental-vm-modules','--input-type=module'],{input:harness,encoding:'utf8',
   env:{...process.env,MODE:mode,SOURCE_SCRIPT:fileURLToPath(new URL('../test.mjs',import.meta.url))}})
  assert.equal(result.status,0,result.stderr)
  const value=JSON.parse(result.stdout)
+ if(mode.startsWith('early-')||mode==='unreviewed'){
+  assert.deepEqual(value.calls,[]);assert.equal(value.code,2)
+  assert.match(value.errors.join(' '),mode==='unreviewed'?/приёмка сборки/:/согласования структуры/);return
+ }
  if(mode==='protocol'){
   assert.deepEqual(value.calls,['getProcessTestCapabilities']);assert.equal(value.code,2)
   assert.match(value.errors.join(' '),/версии 3/);return

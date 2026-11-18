@@ -206,7 +206,7 @@ console.log(`${dryRun ? '[dry-run] ' : ''}Каркас процесса ${slug} 
 for (const f of created) console.log(`  + ${f}`)
 for (const f of updated) console.log(`  ~ ${f}`)
 for (const f of skipped) console.log(`  = ${f} (уже есть)`)
-console.log(`Письма серий кладите в .mailings/storage/processes/${slug}/<series>/`)
+console.log('До «строим так?» подготовьте только структуру. Укажите будущие пути блоков в карте; исходники страниц и писем пока не создавайте.')
 if (accountId === null) {
   console.log('accountId в process.yaml пока пуст; каркас готов. Узнайте ID через chatium exec (return ctx.account.id) перед проверкой проекта.')
 }

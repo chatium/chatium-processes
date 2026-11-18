@@ -92,7 +92,70 @@ test('implementation starts only after approved plan and accepted design conclus
   assert.equal(recordArchitectureReview({ root, slug: 'demo', packet: architecture,
     report: reportFor(architecture), agentReference: 'unit-test-only:architecture-green' }).status, 'ready')
   assert.equal(commissionStatus({ root, slug: 'demo', stage: 'design' }).status, 'ready')
+  // Exercise the public approval commands with an independently reviewed, empty structure.
+  rmSync(join(root, 'demo/decisions/plan.json'))
+  const ownerCli = fileURLToPath(new URL('../owner-decisions.mjs', import.meta.url))
+  const owner = (command, ...args) => spawnSync(process.execPath,
+    [ownerCli, command, 'demo', '--root', root, '--kind', 'plan', ...args], { cwd: root, encoding: 'utf8' })
+  const prepared = owner('prepare', '--board-revision', 'none', '--out', 'packet.json')
+  assert.equal(prepared.status, 0, prepared.stderr)
+  put('answer.json', { decision: 'approve', message: 'Строим по этой схеме.', owner: 'fixture-owner',
+    messageReference: 'unit-test/structure', answeredAt: new Date().toISOString() })
+  const record = () => owner('record', '--packet', 'packet.json', '--response', 'answer.json')
+  put('demo/form.vue', '<h1>Заказать курс</h1>')
+  assert.match(record().stderr, /demo\/form\.vue/)
+  rmSync(join(root, 'demo/form.vue'))
+  const approved = record()
+  assert.equal(approved.status, 0, approved.stderr)
   const started = run('start', 'W001')
   assert.equal(started.status, 0, started.stderr)
   assert.match(started.stdout, /"attemptId": "R001"/)
+})
+
+test('first publication is not approval; an unchanged existing block survives planning a change', async t => {
+  const { prematureContent } = await import('../lib/design-content.mjs')
+  const root = mkdtempSync(join(tmpdir(), 'structure-only-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const put = (path, text) => {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), text)
+  }
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+  }
+  const page = 'demo/home/index.tsx', letter = '.mailings/storage/processes/demo/welcome/1.message.yaml'
+  put('demo/.workspace.json', '{"type":"process","processEngine":"processes-v2"}')
+  put('demo/process.yaml', 'nodes: []\nlinks: []\n')
+  put(page, 'export const landing = "Купить"')
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.name', 'Test')
+  git('config', 'user.email', 'test@example.invalid')
+  git('add', '.')
+  git('commit', '-qm', 'Publish')
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+  assert.deepEqual(prematureContent(root, 'demo'), [page])
+  git('switch', '-qc', 'change')
+  assert.deepEqual(prematureContent(root, 'demo'), [page])
+  git('switch', '-q', 'main')
+  put('demo/PLAN.md', '# Предложенная структура')
+  const packet = prepareOwnerDecision({ root, slug: 'demo', kind: 'plan', boardRevision: null })
+  recordOwnerDecision({ root, slug: 'demo', kind: 'plan', packet, response: { decision: 'approve',
+    message: 'Согласен', messageReference: 'test/plan', owner: 'fixture', answeredAt: new Date().toISOString() } })
+  git('add', '.')
+  git('commit', '-qm', 'Approved version')
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+  git('switch', '-qc', 'next-structure')
+  put('demo/PLAN.md', '# Изменённая структура')
+  assert.deepEqual(prematureContent(root, 'demo'), [])
+  put(letter, 'subject: Новое предложение')
+  git('add', '.')
+  git('commit', '-qm', 'Letter')
+  put(page, 'export const landing = "Изменено"')
+  assert.deepEqual(prematureContent(root, 'demo').sort(), [page, letter].sort())
+  const tool = fileURLToPath(new URL('../owner-decisions.mjs', import.meta.url))
+  const result = spawnSync(process.execPath, [tool, 'prepare', 'demo', '--root', root, '--kind', 'plan',
+    '--board-revision', 'none'], { encoding: 'utf8' })
+  assert.notEqual(result.status, 0)
+  assert.ok(result.stderr.includes(letter))
 })

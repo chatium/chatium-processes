@@ -8,7 +8,7 @@ export function internalPageErrors(node, source) {
   if (!isInternalPage(node)) return [`${node?.id || 'узел'}: pageMode допускает только значение internal для страницы.`]
   if (typeof node.source !== 'string' || !/(^|\/)(admin|staff)\//.test(node.source))
     return [`${node.id}: служебная страница должна находиться в admin/ или staff/.`]
-  if (!/(requireAccountRole\s*\(|provideUser\s*\(\s*\{[^}]*minRole\s*:)/s.test(source))
+  if (source !== undefined && !/(requireAccountRole\s*\(|provideUser\s*\(\s*\{[^}]*minRole\s*:)/s.test(source))
     return [`${node.id}: служебная страница не содержит проверки роли Staff/Admin.`]
   return []
 }

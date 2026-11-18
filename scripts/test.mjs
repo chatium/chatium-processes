@@ -4,6 +4,8 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs, findRoot } from './lib/project.mjs'
+import { ownerDecisionForCurrentBoard } from './lib/owner-decisions.mjs'
+import { commissionStatus } from './lib/commission.mjs'
 import { git, gitState } from './lib/git-state.mjs'
 import { parseYaml } from './lib/yaml.mjs'
 import { assertTestSourcesCommitted, hash, createRun, readTestPlan, readTestRun, saveRun, testPath, testStatus } from './lib/process-testing.mjs'
@@ -48,6 +50,10 @@ try {
     const value = JSON.parse(readFileSync(options.evidence, 'utf8'))
     console.log(JSON.stringify(testSdk(root, state.commit, 'writeProcessTestFinding', { ...value, process: slug, branch: state.branch }), null, 2))
   } else if (command === 'run' || command === 'record') {
+    const decision = await ownerDecisionForCurrentBoard({ root, slug, kind: 'plan' })
+    if (decision.status !== 'ready') throw Error(`Прогон возможен после согласования структуры: ${decision.error || decision.status}`)
+    const build = commissionStatus({ root, slug, stage: 'build' })
+    if (build.status !== 'ready') throw Error(`До прогона нужна приёмка сборки: ${build.requirements.filter(item => item.status !== 'ready').map(item => item.id).join(', ')}.`)
     const scenario = readTestPlan(root, slug, map).cases.find(c => c.id === options.case)
     if (!scenario || scenario.kind !== (command === 'record' ? 'browser' : 'runtime')) throw Error('Выберите сценарий соответствующего вида из plan.yaml.')
     if (options.previous) fetchRun(root, slug, options.previous)

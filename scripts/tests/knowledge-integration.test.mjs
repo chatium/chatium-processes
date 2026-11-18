@@ -82,5 +82,5 @@ test('offline context reports missing, ready and stale knowledge independently o
   const output = context()
   assert.match(output, /решение «запускаем\?» missing/)
   assert.match(output, /Независимое ревью \(design\): ready/)
-  assert.doesNotMatch(output, /7–8\. Запущен/)
+  assert.doesNotMatch(output, /Текущий шаг: 7 из 7/)
 })

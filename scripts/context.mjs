@@ -10,16 +10,17 @@ import { parseYaml, requireYaml } from './lib/yaml.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { collectKnowledge } from './lib/knowledge.mjs'
 import { reviewStatus, REVIEW_STAGES } from './lib/knowledge-review.mjs'
-import { taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
+import { loadTasks, parseTaskPlan, taskReadiness, TASK_STAGES } from './lib/tasks.mjs'
 import { creativeStatus } from './lib/creative.mjs'
 import { needsCreativeReview } from './lib/page-mode.mjs'
 import { creativeReviewStatus } from './lib/creative-review.mjs'
 import { spawnSync } from 'node:child_process'
 import { readProcessBoard } from './lib/board.mjs'
 import { inspectProcessFormat } from './lib/process-format.mjs'
-import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
+import { boardDecisionDigest, ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { git } from './lib/git-state.mjs'
+import { hasOpenBuildWork, implementationStep, messageFooter, stepGuidance } from './lib/implementation-step.mjs'
 
 let parsed
 try { parsed = parseArgs(process.argv.slice(2), ['no-cards', 'help', 'offline'],
@@ -78,12 +79,25 @@ else {
   say('')
 }
 
+let boardPath = ''
+let accountRemote = ''
+try {
+  const branch = git(root, ['branch', '--show-current'])
+  if (branch) {
+    boardPath = `/app/start/process-map?${new URLSearchParams({ process: slug, branch })}`
+    if (sharedBoard?.snapshot && sharedBoard.branch === branch)
+      accountRemote = git(root, ['remote', 'get-url', 'origin'])
+  }
+} catch { /* Without a confirmed link the step and next action still apply. */ }
+
 if (!existsSync(join(dir, '.workspace.json'))) {
   if (sharedBoard?.snapshot) {
     say(`Локального каркаса ${slug} нет, но сохранённая доска существует. Проверь рабочую копию и ветку; не создавай процесс повторно.`)
+    say(messageFooter({ label: 'уточняю', next: 'Я сверю материалы процесса с выбранной доской.' }, accountRemote, boardPath))
   } else {
-    say(`Локального каркаса ${slug} нет. Этап 0: для нового процесса создай каркас —`)
+    say(`Локального каркаса ${slug} нет. Для нового процесса начни с шага 1 из 7 — Вводные о бизнесе. Создай каркас —`)
     say(`  node .agents/skills/chatium-processes/scripts/scaffold.mjs ${slug} --title "Название"`)
+    say(stepGuidance(implementationStep({ hasKnowledge: false })))
     say('Отсутствие местных файлов само по себе не подтверждает отсутствие процесса в аккаунте.')
   }
   console.log(out.join('\n'))
@@ -118,7 +132,8 @@ const tasks = plan
 const realTasks = tasks.filter(t => t.title !== '…')
 const decision = kind => {
   try { return ownerDecisionStatus({ root, slug, kind,
-    ...(sharedBoard?.boardRevision === undefined ? {} : { currentBoardRevision: sharedBoard.boardRevision }) }) }
+    ...(sharedBoard?.boardRevision === undefined ? {} : { currentBoardRevision: sharedBoard.boardRevision,
+      currentBoardDigest: boardDecisionDigest(sharedBoard) }) }) }
   catch (error) { return { status: 'invalid', error: error.message } }
 }
 const planDecision = decision('plan')
@@ -134,35 +149,29 @@ const buildReview = (() => {
   try { return commissionStatus({ root, slug, stage: 'build' }) }
   catch (error) { return { status: 'needs-work', error: error.message } }
 })()
-const taskStage = options['task-stage'] || (!planApproved || designReview.status !== 'ready' ? 'design' :
-  realTasks.some(task => !task.done) || buildReview?.status !== 'ready' ? 'build' :
+const designing = !planApproved || designReview.status !== 'ready'
+let openBuildWork = realTasks.some(task => !task.done)
+if (openBuildWork && !designing) try {
+  const planned = parseTaskPlan(plan)
+  if (planned.length === realTasks.length) openBuildWork = hasOpenBuildWork(planned, loadTasks(root, slug).tasks)
+} catch { /* Keep the open work visible. taskReadiness reports malformed cards below. */ }
+const taskStage = designing ? 'design' : options['task-stage'] || (
+  openBuildWork || buildReview?.status !== 'ready' ? 'build' :
     launchApproved ? 'launch' : 'test')
-const knowledgeStage = options['knowledge-stage'] ||
+const knowledgeStage = designing ? 'design' : options['knowledge-stage'] ||
   (taskStage === 'design' ? 'design' : taskStage === 'launch' ? 'launch' : 'build')
 
 const lettersDir = join(root, map?.letters || `.mailings/storage/processes/${slug}/`)
 const letters = walk(lettersDir).filter(f => f.endsWith('.message.yaml'))
 const automations = walk(dir).filter(f => f.endsWith('.automationConfig.json'))
 
-let stage
-if (kbFilled.length === 0) stage = '1. Знания — раздел процесса в базе знаний пуст'
-else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
-  stage = '2. План — нет задач в PLAN.md или узлов в process.yaml'
-else if (designReview.status !== 'ready') stage = '2. План — ждёт независимых заключений'
-else if (!planApproved) stage = '2. План — ждёт согласования 1 «строим так?»'
-else if (realTasks.some(t => !t.done)) stage = '3. Сборка — есть открытые задачи'
-else if (buildReview?.status !== 'ready') stage = '4. Проверка сборки — ждёт независимых заключений'
-else if (!launchApproved)
-  stage = '5–6. Проверка пути клиента перед согласованием запуска'
-else stage = launchDecision.authority === 'delegated-test'
-  ? '7–8. Учебный запуск разрешён исполнителем — боевой запуск требует ответа владельца'
-  : '7–8. Запуск согласован — фактическое выполнение проверь по приёмке и состоянию системы'
-
 say('Артефакты:')
 say(`  база знаний  ${rel(root, kbDir)} — статей ${kbArticles.length}, заполнено ${kbFilled.length}`)
 say(`  PLAN.md      ${plan ? 'есть' : 'нет'}`)
 say(`  решение «строим так?» ${planDecision.status}${planDecision.authority === 'delegated-test' ? ' (исполнитель теста)' : ''}${planDecision.error ? ` — ${planDecision.error}` : ''}`)
 say(`  проверка архитектуры ${designReview.status}${designReview.error ? ` — ${designReview.error}` : ''}`)
+const missingDesign = designReview.requirements?.filter(item => item.status !== 'ready')
+if (missingDesign?.length) say(`  нужны заключения: ${missingDesign.map(item => `${item.id} (${item.status})`).join(', ')}`)
 say(`  решение «запускаем?» ${launchDecision.status}${launchDecision.authority === 'delegated-test' ? ' (исполнитель теста)' : ''}${launchDecision.error ? ` — ${launchDecision.error}` : ''}`)
 say(`  карта        ${map ? `узлов ${(map.nodes || []).length}, стрелок ${(map.links || []).length}` : mapError}`)
 say(`  письма       ${rel(root, lettersDir)} — ${letters.length}`)
@@ -180,7 +189,7 @@ try {
     for (const issue of work.errors) say(`  ✘ ${issue}`)
     for (const issue of work.warnings) say(`  ! ${issue}`)
     say(`Детали: node .agents/skills/chatium-processes/scripts/tasks.mjs context ${slug} W001`)
-    for (const node of (map?.nodes || []).filter(needsCreativeReview)) {
+    if (!designing) for (const node of (map?.nodes || []).filter(needsCreativeReview)) {
       const creative = creativeStatus({ root, slug, nodeId: node.id })
       say(`Задание ${node.id}: ${creative.status}${creative.errors.length ? ` — ${creative.errors.join('; ')}` : ''}`)
       const review = creativeReviewStatus({ root, slug, nodeId: node.id, stage: 'spec' })
@@ -210,11 +219,13 @@ try {
 try {
   const review = codeReviewStatus({ root, slug })
   say(`Независимое ревью реализации: ${review.status}.`)
-  if (review.error) say(`  ${review.error}`)
-  for (const gap of review.blocking || []) say(`  ✘ ${gap.id}: ${gap.reason} → ${gap.nextAction}`)
-  for (const gap of review.advisory || []) say(`  ! ${gap.id}: ${gap.reason}`)
-  for (const issue of review.structuralErrors || []) say(`  ✘ ${issue}`)
-  if (review.status !== 'ready') say('До полного тестового прогона и сдачи нужно ревью по build/review.md.')
+  if (!designing) {
+    if (review.error) say(`  ${review.error}`)
+    for (const gap of review.blocking || []) say(`  ✘ ${gap.id}: ${gap.reason} → ${gap.nextAction}`)
+    for (const gap of review.advisory || []) say(`  ! ${gap.id}: ${gap.reason}`)
+    for (const issue of review.structuralErrors || []) say(`  ✘ ${issue}`)
+    if (review.status !== 'ready') say('До полного тестового прогона и сдачи нужно ревью по build/review.md.')
+  }
 } catch (e) { say(`Ревью реализации недоступно: ${e.message}. Готовность к прогону не подтверждена.`) }
 
 // Read-only by construction. Reuse check's verdict, never a second validation policy.
@@ -262,11 +273,18 @@ const deliverable = taskStage === 'design'
     : taskStage === 'test'
       ? 'Результаты теста, ограничения, карта и точный объём предлагаемого запуска перед «запускаем?».'
       : 'Что действительно включено, карта опубликованной версии, наблюдение и остановка.'
-const summary = [`Процесс: ${map?.title || slug} (${slug}/)`, `Этап: ${stage}`,
-  `Работа на этапе ${taskStage}: ${allowedWork}`]
 const currentNodes = report?.snapshot?.verified && !boardChanged ? sharedBoard?.snapshot?.nodes : null
-const acceptedCount = currentNodes?.filter(node => node.status === 'built').length
+const progress = implementationStep({
+  prematureContent: report?.checks.some(check => check.id === 'design.content' && !check.ok),
+  hasKnowledge: kbFilled.length > 0, hasPlan: Boolean(plan && realTasks.length && map?.nodes?.length),
+  designReady: designReview.status === 'ready', planDecision, openTasks: openBuildWork,
+  buildReady: buildReview?.status === 'ready', currentNodes, constructionStatus: report?.snapshot?.construction?.status,
+  testingStatus: report?.testing?.status, checkPassed: result.status === 0 && !checkError, taskStage, launchDecision,
+})
+const summary = [`Процесс: ${map?.title || slug} (${slug}/)`, '', messageFooter(progress, accountRemote, boardPath), '', stepGuidance(progress), '',
+  `Работа на этапе ${taskStage}: ${allowedWork}`]
 if (currentNodes?.length) {
+  const acceptedCount = currentNodes.filter(node => node.status === 'built').length
   const drafts = currentNodes.every(node => ['present', 'missing'].includes(node.build?.source))
     ? `${currentNodes.filter(node => node.build.source === 'present').length} из ${currentNodes.length}` : 'неизвестно'
   summary.push(`По актуальной доске: собрано в черновике — ${drafts}; прошли приёмку — ${acceptedCount} из ${currentNodes.length}.`)
@@ -292,52 +310,22 @@ if (report) {
   summary.push(`Тестирование на доске: ${testing?.status || 'не подтверждено'}${Number.isInteger(testing?.totalRuns) ? `; попыток ${testing.totalRuns}` : ''}.`)
   for (const scenario of testing?.cases || []) summary.push(`  ${scenario.id}: ${scenario.status}${scenario.required ? ' (обязательный)' : ''}${scenario.reason ? ` — ${scenario.reason}` : ''}`)
   for (const issue of testing?.errors || []) summary.push(`  ✘ ${issue}`)
-  if (testing?.cases?.some(scenario => scenario.required && scenario.status !== 'passed'))
+  if (progress.number >= 5 && testing?.cases?.some(scenario => scenario.required && scenario.status !== 'passed'))
     summary.push('Тестирование не завершено: сохраняй попытки через test.mjs run/record и сверяй status/show на этой ветке; локальный прогон историю доски не заменяет.')
 }
 if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
 if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)
   summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
-let nextAction
-if (kbFilled.length === 0) nextAction = 'Собери сведения о бизнесе и заполни материалы процесса; не переходи к сборке.'
-else if (!plan || realTasks.length === 0 || !map || (map.nodes || []).length === 0)
-  nextAction = 'Заверши план задач и карту пути клиента.'
-else if (designReview.status !== 'ready')
-  nextAction = `Получи недостающие заключения design: ${designReview.requirements?.filter(item => item.status !== 'ready')
-    .map(item => `${item.id} (${item.status})`).join(', ') || designReview.error || 'см. reviews.mjs status'}.`
-else if (!planApproved)
-  nextAction = `Получи новое решение владельца «строим так?» по текущему плану: ${planDecision.error || planDecision.status}`
-else if (realTasks.some(task => !task.done))
-  nextAction = 'Заверши и прими оставшиеся рабочие задачи.'
-else if (buildReview?.status !== 'ready')
-  nextAction = 'Закончи пакет сборки и получи недостающие заключения build; полный тест ещё не разрешён.'
-else if (!currentNodes?.length)
-  nextAction = 'Сверь актуальную доску с опубликованной версией и установи, какие блоки прошли приёмку.'
-else if (acceptedCount !== currentNodes.length || report?.snapshot?.construction?.status !== 'current')
-  nextAction = 'Сверь результаты и задачи по непринятым блокам, устрани замечания и опубликуй актуальную приёмку.'
-else if (report?.testing?.status !== 'passed')
-  nextAction = 'Проверь оставшиеся обязательные сценарии пути клиента и зафиксируй результаты на доске.'
-else if (result.status !== 0 || checkError)
-  nextAction = 'Разбери непройденные проверки этапа, исправь причины и проверь результат.'
-else if (!launchApproved)
-  nextAction = taskStage === 'test' ? 'Покажи подтверждённые результаты и согласуй с владельцем запуск для клиентов.'
-    : 'Подтверди результат этапа тестирования перед согласованием запуска.'
-else nextAction = 'Сверь фактическое состояние с согласованным объёмом запуска и сообщи, что действительно включено.'
-
 const pendingReviewStage = designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
 const nextCommand = pendingReviewStage
   ? `node .agents/skills/chatium-processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
   : `node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`
-summary.push(`Следующий шаг: ${nextAction}`,
-  `Следующая команда: ${nextCommand}`,
+summary.push(`Следующая команда: ${nextCommand}`,
   'Повторять check без изменения причины незачем: сначала выполни следующий шаг, затем проверяй пакет изменений.',
   `Результат этапа для владельца: ${deliverable}`)
-try {
-  const branch = git(root, ['branch', '--show-current'])
-  if (!branch) throw Error('HEAD отсоединён')
-  summary.push(`Карта (путь в аккаунте, доступность проверяется отдельно): /app/start/process-map?${new URLSearchParams({ process: slug, branch })}`)
-} catch { summary.push('Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.') }
-summary.push('В сообщении владельцу назови результат и один следующий шаг с исполнителем. Завершая итерацию, укажи, какая приёмка и какие проверки ещё впереди.', '')
+summary.push(boardPath ? `Карта (путь в аккаунте, доступность проверяется отдельно): ${boardPath}` :
+  'Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.')
+summary.push('В подписи после ссылки на доску укажи текущий шаг и ближайшее действие с исполнителем. Уточни действие по реальным задачам и вопросам владельцу.', '')
 out.splice(1, 0, ...summary)
 
 // Карточки компонентов по видам узлов карты
@@ -351,7 +339,7 @@ if (kinds.has('payment')) cards.push('payment.md')
 if (kinds.has('crm')) cards.push('crm.md')
 if (kinds.has('agent')) cards.push('ai-agent.md')
 
-if (!options['no-cards']) {
+if (!options['no-cards'] && progress.number >= 3) {
   for (const card of cards) {
     const p = join(SKILL_DIR, 'blocks', card)
     if (!existsSync(p)) continue
@@ -359,11 +347,11 @@ if (!options['no-cards']) {
     say(`===== blocks/${card} =====`)
     say(readFileSync(p, 'utf8').trimEnd())
   }
-} else {
+} else if (progress.number >= 3) {
   say(`Карточки: ${cards.map(c => `blocks/${c}`).join(', ')}`)
 }
 
-if (!isDir(lettersDir) && kinds.has('series')) {
+if (progress.number >= 3 && !isDir(lettersDir) && kinds.has('series')) {
   say('')
   say(`Папки писем ещё нет: ${rel(root, lettersDir)}`)
 }
