@@ -164,11 +164,14 @@ export function ownerDecisionStatus({ root, slug, kind, currentBoardRevision, cu
   if (!existsSync(path)) return { status: 'missing', path, error: `Нет ответа владельца на ${kind === 'plan' ? '«строим так?»' : '«запускаем?»'}.` }
   const saved = JSON.parse(readFileSync(path, 'utf8'))
   const authority = saved.authority || 'owner'
-  if (saved.version !== 1 || saved.kind !== kind || saved.process !== slug ||
-      !['owner', 'delegated-test'].includes(authority) ||
-      !text(saved.message) || !text(saved.messageReference) ||
-      !(authority === 'owner' ? text(saved.owner) : text(saved.actor) && text(saved.delegationReference)) ||
-      !Number.isFinite(Date.parse(saved.answeredAt)) || !/^[0-9a-f]{40}$/.test(saved.shownCommit))
+  const validAuthority = authority === 'published-build'
+    ? kind === 'plan' && saved.decision === 'approve' && Number.isInteger(saved.boardRevision) &&
+      /^[0-9a-f]{64}$/.test(saved.boardContentDigest || '') && Number.isFinite(Date.parse(saved.recordedAt))
+    : ['owner', 'delegated-test'].includes(authority) && text(saved.message) && text(saved.messageReference) &&
+      (authority === 'owner' ? text(saved.owner) : text(saved.actor) && text(saved.delegationReference)) &&
+      Number.isFinite(Date.parse(saved.answeredAt))
+  if (saved.version !== 1 || saved.kind !== kind || saved.process !== slug || !validAuthority ||
+      !/^[0-9a-f]{40}$/.test(saved.shownCommit))
     return { status: 'invalid', path, error: 'Решение неполно или принадлежит другому процессу.' }
   if (saved.decision !== 'approve') return { status: 'declined', path, error: 'Этот шаг не согласован.' }
   const current = approvalScope({ root, slug, kind })

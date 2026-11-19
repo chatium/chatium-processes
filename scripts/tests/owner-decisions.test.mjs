@@ -283,3 +283,28 @@ test('context does not present stale owner approval from an old PLAN.md line', t
   f.git(['checkout', '--detach', '-q'])
   assert.match(context(), /Ссылка на карту не определена/)
 })
+
+test('adopts only a published populated plan and keeps later edits subject to agreement', async t => {
+  const { adoptBuiltPlan } = await import('../lib/adopt-built-plan.mjs')
+  const { gitState } = await import('../lib/git-state.mjs')
+  const { root, put, git } = fixture(t)
+  const slug = 'demo', source = 'demo/page.tsx'
+  put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2' }))
+  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes:\n  - {id: page, source: demo/page.tsx, kind: page}\n')
+  put(source, '// TODO')
+  git(['add', '.']); git(['commit', '-qm', 'Published structure']); git(['remote', 'add', 'origin', root])
+  const board = { boardRevision: 1, elements: { blocks: [], connections: [] }, snapshot: {
+    ...gitState(root), processPath: slug, nodes: [{ id: 'page', source, build: { source: 'present' } }],
+  } }
+  const args = { root, slug, readBoard: async () => board }
+  assert.equal((await adoptBuiltPlan(args)).status, 'missing')
+  put(source, "export const page = app.get('/', () => 'Hello')")
+  git(['add', source]); git(['commit', '-qm', 'Publish page'])
+  assert.equal((await adoptBuiltPlan(args)).status, 'missing')
+  board.snapshot.commit = gitState(root).commit
+  assert.equal((await adoptBuiltPlan(args)).authority, 'published-build')
+  assert.equal((await adoptBuiltPlan(args)).status, 'ready')
+  assert.equal(ownerDecisionStatus({ root, slug, kind: 'launch' }).status, 'missing')
+  put('demo/PLAN.md', '# Изменённый план')
+  assert.equal((await adoptBuiltPlan(args)).status, 'stale')
+})

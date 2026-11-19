@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { boardDecisionDigest, prepareOwnerDecision, recordOwnerDecision, ownerDecisionStatus } from './lib/owner-decisions.mjs'
 import { findRoot, parseArgs } from './lib/project.mjs'
+import { adoptBuiltPlan } from './lib/adopt-built-plan.mjs'
 import { designContentIssue } from './lib/design-content.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { readProcessBoard } from './lib/board.mjs'
@@ -13,7 +14,7 @@ catch (error) { console.error(error.message); process.exit(2) }
 const { positional, options } = parsed
 const [command, slug] = positional
 if (options.help || !command || !slug) {
-  console.log('owner-decisions.mjs prepare|record|status <process> --kind plan|launch [--board-revision NUMBER|none] [--out FILE] [--packet FILE --response FILE] [--root DIR] [--json]')
+  console.log('owner-decisions.mjs prepare|record|status|adopt-built <process> --kind plan|launch [--board-revision NUMBER|none] [--out FILE] [--packet FILE --response FILE] [--root DIR] [--json]')
   process.exit(options.help ? 0 : 2)
 }
 try {
@@ -24,7 +25,7 @@ try {
     if (!['help', 'json'].includes(key) && (typeof value !== 'string' || !value.trim() || value.startsWith('--')))
       throw Error(`Нужно значение --${key}.`)
   }
-  if (!['prepare', 'record', 'status'].includes(command)) throw Error('Команда: prepare, record или status.')
+  if (!['prepare', 'record', 'status', 'adopt-built'].includes(command)) throw Error('Команда: prepare, record или status.')
   const kind = options.kind
   if (!['plan', 'launch'].includes(kind)) throw Error('Укажите --kind plan или launch.')
   const root = findRoot(options.root)
@@ -43,7 +44,10 @@ try {
       .filter(item => item.status !== 'ready').map(item => `${item.id} ${item.status}`).join(', ')}.`)
   }
   let result
-  if (command === 'prepare') {
+  if (command === 'adopt-built') {
+    if (kind !== 'plan') throw Error('Принять опубликованную структуру можно только для плана.')
+    result = await adoptBuiltPlan({ root, slug })
+  } else if (command === 'prepare') {
     const boardRevision = options['board-revision'] === 'none' ? null : Number(options['board-revision'])
     let boardContentDigest = null
     if (boardRevision !== null) {

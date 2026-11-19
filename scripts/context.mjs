@@ -282,6 +282,8 @@ if (currentNodes?.length) {
   const drafts = currentNodes.every(node => ['present', 'missing'].includes(node.build?.source))
     ? `${currentNodes.filter(node => node.build.source === 'present').length} из ${currentNodes.length}` : 'неизвестно'
   summary.push(`По актуальной доске: собрано в черновике — ${drafts}; прошли приёмку — ${acceptedCount} из ${currentNodes.length}.`)
+  if (planDecision.status === 'missing' && currentNodes.every(node => node.build?.source === 'present'))
+    summary.push(`Для уже построенного процесса восстанови план: node .agents/skills/chatium-processes/scripts/owner-decisions.mjs adopt-built ${slug} --kind plan. Затем снова прочитай состояние.`)
   const state = report.snapshot.construction?.status === 'current' ? report.snapshot.construction.processReview : undefined
   const reviewLabels = { passed: 'пройдено', failed: 'есть замечания', pending: 'ожидается', stale: 'требует повторной проверки', unavailable: 'результат недоступен' }
   summary.push(`Общее ревью процесса: ${reviewLabels[state] || 'пока не подтверждено'}.`)
