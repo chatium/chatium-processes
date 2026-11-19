@@ -41,17 +41,18 @@ export function recoverPendingTestReport(root, runId) {
   if (saved.report.status === 'running') return publishRun(root, pending)
 }
 
-export function closeRun(root, runId, interruptedRun) {
+export function closeRun(root, runId, interruptedRun, context = readSession(root, runId).context) {
+  const commit = gitState(root).commit
+  let scope = testSdk(root, commit, 'closeProcessTestContext', context)
   const results = []
   if (interruptedRun?.status === 'running') {
     const report = { ...interruptedRun, status: 'incomplete', finishedAt: new Date().toISOString(), limitations: [...interruptedRun.limitations, 'Прерванная попытка закрыта очисткой; эффекты не повторялись.'] }
-    saveRun(root, report)
-    try { publishRun(root, report) } catch { /* Pending report is retained for recovery below. */ }
+    try { saveRun(root, report) }
+    catch { results.push({ operation: 'run.cache', status: 'uncertain', error: 'Не удалось сохранить локальную копию отчёта.' }) }
+    try { publishRun(root, report) } catch { /* Retry the pending report below. */ }
   }
   try { recoverPendingTestReport(root, runId) }
   catch { results.push({ operation: 'run.finalize', status: 'uncertain', error: 'Итог сохранён в приватном кэше. Повторите cleanup, когда Start снова доступен.' }) }
-  const { context } = readSession(root, runId), commit = gitState(root).commit
-  let scope = testSdk(root, commit, 'closeProcessTestContext', context)
   let originalRun = interruptedRun
   for (const pending of (scope.pendingOperations || []).filter(p => !p.acknowledged)) {
     originalRun ||= readTestRun(root, scope.processPath, runId)

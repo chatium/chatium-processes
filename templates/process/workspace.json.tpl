@@ -3,7 +3,7 @@
   "processEngine": "processes-v2",
   "config": {
     "senderChannels": [],
-    "mailings": { "testOnly": true, "testContacts": [] },
+    "mailings": { "testOnly": false, "testContacts": [] },
     "variables": {}
   }
 }

@@ -107,9 +107,9 @@ test('internal testing does not require real channels and never switches a worki
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
     senderChannels: ['email-1'], mailings: { testOnly: true, testContacts: [{ type: 'email', value: 'owner@example.com' }] },
   } }))
-  assert.equal(workspace('test').errors.length, 0)
+  assert.match(workspace('test').errors.join(' '), /testOnly блокирует/)
   f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2', config: {
-    senderChannels: [], mailings: { testOnly: true, testContacts: [] },
+    senderChannels: [], mailings: { testOnly: false, testContacts: [] },
   } }))
   for (const stage of ['design','build','test']) assert.equal(workspace(stage).errors.length, 0, stage)
   assert.match(workspace('launch').errors.join('\n'), /senderChannels/)
@@ -419,6 +419,8 @@ test('channel plan constrains every message variant to its selected Sender IDs',
 
 test('launch blocks a message series without configured Sender channels', t => {
   const f = fixture(t)
+  f.put('demo/.workspace.json', JSON.stringify({ type: 'process', processEngine: 'processes-v2',
+    config: { senderChannels: [], mailings: { testOnly: false, testContacts: [] } } }))
   f.put('demo/process.yaml', 'title: Demo\nstages: [Lead]\nnodes:\n  - id: followup\n    kind: series\n    stage: Lead\n    title: Followup\n    source: .mailings/storage/processes/demo/followup/\nlinks: []\n')
   const build = JSON.parse(f.run('--task-stage', 'build').stdout).checks.find(check => check.id === 'workspace')
   assert.equal(build.ok, true)

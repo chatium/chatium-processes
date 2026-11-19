@@ -57,7 +57,7 @@ test('drafts, stale results, a manual stage override and a rehearsal cannot adva
   assert.equal(label({ testingStatus: 'incomplete', launchDecision: accepted }), '6 из 7 — Тестирование')
   assert.equal(label({ checkPassed: false }), '6 из 7 — Тестирование')
   assert.equal(label({ taskStage: 'launch' }), '6 из 7 — Тестирование')
-  const rehearsal = implementationStep({ ...reviewed, launchDecision: { status: 'ready', authority: 'delegated-test' } })
+  const rehearsal = implementationStep({ ...reviewed, launchDecision: { status: 'rehearsal', authority: 'delegated-test' } })
   assert.equal(rehearsal.label, '7 из 7 — Согласование и запуск')
   assert.match(rehearsal.next, /только учебный запуск/)
   assert.match(implementationStep({ ...reviewed, launchDecision: { status: 'stale' } }).next, /От вас нужно решение/)

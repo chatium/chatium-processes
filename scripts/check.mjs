@@ -308,11 +308,10 @@ check('workspace', 'Воркспейс процесса', ({ error, warn }) => {
     else if (design) warn(message)
     else warn(`${message} Продолжайте сборку и внутреннее тестирование через sender.transport.* с TestContext; реальные канал и тестовый контакт для него не нужны.`)
   }
-  if (nodes.some(node => node.kind === 'series') && ['test', 'launch'].includes(options['task-stage'])) {
-    const policy = ws.config?.mailings
-    if (typeof policy?.testOnly !== 'boolean') error('config.mailings.testOnly должен быть boolean перед тестом или запуском серии.')
-
-  }
+  if (ws.config?.mailings?.testOnly === true)
+    error('Общая настройка config.mailings.testOnly блокирует обычную доставку. Проверяй через TestContext; для обычных регистраций требуется false. При миграции сначала сверь активные рассылки и очереди.')
+  else if (nodes.some(node => node.kind === 'series') && typeof ws.config?.mailings?.testOnly !== 'boolean')
+    error('Для отправки через Mailings задай config.mailings.testOnly: false.')
   const vars = ws.config?.variables
   if (vars !== undefined && (!vars || typeof vars !== 'object' || Array.isArray(vars))) {
     error('config.variables должен быть объектом { key: { value, description } }')
@@ -1112,10 +1111,6 @@ check('letters.transport', 'Маршрут шаблонов через Automatio
   const ws = JSON.parse(readFileSync(join(dir, '.workspace.json'), 'utf8'))
   const policy = ws.config?.mailings
   if (!policy || typeof policy.testOnly !== 'boolean') return error('Нужен config.mailings.testOnly (boolean) в .workspace.json')
-  if (!Array.isArray(policy.testContacts) || policy.testContacts.some(c => !c || typeof c.type !== 'string' || !c.type.trim() || typeof c.value !== 'string' || !c.value.trim()))
-    error('config.mailings.testContacts должен содержать контакты {type, value}')
-  else if (policy.testOnly && !policy.testContacts.length) warn('Тестовые контакты не заданы: обычная отправка Mailings во внешний канал будет заблокирована. Сборка и внутренний транспорт sender.transport.* с TestContext доступны без реальных контактов.')
-  if (!policy.testOnly) warn('config.mailings.testOnly = false — SDK разрешает боевые отправки')
 })
 
 check('sdk.writes', 'Нет записи файлов через SDK', ({ error }) => {
@@ -1215,10 +1210,10 @@ if ((options['task-stage'] || 'build') !== 'design') check('owner.plan', 'Реш
   if (decision.status !== 'ready') error(decision.error || decision.status)
   else if (decision.authority === 'delegated-test') warn('Учебное решение исполнителя по поручению владельца; не является согласованием боевого процесса.')
 })
-if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о запуске', ({ error, warn }) => {
+if (options['task-stage'] === 'launch') check('owner.launch', 'Решение о запуске', ({ error }) => {
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch' })
-  if (decision.status !== 'ready') error(decision.error || decision.status)
-  else if (decision.authority === 'delegated-test') warn('Разрешён только учебный testOnly-запуск; для боевого нужен ответ владельца.')
+  if (decision.status === 'rehearsal') error('Разрешена репетиция. Для открытия процесса клиентам нужно решение владельца.')
+  else if (decision.status !== 'ready') error(decision.error || decision.status)
 })
 let testingReport = { status: 'not-checked', cases: [], errors: [], syncErrors: [] }
 try {

@@ -143,7 +143,7 @@ const designReview = (() => {
   catch (error) { return { status: 'needs-work', error: error.message } }
 })()
 const planApproved = planDecision.status === 'ready'
-const launchApproved = launchDecision.status === 'ready'
+const launchApproved = launchDecision.status === 'ready' && launchDecision.authority === 'owner'
 const buildReview = (() => {
   if (!planApproved || designReview.status !== 'ready') return null
   try { return commissionStatus({ root, slug, stage: 'build' }) }

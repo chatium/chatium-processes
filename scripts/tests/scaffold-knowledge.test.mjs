@@ -73,7 +73,7 @@ test('a new process starts on current main with test-only delivery and no recipi
   git('switch', 'main')
   const result = f.run()
   assert.equal(result.status, 0, result.stderr)
-  assert.deepEqual(JSON.parse(f.read('demo/.workspace.json')).config.mailings, { testOnly: true, testContacts: [] })
+  assert.deepEqual(JSON.parse(f.read('demo/.workspace.json')).config.mailings, { testOnly: false, testContacts: [] })
 })
 
 test('new process refuses a stale account base but permits a CLI-managed skill independent of account Git', t => {

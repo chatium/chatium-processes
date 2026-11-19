@@ -13,7 +13,7 @@ import { readSession, saveSession, saveTestPluginBranches, testSdk, redact, reda
 import { fetchRun, publishRun, recoverSequence, closeRun } from './lib/test-remote.mjs'
 
 const help = `node scripts/test.mjs <process> <status|run|show|record|logs|cleanup|reconcile|acknowledge|finding> [--root DIR]
-  run --case ID --scope FILE [--previous RUN]   выполнить опубликованный сценарий
+  run --case ID [--scope FILE] [--previous RUN]   выполнить опубликованный сценарий
   show --run RUN                              прочитать попытку и квитанции из Start
   record --case ID --evidence FILE             записать браузерную проверку
   logs --run RUN                              прочитать текущее состояние модулей и логи
@@ -62,17 +62,23 @@ try {
     const remote = git(root, ['ls-remote', '--heads', 'origin', `refs/heads/${run.branch}`]).split(/\s+/)[0]
     if (remote !== run.testedCommit) throw Error('Сначала опубликуйте проверяемый коммит в текущую ветку.')
     let scope = { contacts: [], channels: [] }
-    if (command === 'run') {
-      if (!options.scope || realpathSync(options.scope).startsWith(realpathSync(root) + '/')) throw Error('Файл получателей должен находиться вне Git-аккаунта.')
+    if (command === 'run' && options.scope) {
+      if (realpathSync(options.scope).startsWith(realpathSync(root) + '/')) throw Error('Файл получателей должен находиться вне Git-аккаунта.')
       scope = JSON.parse(readFileSync(options.scope, 'utf8'))
       if (!Array.isArray(scope.contacts) || !Array.isArray(scope.channels)) throw Error('Scope должен содержать contacts и channels.')
     }
     if (scope.plugins) saveTestPluginBranches(root, scope.plugins)
     if (testSdk(root, run.testedCommit, 'getProcessTestCapabilities').version !== 3) throw Error('Нужен совместимый протокол тестирования Start версии 3.')
     const session = testSdk(root, run.testedCommit, 'createProcessTestContext', { runId: run.runId, caseId: run.caseId, processPath: slug, branch: run.branch, testedCommit: run.testedCommit, sources: run.inputs.files, contacts: scope.contacts, channels: scope.channels, variants: scope.variants })
-    run.executedVersions = [{ module: 'account', commit: run.testedCommit, evidence: 'chatium-exec' }, ...Object.entries(session.scope.codeFingerprints || {}).map(([module, fingerprint]) => ({ module, fingerprint, evidence: 'sdk-source-fingerprint' }))]
-    saveSession(root, run.runId, { context: session.context, contacts: scope.contacts, channels: scope.channels, sequence: 0 })
-    saveRun(root, run, { create: true })
+    try {
+      run.executedVersions = [{ module: 'account', commit: run.testedCommit, evidence: 'chatium-exec' }, ...Object.entries(session.scope.codeFingerprints || {}).map(([module, fingerprint]) => ({ module, fingerprint, evidence: 'sdk-source-fingerprint' }))]
+      saveSession(root, run.runId, { context: session.context, contacts: scope.contacts, channels: scope.channels, sequence: 0 })
+      saveRun(root, run, { create: true })
+    } catch (error) {
+      // No worker or test operation has started yet. Close even if the local session could not be saved.
+      testSdk(root, run.testedCommit, 'closeProcessTestContext', session.context)
+      throw error
+    }
     let cleanup
     try {
       publishRun(root, run)
@@ -121,7 +127,7 @@ try {
         catch { console.error('Итог сохранён в приватном кэше; Start недоступен для публикации.') }
       }
       throw error
-    } finally { cleanup = closeRun(root, run.runId, run) }
+    } finally { cleanup = closeRun(root, run.runId, run, session.context) }
     const saved = fetchRun(root, slug, run.runId)
     console.log(JSON.stringify({ ...saved, cleanup }, null, 2))
     if (saved.effectiveStatus !== 'passed' || cleanup.some(c => c.status !== 'completed')) process.exitCode = 1

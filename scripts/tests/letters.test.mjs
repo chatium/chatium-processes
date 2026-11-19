@@ -21,7 +21,7 @@ test('scaffold creates policy without per-process sending or file-access endpoin
   for (const path of ['demo/actions/send-letter.ts','demo/actions/register.ts','demo/tests/ops.ts','.mailings/storage/read-letter.ts'])
     assert.equal(existsSync(join(f.root,path)),false,path)
   const ws = JSON.parse(readFileSync(join(f.root,'demo/.workspace.json'),'utf8'))
-  assert.deepEqual(ws.config.mailings,{testOnly:true,testContacts:[]})
+  assert.deepEqual(ws.config.mailings,{testOnly:false,testContacts:[]})
   f.put('.mailings/storage/read-letter.ts','existing reader')
   assert.equal(f.run('scaffold').status,0)
   assert.equal(readFileSync(join(f.root,'.mailings/storage/read-letter.ts'),'utf8'),'existing reader')

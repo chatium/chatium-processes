@@ -54,7 +54,7 @@ export function implementationStep({ hasKnowledge, hasPlan, prematureContent, de
     return step(7, checkPassed && taskStage === 'launch'
       ? 'Я проверю, какие части процесса действительно включены для клиентов.'
       : 'Я проверю условия согласованного запуска и устраню то, что мешает включению.')
-  if (launchDecision.status === 'ready' && launchDecision.authority === 'delegated-test')
+  if (launchDecision.status === 'rehearsal')
     return step(7, 'Разрешён только учебный запуск. Я сверю, что ещё нужно для запуска с клиентами.')
   if (!checkPassed || taskStage !== 'test') return step(6, 'Я сверю итог проверки и устраню оставшиеся замечания.')
   if (launchDecision.status === 'declined') return step(7, 'Запуск отложен по вашему решению.')
