@@ -90,9 +90,11 @@ try {
   }
 } catch { /* Without a confirmed link the step and next action still apply. */ }
 
+const previewHint = 'При работе с доской и перед каждым сообщением владельцу открой доску текущей ветки в правой панели превью. Если она уже видна, оставь открытой. Порядок открытия — build/preview.md.'
 if (!existsSync(join(dir, '.workspace.json'))) {
   if (sharedBoard?.snapshot) {
     say(`Локального каркаса ${slug} нет, но сохранённая доска существует. Проверь рабочую копию и ветку; не создавай процесс повторно.`)
+    if (accountRemote) say(previewHint)
     say(messageFooter({ label: 'уточняю', next: 'Я сверю материалы процесса с выбранной доской.' }, accountRemote, boardPath))
   } else {
     say(`Локального каркаса ${slug} нет. Для нового процесса начни с шага 1 из 7 — Вводные о бизнесе. Создай каркас —`)
@@ -327,6 +329,7 @@ summary.push(`Следующая команда: ${nextCommand}`,
   `Результат этапа для владельца: ${progress.deliverable}`)
 summary.push(boardPath ? `Карта (путь в аккаунте, доступность проверяется отдельно): ${boardPath}` :
   'Ссылка на карту не определена: уточни рабочую ветку; маршрут — build/preview.md.')
+if (accountRemote) summary.push(previewHint)
 summary.push('В подписи после ссылки на доску укажи текущий шаг и ближайшее действие с исполнителем. Уточни действие по реальным задачам и вопросам владельцу.', '')
 out.splice(1, 0, ...summary)
 
