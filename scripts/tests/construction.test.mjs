@@ -28,12 +28,13 @@ function fixture(t){
     return {saved:true}}
   return{root,put,git,map,state,board,calls,execute}
 }
-test('offline resolver is pinned and requires all acceptance gates',()=>{
+test('offline resolver is pinned and keeps block and process acceptance separate',()=>{
   const code=readFileSync(new URL('../lib/build-state.mjs',import.meta.url),'utf8'),body=code.match(/\/\/ BEGIN SHARED BUILD RESOLVER\n([\s\S]+?)\n  \/\/ END SHARED BUILD RESOLVER/)[1]
-  assert.equal(digest(body),buildContractFingerprint)
+  const processBody=code.match(/\/\/ BEGIN SHARED PROCESS ACCEPTANCE\n([\s\S]+?)\n  \/\/ END SHARED PROCESS ACCEPTANCE/)[1]
+  assert.equal(digest([body,processBody].join('\n')),buildContractFingerprint)
   const gate=id=>({id,title:id,state:'passed',details:[],evidence:[]}),facts={source:'present',tasks:[{id:'W001',status:'done',acceptance:'accepted',title:'Page',details:[]}],gates:['tasks','review'].map(gate),blockers:[]}
   const common=['technical','typecheck','task-structure','knowledge-build','architecture','implementation','owner-plan'].map(gate)
-  assert.equal(resolveBuildState(facts,common).status,'built');assert.equal(resolveBuildState(facts,[]).status,'in-progress')
+  assert.equal(resolveBuildState(facts,common).status,'built');assert.equal(resolveBuildState(facts,[]).status,'built')
   assert.equal(resolveBuildState({...facts,gates:[...facts.gates,{...gate('unpublished'),state:'pending'}]},common).status,'in-progress')
 })
 test('checkpoint publishes metadata, stable request ID and no working source; retry does not repeat task mutation',async t=>{
@@ -61,6 +62,8 @@ test('evidence includes code checks, excludes launch-only conditions and refuses
   const proof=collectBuildEvidence({root:f.root,slug:'demo',map:f.map,checks:[{id:'automations',title:'Automations',ok:false,errors:['Bad code']},{id:'process.testing',ok:false,errors:['No run']}]})
   assert.equal(proof.assessment.gates.find(g=>g.id==='technical').state,'failed');assert.deepEqual(proof.nodes.get('page').blockers,[])
   assert.equal(proof.nodes.get('page').tasks[0].acceptance,'pending')
+  assert.ok(proof.assessment.gates.some(g => g.id === 'architecture' && g.state !== 'passed'))
+  assert.ok(!proof.assessment.gates.some(g => g.id === 'inputs'), 'missing reports are pending reviews, not invalid source evidence')
   f.put('demo/tasks/W001.json',{id:'W001',title:'Page',targetNode:'page',stage:'build',status:'done',revision:2,expectedOutputs:[{path:'demo/page.ts'}]})
   const changed=collectBuildEvidence({root:f.root,slug:'demo',map:f.map,checks:[]});assert.equal(changed.nodes.get('page').tasks[0].acceptance,'stale')
   assert.ok(changed.assessment.inputs.some(input=>input.path==='demo/page.ts'))

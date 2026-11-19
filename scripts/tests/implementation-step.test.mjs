@@ -6,7 +6,7 @@ import { hasOpenBuildWork, implementationStep, messageFooter } from '../lib/impl
 const reviewed = {
   hasKnowledge: true, hasPlan: true, designReady: true, planDecision: { status: 'ready' },
   openTasks: false, buildReady: true, currentNodes: [{ status: 'built' }],
-  constructionStatus: 'current', testingStatus: 'passed', checkPassed: true,
+  constructionStatus: 'current', processAcceptance: 'passed', testingStatus: 'passed', checkPassed: true,
   taskStage: 'test', launchDecision: { status: 'missing' },
 }
 
@@ -51,6 +51,7 @@ test('drafts, stale results, a manual stage override and a rehearsal cannot adva
   const label = facts => implementationStep({ ...reviewed, ...facts }).label
   for (const facts of [
     { currentNodes: Array.from({ length: 13 }, () => ({ status: 'in-progress' })) },
+    { processAcceptance: 'failed' }, { processAcceptance: undefined },
     { currentNodes: null }, { currentNodes: [] }, { constructionStatus: 'stale' },
   ]) assert.equal(label({ ...facts, taskStage: 'launch', launchDecision: accepted }), '5 из 7 — Приёмка')
   assert.equal(label({ testingStatus: 'incomplete', launchDecision: accepted }), '6 из 7 — Тестирование')

@@ -14,7 +14,7 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const limit = values => values.slice(0, 12).map(value => String(value).slice(0, 1000))
 const gate = (id, title, state, details = [], evidence = []) => ({ id, title, state, details: limit(details), evidence })
 const inside = (path, source) => path === source.replace(/\/$/, '') || path.startsWith(source.replace(/\/$/, '') + '/')
-const separate = new Set(['tasks', 'creative', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.plan.board', 'owner.launch', 'owner.launch.board', 'process.testing', 'board.status', 'board.testing', 'launch.variables', 'owner.questions', 'agents.review', 'typecheck'])
+const separate = new Set(['tasks', 'creative', 'creative.review', 'knowledge.review', 'implementation.review', 'reviews', 'owner.plan', 'owner.plan.board', 'owner.launch', 'owner.launch.board', 'process.testing', 'board.status', 'board.acceptance', 'board.process-acceptance', 'board.testing', 'launch.variables', 'owner.questions', 'agents.review', 'typecheck'])
 const runtime = path => /\.(?:[cm]?[jt]sx?|vue|json|ya?ml|css|scss|svg)$/.test(path) && !/\/(?:tasks|reviews|decisions|tests)\//.test(path)
 
 /** Uses the same acceptance and review functions as the CLI; no second acceptance engine. */
@@ -24,6 +24,12 @@ export function collectBuildEvidence({ root, slug, map, checks = [] }) {
   let work
   const gates = [], nodes = new Map(), inputs = new Set([`${slug}/process.yaml`, `${slug}/.workspace.json`])
   const warnings = []
+  // Pending reviews can name a report that has not been written yet.
+  const trackReport = result => {
+    if (!result.path) return
+    const path = referencePath(result.path)
+    if (result.status === 'ready' || existsSync(join(root, path))) inputs.add(path)
+  }
   try {
     work = taskReadiness({ root, slug, stage: 'build' })
     gates.push(gate('task-structure', 'Связность рабочих задач', !work.enabled ? 'pending' : work.structuralErrors?.length ? 'failed' : 'passed',
@@ -38,16 +44,16 @@ export function collectBuildEvidence({ root, slug, map, checks = [] }) {
   const typecheck = checks.find(check => check.id === 'typecheck')
   gates.push(gate('typecheck', 'Проверка типов аккаунта', typecheck ? typecheck.ok ? 'passed' : 'failed' : 'pending',
     typecheck?.errors || ['Для подтверждения сборки выполните check --typecheck --publish-snapshot.']))
-  let reviews = []
+  let reviews = [], reviewError
   try { reviews = commissionStatus({ root, slug, stage: 'build' }).requirements }
-  catch (error) { gates.push(gate('reviews', 'Комиссия сборки', 'unavailable', [error.message])) }
+  catch (error) { reviewError = error.message; gates.push(gate('reviews', 'Комиссия сборки', 'unavailable', [reviewError])) }
   for (const requirement of reviews) {
-    if (requirement.path) inputs.add(referencePath(requirement.path))
+    trackReport(requirement)
     if (!requirement.nodeId) gates.push(reviewGate(requirement))
   }
   try {
     const decision = ownerDecisionStatus({ root, slug, kind: 'plan' })
-    if (decision.path) inputs.add(referencePath(decision.path))
+    trackReport(decision)
     gates.push(gate('owner-plan', 'Согласование проекта', decision.status === 'ready' ? 'passed' : decision.status === 'stale' ? 'stale' : 'pending',
       decision.error ? [decision.error] : []))
   } catch (error) { gates.push(gate('owner-plan', 'Согласование проекта', 'unavailable', [error.message])) }
@@ -56,11 +62,13 @@ export function collectBuildEvidence({ root, slug, map, checks = [] }) {
   for (const task of tasks) {
     const path = `${slug}/tasks/${task.id}.json`
     inputs.add(path)
+    const result = taskAcceptanceState(root, slug, task, work.plan, work.tasks, reviewCache)
+    acceptance.set(task.id, result)
+    if (result.state !== 'accepted') continue
     try { for (const input of expandedTaskInputs(root, { ...task, inputs: task.inputs || [] })) inputs.add(input.path) }
     catch (error) { warnings.push(error.message) }
     for (const output of task.result?.outputs || []) inputs.add(output.path)
     for (const criterion of task.result?.criteriaResults || []) for (const proof of criterion.evidence || []) inputs.add(proof.path)
-    acceptance.set(task.id, taskAcceptanceState(root, slug, task, work.plan, work.tasks, reviewCache))
   }
   // Source inventory invalidates technical evidence when a new implementation file is added.
   const prefixes = new Set([slug, map.knowledge || `.knowledge-base/processes/${slug}`, map.letters, ...(map.nodes || []).map(node => node.source), ...(map.links || []).map(link => link.via)].filter(Boolean))
@@ -100,9 +108,9 @@ export function collectBuildEvidence({ root, slug, map, checks = [] }) {
     const nodeGates = [gate('tasks', 'Приёмка реализации', taskState,
       !implementations.length ? ['Нет рабочей задачи реализации этого блока.'] : uncovered.length ? uncovered.map(path => `Нет задачи реализации для ${path}`) : summaries.filter(task => task.acceptance !== 'accepted')
         .map(task => `${task.id}: ${task.details[0] || (task.status === 'result-ready' ? 'результат ещё не принят' : task.status)}`))]
-    nodeGates.push(gate('review', 'Проверка результата и задания', nodeReviews.every(r => r.status === 'ready') ? 'passed'
+    nodeGates.push(gate('review', 'Проверка результата и задания', reviewError ? 'unavailable' : nodeReviews.every(r => r.status === 'ready') ? 'passed'
       : nodeReviews.some(r => r.blocking?.length) ? 'failed' : nodeReviews.some(r => r.status === 'stale') ? 'stale' : 'pending',
-      nodeReviews.filter(r => r.status !== 'ready').flatMap(r => [r.error || `${r.id}: ${r.status}`, ...(r.blocking || []).map(b => b.reason)])))
+      reviewError ? [reviewError] : nodeReviews.filter(r => r.status !== 'ready').flatMap(r => [r.error || `${r.id}: ${r.status}`, ...(r.blocking || []).map(b => b.reason)])))
     const path = safeTaskPath(root, node.source.replace(/\/$/, ''), { mayBeMissing: true })
     const blockers = (map.needsInput || []).filter(item => (!item.nodeId || item.nodeId === node.id) && Array.isArray(item.blocks)
       && item.blocks.some(stage => stage === 'design' || stage === 'build')).map(item => ({ title: item.title, blocks: item.blocks }))
@@ -128,7 +136,7 @@ export function collectBuildEvidence({ root, slug, map, checks = [] }) {
 
 function reviewGate(requirement) {
   const state = requirement.status === 'ready' ? 'passed' : requirement.status === 'stale' ? 'stale'
-    : requirement.blocking?.length ? 'failed' : 'pending'
+    : requirement.status === 'invalid' ? 'unavailable' : requirement.status === 'needs-work' || requirement.blocking?.length ? 'failed' : 'pending'
   return gate(requirement.id, `Ревью: ${requirement.id}`, state,
     [requirement.error, ...(requirement.blocking || []).map(issue => issue.reason)].filter(Boolean))
 }

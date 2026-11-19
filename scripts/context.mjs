@@ -271,7 +271,8 @@ const progress = implementationStep({
   prematureContent: report?.checks.some(check => check.id === 'design.content' && !check.ok),
   hasKnowledge: kbFilled.length > 0, hasPlan: Boolean(plan && realTasks.length && map?.nodes?.length),
   designReady: designReview.status === 'ready', planDecision, openTasks: openBuildWork,
-  buildReady: buildReview?.status === 'ready', currentNodes, constructionStatus: report?.snapshot?.construction?.status,
+  buildReady: buildReview?.status === 'ready', processAcceptance: report?.snapshot?.construction?.processAcceptance,
+  currentNodes, constructionStatus: report?.snapshot?.construction?.status,
   testingStatus: report?.testing?.status, checkPassed: result.status === 0 && !checkError, taskStage, launchDecision,
 })
 const summary = [`Процесс: ${map?.title || slug} (${slug}/)`, '', messageFooter(progress, accountRemote, boardPath), '', stepGuidance(progress), '',
@@ -281,6 +282,11 @@ if (currentNodes?.length) {
   const drafts = currentNodes.every(node => ['present', 'missing'].includes(node.build?.source))
     ? `${currentNodes.filter(node => node.build.source === 'present').length} из ${currentNodes.length}` : 'неизвестно'
   summary.push(`По актуальной доске: собрано в черновике — ${drafts}; прошли приёмку — ${acceptedCount} из ${currentNodes.length}.`)
+  const state = report.snapshot.construction?.status === 'current' ? report.snapshot.construction.processReview : undefined
+  const reviewLabels = { passed: 'пройдено', failed: 'есть замечания', pending: 'ожидается', stale: 'требует повторной проверки', unavailable: 'результат недоступен' }
+  summary.push(`Общее ревью процесса: ${reviewLabels[state] || 'пока не подтверждено'}.`)
+  if ((acceptedCount < currentNodes.length || report.snapshot.construction?.processAcceptance !== 'passed') && progress.number >= 4)
+    summary.push('Для сдачи нужны приёмка всех блоков и общая проверка процесса. Продолжай доступную работу сейчас: исправь замечание, возобнови прерванное ревью и сверь результат с доской.')
   if (report.snapshot.construction?.status !== 'current')
     summary.push('Приёмка на доске требует сверки. Эти цифры показывают состояние доски; готовность к запуску не подтверждена.')
 } else summary.push('Сборка и приёмка блоков по актуальной доске не подтверждены.')
@@ -309,7 +315,8 @@ if (report) {
 if (checkError) summary.push(`Готовность не подтверждена: ${checkError}. Повтори проверку после устранения причины.`)
 if (options.offline || !report?.snapshot?.verified || !sharedBoard || boardChanged)
   summary.push('Доска или её актуальность не подтверждена. Это не полный результат для сдачи этапа.')
-const pendingReviewStage = progress.number === 3 && designReview.status !== 'ready' ? 'design' : buildReview?.status === 'needs-work' ? 'build' : null
+const pendingBuildReview = buildReview?.status === 'needs-work' || (progress.number === 5 && buildReview?.status !== 'ready')
+const pendingReviewStage = progress.number === 3 && designReview.status !== 'ready' ? 'design' : pendingBuildReview ? 'build' : null
 const nextCommand = pendingReviewStage
   ? `node .agents/skills/chatium-processes/scripts/reviews.mjs status ${slug} --stage ${pendingReviewStage}`
   : `node .agents/skills/chatium-processes/scripts/check.mjs ${slug} --task-stage ${taskStage} --knowledge-stage ${knowledgeStage}${options.offline ? ' --no-snapshot' : ''}`

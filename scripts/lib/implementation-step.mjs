@@ -4,7 +4,7 @@ const steps = [
   ['План и первая карта', 'Опиши путь клиента, назначение блоков, переходы, критерии и будущие пути файлов. До «Строим так?» готовь только структуру.', 'План и первая карта, на которой можно проследить путь клиента.', 'formats/plan-md.md', 'formats/process-yaml.md', 'build/procedure.md'],
   ['Ревью плана и «Строим так?»', 'Получи заключения методолога и архитектора на одной версии. Исправь замечания, проверь актуальную карту и покажи её владельцу. Дождись решения. Тексты, код и прогон — после согласования.', 'Проверенный план и карта для решения «Строим так?».', 'build/commission.md', 'build/procedure.md'],
   ['Сборка', 'Возьми карточку согласованного блока. Для клиентской страницы или серии нужны предложения профильных субагентов, конфигуратор и независимое ревью задания. Затем выполняй реализацию по build.md.', 'Собранные части и результаты их локальных проверок.', 'build/tasks-and-creative.md', 'specialists/guide.md', 'formats/creative-spec.md'],
-  ['Приёмка', 'Сверь критерии карточек с результатами, получи независимое ревью и отметь принятую работу на доске. Открытые замечания передай на исправление.', 'Сколько частей принято, что осталось исправить.', 'build/review.md', 'build/construction-statuses.md'],
+  ['Приёмка', 'Сверь критерии карточек с результатами, получи независимое ревью и отметь принятую работу на доске. При замечаниях продолжай исправления и повторяй затронутое ревью. Прерванное ревью возобнови. Публикуй приёмку каждого готового блока сразу. Для сдачи нужны все блоки и общее ревью процесса.', 'Сколько частей принято, что осталось исправить.', 'build/review.md', 'build/construction-statuses.md'],
   ['Тестирование', 'После приёмки пройди согласованные сценарии с тестовыми данными и сохрани результаты на доске.', 'Результаты проверки пути клиента и выявленные ограничения.', 'formats/test-records.md', 'build/procedure.md'],
   ['Согласование и запуск', 'Покажи результаты и точный объём включения. Дождись решения владельца «Запускаем?». После согласия включи разрешённое, проверь доступ клиентам, наблюдение и способ остановки.', 'До решения — что предлагается включить. После запуска — что действительно включено и проверено.', 'build/commission.md', 'build/preview.md', 'build/procedure.md', 'build/operations.md'],
 ]
@@ -32,7 +32,7 @@ export function hasOpenBuildWork(planTasks, cards) {
 }
 
 export function implementationStep({ hasKnowledge, hasPlan, prematureContent, designReady, planDecision,
-  openTasks, buildReady, currentNodes, constructionStatus, testingStatus, checkPassed,
+  openTasks, buildReady, processAcceptance, currentNodes, constructionStatus, testingStatus, checkPassed,
   taskStage, launchDecision }) {
   if (!hasKnowledge) return step(1, 'Я уточню вводные о бизнесе и запишу их в план работы.')
   if (!hasPlan) return step(2, 'Я опишу путь клиента и покажу его на доске.')
@@ -44,10 +44,11 @@ export function implementationStep({ hasKnowledge, hasPlan, prematureContent, de
     return step(3, 'От вас нужно решение по плану, чтобы я мог начать сборку.')
   }
   if (openTasks) return step(4, 'Я соберу и проверю оставшиеся части процесса.')
-  if (!buildReady) return step(5, 'Я организую независимую проверку собранных частей.')
+  if (!buildReady) return step(5, 'Я доведу независимую проверку до результата и исправлю замечания.')
   if (!currentNodes?.length) return step(5, 'Я сверю доску и уточню, какие части уже прошли приёмку.')
   if (constructionStatus !== 'current' || currentNodes.some(node => node.status !== 'built'))
     return step(5, 'Я проверю результаты сборки и отмечу на доске, какие части прошли приёмку.')
+  if (processAcceptance !== 'passed') return step(5, 'Я завершу общую проверку процесса и подтвержу её на доске.')
   if (testingStatus !== 'passed') return step(6, 'Я проверю оставшиеся сценарии пути клиента и запишу результаты.')
   if (launchDecision.status === 'ready' && launchDecision.authority === 'owner')
     return step(7, checkPassed && taskStage === 'launch'

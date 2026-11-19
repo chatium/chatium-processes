@@ -107,8 +107,15 @@ test('an omitted typecheck preserves current acceptance but changed inputs or fa
   expected.build.inputs[0].sha256 = 'new'
   assert.equal(inheritedTypecheck(expected, actual), null)
   assert.equal(compareConstruction(expected, actual).status, 'stale')
-  assert.equal(compareConstruction(expected, actual).nodes[0].expected, 'in-progress')
+  assert.equal(compareConstruction(expected, actual).nodes[0].expected, 'built', 'local task receipts still pass, but the board must be checked again')
   expected.build.inputs[0].sha256 = 'old'
+  const architecture = gates => gates.find(item => item.id === 'architecture')
+  architecture(expected.build.gates).state = architecture(actual.build.gates).state = 'pending'
+  const partial = compareConstruction(expected, actual)
+  assert.equal(partial.status, 'current')
+  assert.equal(partial.nodes[0].expected, 'built')
+  assert.equal(partial.processReview, 'pending')
+  assert.equal(partial.processAcceptance, 'pending')
   actual.nodes[0].build.tasks[0].status = 'running'
   assert.equal(compareConstruction(expected, actual).status, 'stale')
 })
@@ -460,4 +467,16 @@ if (code.includes('writeProcessSnapshot')) {
   assert.equal(differentBuild.report.snapshot.verified, false)
   assert.match(differentBuild.report.snapshot.error, /исполнен|коммит/i)
   delete env.TEST_EXECUTED_SHA
+})
+
+test('a current board showing partial acceptance cannot pass the delivery gate', async () => {
+  const { outstandingBoardAcceptance } = await import('../lib/freshness.mjs')
+  const nodes = [{ actual: 'built', expected: 'built' }, { id: 'welcome', title: 'Приветствие',
+    actual: 'in-progress', expected: 'in-progress', reason: 'Прервано ревью доставки.' }]
+  const board = { verified: true, construction: { status: 'current', nodes } }
+  assert.match(outstandingBoardAcceptance(board), /1 из 2.*Приветствие: Прервано ревью доставки/)
+  assert.equal(outstandingBoardAcceptance({ ...board, construction: { ...board.construction, nodes: nodes.slice(0, 1) } }), null)
+  for (const snapshot of [{ ...board, verified: false }, { verified: true, construction: { status: 'current', nodes: [] } },
+    { verified: true, construction: { status: 'stale', nodes: nodes.slice(0, 1) } }])
+    assert.match(outstandingBoardAcceptance(snapshot), /сверка/)
 })

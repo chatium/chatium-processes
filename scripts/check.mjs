@@ -7,7 +7,7 @@ import { readTestPlan, testStatus } from './lib/process-testing.mjs'
 //
 // Коды выхода: 0 — всё зелёное, 1 — есть провалы, 2 — не удалось запустить.
 import { prepareSnapshot, publishSnapshot } from './lib/snapshot.mjs'
-import { verifySnapshot, readBoard, inheritedTypecheck } from './lib/freshness.mjs'
+import { verifySnapshot, readBoard, inheritedTypecheck, outstandingBoardAcceptance } from './lib/freshness.mjs'
 import { codeReviewStatus } from './lib/code-review.mjs'
 import { commissionStatus } from './lib/commission.mjs'
 import { ownerDecisionStatus } from './lib/owner-decisions.mjs'
@@ -1302,6 +1302,17 @@ if (!options['no-snapshot']) check('board.status', 'Статусы блоков 
   if (!construction) return error('Статусы сборки на доске не подтверждены. Прочитайте доску и устраните причину недоступности.')
   for (const issue of construction.errors) error(issue)
 })
+if (!options['no-snapshot'] && (options['task-stage'] || 'build') !== 'design') {
+  check('board.acceptance', 'Все блоки прошли приёмку на доске', ({ error }) => {
+    const issue = outstandingBoardAcceptance(snapshotResult)
+    if (issue) error(issue)
+  })
+  check('board.process-acceptance', 'Общая проверка процесса на доске', ({ error }) => {
+    if (!snapshotResult.verified || snapshotResult.construction?.status !== 'current' ||
+        snapshotResult.construction.processAcceptance !== 'passed')
+      error('Заверши общее ревью и проверки процесса, опубликуй результат и сверь его с доской.')
+  })
+}
 if (options['task-stage'] === 'launch') check('owner.launch.board', 'Согласование текущей доски владельцем', ({ error }) => {
   if (!snapshotResult.verified) return error('Нельзя подтвердить показанную владельцу доску без актуального снимка.')
   const decision = ownerDecisionStatus({ root, slug, kind: 'launch', currentBoardRevision: snapshotResult.boardRevision })

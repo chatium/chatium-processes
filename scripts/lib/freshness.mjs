@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { assertPublishedState, SnapshotDrift } from './git-state.mjs'
 import { startExec } from './snapshot.mjs'
-import { resolveBuildState } from './build-state.mjs'
+import { resolveBuildState, processAcceptanceState } from './build-state.mjs'
 
 export async function readBoard(root, target, { usage, execute = startExec } = {}) {
   return execute(root,
@@ -51,7 +51,7 @@ export function compareConstruction(expected, actual, { taskStage = 'build', kno
   const common = (expected.build?.gates || []).map(gate => {
     // A read without --typecheck must not invalidate an unchanged, checked build.
     const saved = actual.build?.gates?.find(item => item.id === 'typecheck')
-    return gate.id === 'typecheck' && gate.state === 'pending' && sameInputs && saved ? saved : gate
+    return gate.id === 'typecheck' && gate.state === 'pending' && sameInputs && actual.build.checkedCommit === expected.commit && saved ? saved : gate
   })
   if (actual.build?.kind !== 'check') errors.push('На доске не опубликованы проверки и приёмка сборки; наличие снимка сборки их не заменяет.')
   else if (!sameInputs) errors.push('Приёмка на доске относится к другим входам или контракту проверки. Опубликуйте актуальный check.')
@@ -63,7 +63,7 @@ export function compareConstruction(expected, actual, { taskStage = 'build', kno
     if (!node.build || !stored.build) { errors.push(`${node.id}: факты сборки на доске недоступны.`); continue }
     const local = resolveBuildState(node.build, common)
     const progress = stored.progress || []
-    const server = resolveBuildState(stored.build, actual.build?.gates || [])
+    const server = resolveBuildState(stored.build, actual.build?.kind === 'check' ? actual.build.gates : undefined)
     if (progress.length) {
       errors.push(`${node.id}: на доске есть неопубликованная работа (${progress.map(item => `${item.taskId}: ${item.state}`).join(', ')}). Сверьте construction.mjs sync; чужую работу не удаляйте.`)
     } else if (stored.status !== local.status ||
@@ -79,7 +79,10 @@ export function compareConstruction(expected, actual, { taskStage = 'build', kno
   }
   if (nodes.some(node => node.expected === 'in-progress' && node.tasks.some(task => task.status === 'result-ready')))
     warnings.push('Есть result-ready: проверьте результат и выполните tasks.mjs accept; одно наличие кода не завершает задачу.')
+  const checkedGates = actual.build?.kind === 'check' ? actual.build.gates : undefined
   return { status: errors.length ? 'stale' : 'current', nodes, errors, warnings,
+    processReview: processAcceptanceState(checkedGates, 'review'),
+    processAcceptance: processAcceptanceState(checkedGates, 'all'),
     next: errors.length ? [`node .agents/skills/chatium-processes/scripts/construction.mjs sync ${expected.processPath}`, next] : [] }
 }
 
@@ -104,6 +107,18 @@ export function compareSnapshot(expected, board, expectedRevision) {
       actual.build.checkedCommit !== expected.build?.checkedCommit || actual.build.checkedAt !== expected.build?.checkedAt ||
       !isDeepStrictEqual(actual.build.inputs, expected.build?.inputs)))
     throw new SnapshotDrift('После записи доказательства сборки изменились. Прочитайте доску и повторите check.')
+}
+
+/** A synchronized board can accurately report an unfinished build. */
+export function outstandingBoardAcceptance(snapshot) {
+  const construction = snapshot?.construction
+  if (!snapshot?.verified || construction?.status !== 'current' || !construction.nodes?.length)
+    return 'Нужна актуальная сверка приёмки с доской этой ветки.'
+  const nodes = construction.nodes
+  const pending = nodes.filter(node => node.actual !== 'built' || node.expected !== 'built')
+  if (!pending.length) return null
+  const first = pending[0]
+  return `Принято блоков: ${nodes.length - pending.length} из ${nodes.length}. Продолжай приёмку. ${first.title || first.id}: ${first.reason}`
 }
 
 export async function verifySnapshot(root, expected, { expectedRevision, reader = readBoard, taskStage, knowledgeStage } = {}) {
