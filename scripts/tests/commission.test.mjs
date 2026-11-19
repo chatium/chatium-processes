@@ -80,6 +80,52 @@ test('commission does not follow a linked source directory', t => {
   assert.throws(() => reviewRequirements({ root, slug: 'demo', stage: 'test' }), /Ссылка в исходниках/)
 })
 
+test('a large content module permits architecture preparation and preserves analytics evidence', t => {
+  const root = fixture(t)
+  const relative = 'demo/shared/content.ts'
+  mkdirSync(join(root, 'demo/shared'))
+  const content = 'export const content = "' + 'т'.repeat(73_000) + '"\n'
+  writeFileSync(join(root, relative), content)
+  const needsAnalytics = () => reviewRequirements({ root, slug: 'demo', stage: 'build' })
+    .some(item => item.role === 'analytics')
+  assert.equal(needsAnalytics(), false)
+  const directory = mkdtempSync(join(tmpdir(), 'process-large-source-packet-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const prepare = spawnSync(process.execPath, [reviewsCli, 'prepare', 'demo', '--stage', 'build',
+    '--role', 'architecture', '--root', root, '--out', directory], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(prepare.status, 0, prepare.stderr)
+  assert.equal(JSON.parse(readFileSync(join(directory, 'packet.json'), 'utf8')).stage, 'architecture')
+
+  const withQuery = content + 'export const report = () => queryAi(ctx, {})\n'
+  writeFileSync(join(root, relative), withQuery)
+  assert.equal(needsAnalytics(), true)
+  const packet = makeAnalyticsReviewPacket({ root, slug: 'demo' })
+  assert.equal(packet.files.find(file => file.path === relative)?.content, withQuery)
+})
+
+test('analytics packet bounds the combined source size before including partial evidence', t => {
+  const root = fixture(t)
+  for (const name of ['content.ts', 'translations.ts'])
+    writeFileSync(join(root, 'demo', name), Buffer.alloc(4 * 1024 * 1024 + 1, 32))
+  assert.throws(() => makeAnalyticsReviewPacket({ root, slug: 'demo' }), /Общий объём исходников/)
+})
+
+test('analytics lookup preserves word boundaries and whitespace across reads', t => {
+  const root = fixture(t)
+  const path = join(root, 'demo/report.ts')
+  const needsAnalytics = code => {
+    writeFileSync(path, code)
+    return reviewRequirements({ root, slug: 'demo', stage: 'build' }).some(item => item.role === 'analytics')
+  }
+  const boundary = 64 * 1024
+  for (const offset of [0, 1, 3, 7, 8]) {
+    const pad = ' '.repeat(boundary - offset - 1)
+    const call = 'queryAi' + '\u2003'.repeat(boundary) + '(ctx)'
+    assert.equal(needsAnalytics(pad + ' ' + call), true)
+    assert.equal(needsAnalytics(pad + '_' + call), false)
+  }
+})
+
 test('analytics sources require an independent conclusion with question-specific evidence', t => {
   const root = fixture(t)
   mkdirSync(join(root, '.knowledge-base/processes/demo'), { recursive: true })
@@ -166,8 +212,7 @@ test('a blocking architecture conclusion keeps the design commission red', t => 
     answers: packet.questions.map((question, index) => ({ id: question.id, status: 'covered',
       reason: 'Синтетический ответ для проверки комиссии.',
       evidence: question.id === 'data'
-        ? [{ path: 'demo/PLAN.md', quote: 'Менеджер отвечает на заявку.' },
-          { path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' }]
+        ? [{ path: 'demo/PLAN.md', quote: 'Менеджер отвечает на заявку.' }]
         : [{ path: article, quote: quote.slice(index % 3) }] })) }
   Object.assign(report.answers.find(answer => answer.id === 'journey'), {
     status: 'gap', priority: 'blocking', reason: 'Путь отказа клиента пропущен.',

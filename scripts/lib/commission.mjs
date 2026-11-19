@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs'
+import { StringDecoder } from 'node:string_decoder'
 import { join } from 'node:path'
 import { architectureReviewStatus } from './architecture-review.mjs'
 import { agentReviewStatus } from './agent-review.mjs'
@@ -13,6 +14,26 @@ import { parseYaml } from './yaml.mjs'
 import { needsCreativeReview } from './page-mode.mjs'
 
 export const COMMISSION_STAGES = ['design', 'build', 'test', 'launch']
+
+function containsAnalyticsCall(path) {
+  const buffer = Buffer.allocUnsafe(64 * 1024)
+  const decoder = new StringDecoder('utf8')
+  const fd = openSync(path, 'r')
+  let carry = ''
+  try {
+    let count
+    while ((count = readSync(fd, buffer, 0, buffer.length)) > 0) {
+      const text = (carry + decoder.write(buffer.subarray(0, count))).replace(/\s+/g, ' ')
+      if (/\bqueryAi ?\(/.test(text)) return true
+      // Keep the preceding character, identifier and optional space. A cut
+      // inside a longer identifier must not create a new word boundary.
+      carry = text.length > 9 ? '_' + text.slice(-9) : text
+    }
+    return false
+  } finally {
+    closeSync(fd)
+  }
+}
 
 export function reviewRequirements({ root, slug, stage = 'test' }) {
   if (!isProcessSlug(slug) || !COMMISSION_STAGES.includes(stage)) throw Error('Нужны процесс и этап design, build, test или launch.')
@@ -45,12 +66,9 @@ export function reviewRequirements({ root, slug, stage = 'test' }) {
   if (agents && stage !== 'design') requirements.push({ id: 'agents', role: 'agents', stage })
   if (stage !== 'design') {
     const hasSpec = existsSync(join(root, slug, 'specs/analytics.yaml'))
-    const hasQuery = processSourceFiles(root, join(root, slug)).some(path => {
-      if (!/\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path)) return false
-      if (statSync(path).size > 80_000) throw Error(`Исходник ${rel(root, path)} слишком велик для определения комиссии.`)
-      return /\bqueryAi\s*\(/.test(readFileSync(path, 'utf8'))
-    })
-    if (hasSpec || hasQuery) requirements.push({ id: 'analytics', role: 'analytics', stage })
+    const sources = processSourceFiles(root, join(root, slug))
+    if (hasSpec || sources.some(path => /\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path) && containsAnalyticsCall(path)))
+      requirements.push({ id: 'analytics', role: 'analytics', stage })
   }
   return requirements
 }

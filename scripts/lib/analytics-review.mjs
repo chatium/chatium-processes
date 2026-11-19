@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
+import { IMPLEMENTATION_LIMITS } from './implementation.mjs'
 import { collectKnowledge } from './knowledge.mjs'
 import { canonicalTarget, validateReview } from './knowledge-review.mjs'
 import { isProcessSlug, rel, SKILL_DIR } from './project.mjs'
@@ -43,12 +44,20 @@ export function makeAnalyticsReviewPacket({ root, slug, skillDir = SKILL_DIR }) 
     try { JSON.parse(content) } catch { throw Error(`Доказательство аналитики ${path} не является корректным JSON.`) }
     return { path, content }
   })
-  const codeFiles = processSourceFiles(root, join(root, slug)).filter(path => /\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path)).map(path => {
-    if (!realpathSync(path).startsWith(account + sep) || !statSync(path).isFile() || statSync(path).size > 80_000)
-      throw Error(`Исходник ${rel(root, path)} недоступен или слишком велик для ревью.`)
-    return { path: rel(root, path), content: readFileSync(path, 'utf8') }
+  const sources = processSourceFiles(root, join(root, slug)).filter(path => /\.(?:[cm]?jsx?|[cm]?tsx?|vue)$/.test(path))
+  if (sources.length > 100) throw Error('Слишком много исходников для ревью аналитики.')
+  let remaining = IMPLEMENTATION_LIMITS.bytes
+  const codeFiles = sources.map(path => {
+    const stat = statSync(path)
+    if (!realpathSync(path).startsWith(account + sep) || !stat.isFile())
+      throw Error(`Исходник ${rel(root, path)} недоступен для ревью аналитики.`)
+    const overBudget = () => Error(`Общий объём исходников для ревью аналитики превышает ${IMPLEMENTATION_LIMITS.bytes} байт при чтении ${rel(root, path)}.`)
+    if (stat.size > remaining) throw overBudget()
+    const data = readFileSync(path)
+    remaining -= data.length
+    if (remaining < 0) throw overBudget()
+    return { path: rel(root, path), content: data.toString('utf8') }
   })
-  if (codeFiles.length > 100) throw Error('Слишком много исходников для ревью аналитики.')
   const rubric = JSON.parse(readFileSync(join(skillDir, 'build/analytics-review-questions.json'), 'utf8'))
   if (rubric.version !== 4 || !Array.isArray(rubric.questions) || !rubric.questions.length ||
       new Set(rubric.questions.map(question => question.id)).size !== rubric.questions.length ||

@@ -167,7 +167,7 @@ test('covered data answer requires citations from plan, workspace, table, event 
   )
   assert.throws(() => validateReview(report, packet), /отдельные доказательства/)
   dataAnswer.evidence.push({ path: 'demo/.workspace.json', quote: '"variables":{}' })
-  dataAnswer.evidence.push({ path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' })
+  assert.ok(!packet.files.some(file => file.path.endsWith('/architecture-source-inventory.txt')))
   assert.equal(validateReview(report, packet).status, 'ready')
   const links = report.answers.find(answer => answer.id === 'links')
   Object.assign(links, { status: 'covered', reason: 'Переходы якобы согласованы.',

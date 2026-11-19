@@ -34,7 +34,16 @@ test('implementation starts only after approved plan and accepted design conclus
   put(article, `---\ntitle: Запись\n---\n${quote}\n`)
   put('demo/.workspace.json', { type: 'process', processEngine: 'processes-v2' })
   put('demo/PLAN.md', '# Demo\n\n## Задачи\n- [ ] T1 Форма\n  - T1.A1 [build] Корректная заявка записана.\n')
-  put('demo/process.yaml', 'title: Demo\nknowledge: .knowledge-base/processes/demo\nnodes: []\nlinks: []\n')
+  put('demo/process.yaml', [
+    'title: Demo', 'knowledge: .knowledge-base/processes/demo', 'nodes:',
+    '  - {id: form, kind: page, source: demo/form.tsx}',
+    '  - {id: intake, kind: external, serviceRef: intake, source: demo/api/intake.ts}',
+    'links:', '  - {from: form, to: intake}', '',
+  ].join('\n'))
+  put('demo/specs/services.yaml', [
+    'version: 1', 'services:', '  - id: intake', '    nodeId: intake', '    input: email',
+    '    output: requestId', '    access: public', '    repeat: reuse requestId', '    errors: [invalid email]', '',
+  ].join('\n'))
   put('demo/tasks/index.json', { version: 1 })
   put('task.json', {
     version: 1, id: 'W001', planTask: 'T1', title: 'Собрать форму', targetNode: 'form',
@@ -65,8 +74,10 @@ test('implementation starts only after approved plan and accepted design conclus
       reason: 'Синтетический ответ для проверки перехода этапа.',
       evidence: question.id === 'data' && packet.files.some(file => file.path === 'demo/.workspace.json')
         ? [{ path: 'demo/PLAN.md', quote: 'Корректная заявка записана.' },
-          { path: 'demo/.workspace.json', quote: '"processEngine": "processes-v2"' },
-          { path: 'demo/architecture-source-inventory.txt', quote: 'Исходники API, инструментов и таблиц' }]
+          { path: 'demo/.workspace.json', quote: '"processEngine": "processes-v2"' }]
+        : question.id === 'site-and-services'
+        ? [{ path: 'demo/process.yaml', quote: 'serviceRef: intake' },
+          { path: 'demo/specs/services.yaml', quote: 'output: requestId' }]
         : question.id === 'consistency' && packet.files.some(file => file.path === 'demo/tasks/W001.json')
         ? [{ path: 'demo/PLAN.md', quote: 'Корректная заявка записана.' },
           { path: 'demo/tasks/W001.json', quote: 'Заявка записана' }]
@@ -75,6 +86,9 @@ test('implementation starts only after approved plan and accepted design conclus
   assert.equal(recordReview({ root, slug: 'demo', stage: 'design', packet: knowledge,
     report: reportFor(knowledge), agentReference: 'unit-test-only:methodology' }).status, 'ready')
   const architecture = makeArchitectureReviewPacket({ root, slug: 'demo' })
+  assert.ok(!architecture.files.some(file => file.path.endsWith('/architecture-source-inventory.txt')))
+  assert.deepEqual(architecture.questions.find(q => q.id === 'site-and-services').requiredEvidenceGroups,
+    [{ paths: ['demo/process.yaml'] }, { paths: ['demo/specs/services.yaml'] }])
   const red = reportFor(architecture)
   Object.assign(red.answers.find(answer => answer.id === 'journey'), {
     status: 'gap', priority: 'blocking', reason: 'Не описан путь отказа.',
